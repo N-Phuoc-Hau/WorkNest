@@ -1,3 +1,75 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+*.builds
+*.log
+*.resharper
+*.dotsettings
+
+# Packages
+packages/
+bins/
+obj/
+
+# Rider
+.idea/
+*.iml
+
+# Misc
+*.pid
+*.booproj
+*.lsproj
+*.xproj
+*.fsproj
+
+# ASP.NET Core
+/bin/
+/obj/
+/node_modules/
+/wwwroot/lib/
+*.db
+appsettings*.json
+
+# Azure
+.azure/
+
+# Local History
+.history/
+
+# Test Results
+TestResults/
+
+# Nupkg
+*.nupkg
+
+# Workaround for https://github.com/dotnet/sdk/issues/1067
+**/project.lock.json
+
+# Thumbs.db
+Thumbs.db
+
+# User-specific files
+*.user
+
+# VS Code
+.vscode/
+
+# Docker
+docker-compose.override.yml
+
+# Kestrel
+*.pfx
+
+# Swashbuckle
+swagger.json
+
 # Miscellaneous
 *.class
 *.lock
@@ -6,8 +78,6 @@
 *.swp
 .buildlog/
 .history
-
-
 
 # Flutter repo-specific
 /bin/cache/
