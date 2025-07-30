@@ -1,11 +1,12 @@
 {
-    "name": "feworknest",
-    "short_name": "feworknest",
+    "name": "WorkNest - Job Search Platform",
+    "short_name": "WorkNest",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "WorkNest - Nền tảng tìm kiếm việc làm và tuyển dụng",
+    "gcm_sender_id": "YOUR_SENDER_ID",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

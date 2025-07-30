@@ -1,0 +1,27 @@
+
+Tìm kiếm việc làm: cho nhà tuyển dụng và ứng viên: Web, Mobile. Flutter, mysql, C#
+WorkNest – Nơi tìm kiếm việc làm
+1.	Chức năng:
+a.	Đăng nhập, Đăng ký
+b.	Đăng nhập bằng Google(Đang xem xét)
+c.	Đăng tin tuyển dụng
+i.	Đăng bài viết
+d.	Ứng tuyển
+i.	Tìm kiếm công việc phù hợp và gửi hồ sơ có sẵn hoặc thêm mới
+e.	Quản lý hồ sơ ứng viên
+i.	Cho phép lưu hồ sơ để ứng tuyển
+f.	Yêu thích công việc
+i.	Đưa vào trang yêu thích để có thể mọi lúc
+g.	Theo dõi, thông báo
+i.	Khi người dùng theo dõi HR thì khi đăng tin sẽ được gửi thông báo về mail
+h.	Chat thời gian thực
+i.	Dùng Firebase
+i.	Tìm kiếm hồ sơ, công việc
+i.	Gợi ý những công việc phù hợp với ứng viên
+ii.	Gợi ý những nhân sự phù hợp cho HR
+j.	Đánh giá 
+i.	Đánh giá hồ sơ ứng viên
+ii.	Đánh giá chất lượng của công ty
+2.	Công nghệ:
+BackEnd C#: ASP.NET Core Web API, Entity Framework Core, JWT Token, MySQL
+FrontEnd Flutter: MultiPlatform, JWT Token, GoRouter, Material 3, Responsive UI, Firebase Cloud Messaging (FCM), Firebase + Firebase Firestore
