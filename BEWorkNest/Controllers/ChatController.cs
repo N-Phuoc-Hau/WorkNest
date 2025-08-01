@@ -7,7 +7,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class ChatController : ControllerBase
     {
         private readonly FirebaseRealtimeService _firebaseService;

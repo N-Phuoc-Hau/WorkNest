@@ -17,11 +17,11 @@ class NotificationBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
     
-    if (user == null) {
+    if (user?.user == null) {
       return child;
     }
 
-    final notificationState = ref.watch(notificationProvider(user.id));
+    final notificationState = ref.watch(notificationProvider(user!.user!.id));
     final unreadCount = count ?? notificationState.unreadCount;
 
     if (unreadCount <= 0) {

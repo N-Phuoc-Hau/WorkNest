@@ -21,8 +21,8 @@ class ChatListScreen extends ConsumerWidget {
     }
 
     final chatState = ref.watch(chatProvider({
-      'userId': user.id,
-      'userType': user.role.toLowerCase(),
+      'userId': user.user?.id ?? '',
+      'userType': user.user?.role.toLowerCase() ?? '',
     }));
 
     return Scaffold(
@@ -65,9 +65,9 @@ class ChatListScreen extends ConsumerWidget {
                       ElevatedButton(
                         onPressed: () {
                           ref.read(chatProvider({
-                            'userId': user.id,
-                            'userType': user.role.toLowerCase(),
-                          })).clearError();
+                            'userId': user.user?.id ?? '',
+                            'userType': user.user?.role.toLowerCase() ?? '',
+                          }).notifier).clearError();
                         },
                         child: const Text('Thử lại'),
                       ),
@@ -108,9 +108,9 @@ class ChatListScreen extends ConsumerWidget {
                       onRefresh: () async {
                         // Refresh chat rooms
                         ref.read(chatProvider({
-                          'userId': user.id,
-                          'userType': user.role.toLowerCase(),
-                        })).clearError();
+                          'userId': user.user?.id ?? '',
+                          'userType': user.user?.role.toLowerCase() ?? '',
+                        }).notifier).clearError();
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.all(8),
@@ -119,8 +119,8 @@ class ChatListScreen extends ConsumerWidget {
                           final chatRoom = chatState.chatRooms[index];
                           return ChatRoomTile(
                             chatRoom: chatRoom,
-                            currentUserId: user.id,
-                            userType: user.role.toLowerCase(),
+                            currentUserId: user.user?.id ?? '',
+                            userType: user.user?.role.toLowerCase() ?? '',
                           );
                         },
                       ),

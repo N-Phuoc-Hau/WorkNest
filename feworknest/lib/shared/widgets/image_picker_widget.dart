@@ -25,7 +25,7 @@ class ImagePickerWidget extends ConsumerStatefulWidget {
   });
 
   @override
-  State<ImagePickerWidget> createState() => _ImagePickerWidgetState();
+  ConsumerState<ImagePickerWidget> createState() => _ImagePickerWidgetState();
 }
 
 class _ImagePickerWidgetState extends ConsumerState<ImagePickerWidget> {

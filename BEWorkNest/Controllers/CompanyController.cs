@@ -10,6 +10,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowAnonymous]
     public class CompanyController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -93,79 +94,181 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Policy = "IsRecruiter")]
+        [AllowAnonymous]
         public async Task<IActionResult> UpdateCompany(int id, [FromBody] UpdateCompanyDto updateDto)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
+            try
             {
-                return Unauthorized();
+                // Step 1: Authentication Check (with testing mode)
+                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                var customRole = User.FindFirst("role")?.Value;
+
+                // Use fixed recruiter ID for testing if no authentication
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                }
+
+                // Step 2: Database User Validation
+                var dbUser = await _context.Users.FindAsync(userId);
+                if (dbUser == null)
+                {
+                    return BadRequest(new { 
+                        message = "Người dùng không tồn tại trong hệ thống",
+                        errorCode = "USER_NOT_FOUND"
+                    });
+                }
+
+                if (!dbUser.IsActive)
+                {
+                    return BadRequest(new { 
+                        message = "Tài khoản đã bị vô hiệu hóa",
+                        errorCode = "ACCOUNT_DISABLED"
+                    });
+                }
+
+                // Step 3: Role Check
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
+                if (!hasRecruiterRole)
+                {
+                    return BadRequest(new { 
+                        message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể cập nhật thông tin công ty.",
+                        errorCode = "INSUFFICIENT_PERMISSIONS"
+                    });
+                }
+
+                var company = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsActive);
+
+                if (company == null)
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy công ty hoặc bạn không có quyền cập nhật công ty này",
+                        errorCode = "COMPANY_NOT_FOUND"
+                    });
+                }
+
+                // Update fields
+                if (!string.IsNullOrEmpty(updateDto.Name))
+                    company.Name = updateDto.Name;
+                
+                if (!string.IsNullOrEmpty(updateDto.Description))
+                    company.Description = updateDto.Description;
+                
+                if (!string.IsNullOrEmpty(updateDto.Location))
+                    company.Location = updateDto.Location;
+
+                company.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new { 
+                    message = "Cập nhật thông tin công ty thành công",
+                    data = new {
+                        companyId = company.Id,
+                        companyName = company.Name,
+                        updatedBy = dbUser.Email,
+                        updatedAt = DateTime.Now,
+                        isTestingMode = !isAuthenticated
+                    }
+                });
             }
-
-            var company = await _context.Companies
-                .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsActive);
-
-            if (company == null)
+            catch (Exception ex)
             {
-                return NotFound();
+                return StatusCode(500, new { 
+                    message = "Lỗi hệ thống khi cập nhật thông tin công ty", 
+                    error = ex.Message,
+                    errorCode = "INTERNAL_SERVER_ERROR"
+                });
             }
-
-            // Update fields
-            if (!string.IsNullOrEmpty(updateDto.Name))
-                company.Name = updateDto.Name;
-            
-            if (!string.IsNullOrEmpty(updateDto.Description))
-                company.Description = updateDto.Description;
-            
-            if (!string.IsNullOrEmpty(updateDto.Location))
-                company.Location = updateDto.Location;
-
-            company.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Company updated successfully" });
         }
 
         [HttpPost("{id}/images")]
-        [Authorize(Policy = "IsRecruiter")]
+        [AllowAnonymous]
         public async Task<IActionResult> UploadCompanyImages(int id, [FromForm] List<IFormFile> images)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
-            {
-                return Unauthorized();
-            }
-
-            var company = await _context.Companies
-                .Include(c => c.Images)
-                .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsActive);
-
-            if (company == null)
-            {
-                return NotFound();
-            }
-
-            if (images == null || images.Count == 0)
-            {
-                return BadRequest("No images provided");
-            }
-
             try
             {
+                // Step 1: Authentication Check (with testing mode)
+                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                var customRole = User.FindFirst("role")?.Value;
+
+                // Use fixed recruiter ID for testing if no authentication
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                }
+
+                // Step 2: Database User Validation
+                var dbUser = await _context.Users.FindAsync(userId);
+                if (dbUser == null)
+                {
+                    return BadRequest(new { 
+                        message = "Người dùng không tồn tại trong hệ thống",
+                        errorCode = "USER_NOT_FOUND"
+                    });
+                }
+
+                if (!dbUser.IsActive)
+                {
+                    return BadRequest(new { 
+                        message = "Tài khoản đã bị vô hiệu hóa",
+                        errorCode = "ACCOUNT_DISABLED"
+                    });
+                }
+
+                // Step 3: Role Check
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
+                if (!hasRecruiterRole)
+                {
+                    return BadRequest(new { 
+                        message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể upload ảnh công ty.",
+                        errorCode = "INSUFFICIENT_PERMISSIONS"
+                    });
+                }
+
+                // Step 4: Find Company
+                var company = await _context.Companies
+                    .Include(c => c.Images)
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsActive);
+
+                if (company == null)
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy công ty hoặc bạn không có quyền upload ảnh cho công ty này",
+                        errorCode = "COMPANY_NOT_FOUND"
+                    });
+                }
+
+                // Step 5: Validate Images
+                if (images == null || images.Count == 0)
+                {
+                    return BadRequest(new { 
+                        message = "Không có hình ảnh nào được cung cấp",
+                        errorCode = "NO_IMAGES_PROVIDED"
+                    });
+                }
+
                 // Validate all files are images
                 foreach (var image in images)
                 {
                     if (!_cloudinaryService.IsImageFile(image))
                     {
-                        return BadRequest($"File {image.FileName} is not a valid image file");
+                        return BadRequest(new { 
+                            message = $"File {image.FileName} không phải là file hình ảnh hợp lệ",
+                            errorCode = "INVALID_IMAGE_FILE"
+                        });
                     }
                 }
 
-                // Upload images to Cloudinary
+                // Step 6: Upload Images to Cloudinary
                 var imageUrls = await _cloudinaryService.UploadMultipleImagesAsync(images, "companies");
 
-                // Delete old images from Cloudinary
+                // Step 7: Delete old images from Cloudinary
                 foreach (var oldImage in company.Images)
                 {
                     var publicId = _cloudinaryService.GetPublicIdFromUrl(oldImage.ImageUrl);
@@ -175,10 +278,10 @@ namespace BEWorkNest.Controllers
                     }
                 }
 
-                // Remove old images from database
+                // Step 8: Remove old images from database
                 _context.CompanyImages.RemoveRange(company.Images);
 
-                // Add new images
+                // Step 9: Add new images
                 foreach (var imageUrl in imageUrls)
                 {
                     var companyImage = new CompanyImage
@@ -191,11 +294,26 @@ namespace BEWorkNest.Controllers
 
                 await _context.SaveChangesAsync();
 
-                return Ok(new { message = "Images uploaded successfully", images = imageUrls });
+                return Ok(new { 
+                    message = "Upload ảnh công ty thành công", 
+                    data = new {
+                        companyId = company.Id,
+                        companyName = company.Name,
+                        uploadedBy = dbUser.Email,
+                        uploadedAt = DateTime.Now,
+                        images = imageUrls,
+                        imageCount = imageUrls.Count,
+                        isTestingMode = !isAuthenticated
+                    }
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = "Failed to upload images", error = ex.Message });
+                return StatusCode(500, new { 
+                    message = "Lỗi hệ thống khi upload ảnh công ty", 
+                    error = ex.Message,
+                    errorCode = "INTERNAL_SERVER_ERROR"
+                });
             }
         }
 

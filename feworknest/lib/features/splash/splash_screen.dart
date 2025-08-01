@@ -60,8 +60,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         if (authState.isAuthenticated && authState.user != null) {
           _updateStatus('Chào mừng trở lại!');
           await Future.delayed(const Duration(milliseconds: 500));
-          // User is authenticated, go to main navigation
-          if (mounted) context.go('/main');
+          // User is authenticated, go to appropriate dashboard
+          final user = authState.user!;
+          if (mounted) {
+            if (user.role == 'Admin') {
+              context.go('/admin-dashboard');
+            } else if (user.isRecruiter) {
+              context.go('/recruiter-dashboard');
+            } else {
+              context.go('/candidate-dashboard');
+            }
+          }
         } else if (!hasSeenOnboarding) {
           _updateStatus('Chào mừng đến với WorkNest!');
           await Future.delayed(const Duration(milliseconds: 500));
@@ -70,14 +79,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         } else {
           _updateStatus('Chuyển đến trang chủ...');
           await Future.delayed(const Duration(milliseconds: 500));
-          // User has seen onboarding, go directly to main
-          if (mounted) context.go('/main');
+          // User has seen onboarding but not authenticated, go to guest dashboard
+          if (mounted) context.go('/guest-dashboard');
         }
       }
     } catch (e) {
       _updateStatus('Có lỗi xảy ra, đang thử lại...');
       await Future.delayed(const Duration(seconds: 1));
-      if (mounted) context.go('/main');
+      if (mounted) context.go('/guest-dashboard');
     }
   }
 

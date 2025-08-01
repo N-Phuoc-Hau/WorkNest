@@ -10,7 +10,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class ApplicationController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -23,13 +23,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> CreateApplication([FromForm] CreateApplicationDto createDto)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể nộp đơn ứng tuyển.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             // Check if job post exists
@@ -162,15 +189,42 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("my-applications")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetMyApplications(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể xem đơn ứng tuyển của mình.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var query = _context.Applications
@@ -232,13 +286,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPut("{id}/status")]
-        [Authorize(Policy = "IsRecruiter")]
+        [AllowAnonymous]
         public async Task<IActionResult> UpdateApplicationStatus(int id, [FromBody] UpdateApplicationStatusDto updateDto)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has recruiter role
+            var hasRecruiterRole = userRole == "recruiter" || customRole == "recruiter";
+            if (!hasRecruiterRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể cập nhật trạng thái đơn ứng tuyển.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var application = await _context.Applications
@@ -253,7 +334,10 @@ namespace BEWorkNest.Controllers
             // Check if current user is the recruiter of the job
             if (application.Job.RecruiterId != userId)
             {
-                return Forbid();
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Bạn chỉ có thể cập nhật đơn ứng tuyển cho công việc của mình.",
+                    errorCode = "NOT_JOB_OWNER"
+                });
             }
 
             if (Enum.TryParse<ApplicationStatus>(updateDto.Status, out var status))
@@ -268,21 +352,51 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("job/{jobId}/applications")]
-        [Authorize(Policy = "IsRecruiter")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetJobApplications(int jobId,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has recruiter role
+            var hasRecruiterRole = userRole == "recruiter" || customRole == "recruiter";
+            if (!hasRecruiterRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể xem đơn ứng tuyển cho công việc của mình.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var jobPost = await _context.JobPosts.FindAsync(jobId);
             if (jobPost == null || jobPost.RecruiterId != userId)
             {
-                return Forbid();
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Bạn chỉ có thể xem đơn ứng tuyển cho công việc của mình.",
+                    errorCode = "NOT_JOB_OWNER"
+                });
             }
 
             var query = _context.Applications
@@ -335,13 +449,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpDelete("{id}")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> DeleteApplication(int id)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể xóa đơn ứng tuyển của mình.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var application = await _context.Applications
@@ -375,13 +516,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPut("{id}")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> UpdateApplication(int id, [FromForm] UpdateApplicationDto updateDto)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể cập nhật đơn ứng tuyển của mình.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var application = await _context.Applications

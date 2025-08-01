@@ -1,4 +1,4 @@
-using BEWorkNest.DTOs;
+using BEWorkNest.Models.DTOs;
 using BEWorkNest.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +11,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class NotificationController : ControllerBase
     {
         private readonly NotificationService _notificationService;
@@ -26,7 +26,24 @@ namespace BEWorkNest.Controllers
         [HttpGet]
         public async Task<IActionResult> GetNotifications([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null)
+            {
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
             
             var notifications = await _notificationService.GetUserNotificationsAsync(userId, page, pageSize);
             
@@ -47,6 +64,7 @@ namespace BEWorkNest.Controllers
         public async Task<IActionResult> MarkAsRead(int notificationId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
             
             var success = await _notificationService.MarkNotificationAsReadAsync(notificationId, userId);
             
@@ -62,6 +80,7 @@ namespace BEWorkNest.Controllers
         public async Task<IActionResult> MarkAllAsRead()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
             
             await _notificationService.MarkAllNotificationsAsReadAsync(userId);
             
@@ -72,6 +91,7 @@ namespace BEWorkNest.Controllers
         public async Task<IActionResult> GetUnreadCount()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
             
             var count = await _notificationService.GetUnreadNotificationCountAsync(userId);
             
@@ -82,6 +102,7 @@ namespace BEWorkNest.Controllers
         public async Task<IActionResult> RegisterDeviceToken([FromBody] DeviceTokenDto dto)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
             
             // Check if device already exists
             var existingDevice = await _context.UserDevices

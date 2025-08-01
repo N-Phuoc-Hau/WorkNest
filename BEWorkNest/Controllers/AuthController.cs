@@ -190,13 +190,26 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("profile")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetProfile()
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
             }
 
             var user = await _userManager.FindByIdAsync(userId);
@@ -243,8 +256,92 @@ namespace BEWorkNest.Controllers
             return Ok(userDto);
         }
 
+        // Simple auth test endpoint
+        [HttpGet("test-auth")]
+        [AllowAnonymous]
+        public IActionResult TestAuth()
+        {
+            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+            var hasAuthHeader = !string.IsNullOrEmpty(authHeader);
+            var isBearerToken = authHeader?.StartsWith("Bearer ") == true;
+            
+            var debugInfo = new
+            {
+                hasAuthHeader,
+                isBearerToken,
+                authHeader = hasAuthHeader ? authHeader : null,
+                timestamp = DateTime.Now
+            };
+
+            if (!hasAuthHeader)
+            {
+                return Ok(new { message = "No Authorization header", debugInfo });
+            }
+
+            if (!isBearerToken)
+            {
+                return Ok(new { message = "Not a Bearer token", debugInfo });
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            
+            try
+            {
+                var expirationTime = _jwtService.GetTokenExpirationTime(token);
+                var isExpired = _jwtService.IsTokenExpired(token);
+                var userId = _jwtService.GetUserIdFromToken(token);
+                var role = _jwtService.GetRoleFromToken(token);
+                var principal = _jwtService.ValidateToken(token);
+
+                // Extract all claims for detailed analysis
+                var allClaims = new List<object>();
+                if (principal != null)
+                {
+                    foreach (var claim in principal.Claims)
+                    {
+                        allClaims.Add(new { Type = claim.Type, Value = claim.Value });
+                    }
+                }
+
+                // Check specific User ID claims
+                var nameIdentifier = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var customUserId = principal?.FindFirst("userId")?.Value;
+                var email = principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
+
+                return Ok(new
+                {
+                    message = "Token analysis",
+                    token = token.Substring(0, Math.Min(50, token.Length)) + "...",
+                    isValid = !isExpired,
+                    expiresAt = expirationTime,
+                    isExpired = isExpired,
+                    userId = userId,
+                    role = role,
+                    principal = principal != null ? "Valid" : "Invalid",
+                    timeToExpiry = isExpired ? TimeSpan.Zero : expirationTime - DateTime.UtcNow,
+                    claims = new
+                    {
+                        nameIdentifier = nameIdentifier,
+                        customUserId = customUserId,
+                        email = email,
+                        allClaims = allClaims
+                    },
+                    debugInfo
+                });
+            }
+            catch (Exception ex)
+            {
+                return Ok(new
+                {
+                    message = "Token validation error",
+                    error = ex.Message,
+                    debugInfo
+                });
+            }
+        }
+
         [HttpGet("token-status")]
-        [Authorize]
+        [AllowAnonymous]
         public IActionResult GetTokenStatus()
         {
             var authHeader = Request.Headers["Authorization"].FirstOrDefault();
@@ -313,13 +410,26 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost("revoke-token")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> RevokeToken([FromBody] RevokeTokenDto revokeTokenDto)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
             }
 
             await _refreshTokenService.RevokeRefreshTokenAsync(
@@ -332,13 +442,26 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost("revoke-all-tokens")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> RevokeAllTokens()
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
             }
 
             await _refreshTokenService.RevokeAllRefreshTokensForUserAsync(
@@ -351,13 +474,26 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPut("profile")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateUserDto updateDto)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
             }
 
             var user = await _userManager.FindByIdAsync(userId);

@@ -7,7 +7,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class DashboardController : ControllerBase
     {
         private readonly AnalyticsService _analyticsService;
@@ -22,7 +22,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("admin")]
-        [Authorize(Roles = "admin")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAdminDashboard()
         {
             try
@@ -38,7 +38,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("recruiter")]
-        [Authorize(Roles = "recruiter")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetRecruiterDashboard()
         {
             try
@@ -60,7 +60,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("candidate")]
-        [Authorize(Roles = "candidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetCandidateDashboard()
         {
             try

@@ -19,7 +19,7 @@ class NotificationScreen extends ConsumerWidget {
       );
     }
 
-    final notificationState = ref.watch(notificationProvider(user.id));
+    final notificationState = ref.watch(notificationProvider(user.user?.id ?? ''));
 
     return Scaffold(
       appBar: AppBar(
@@ -31,7 +31,7 @@ class NotificationScreen extends ConsumerWidget {
           if (notificationState.unreadCount > 0)
             TextButton(
               onPressed: () {
-                ref.read(notificationProvider(user.id)).markAllAsRead();
+                ref.read(notificationProvider(user.user?.id ?? '').notifier).markAllAsRead();
               },
               child: const Text(
                 'Đánh dấu tất cả',
@@ -72,7 +72,7 @@ class NotificationScreen extends ConsumerWidget {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          ref.read(notificationProvider(user.id)).clearError();
+                          ref.read(notificationProvider(user.user?.id ?? '').notifier).clearError();
                         },
                         child: const Text('Thử lại'),
                       ),
@@ -111,7 +111,7 @@ class NotificationScreen extends ConsumerWidget {
                     )
                   : RefreshIndicator(
                       onRefresh: () async {
-                        ref.read(notificationProvider(user.id)).refreshUnreadCount();
+                        ref.read(notificationProvider(user.user?.id ?? '').notifier).refreshUnreadCount();
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.all(8),
@@ -124,11 +124,11 @@ class NotificationScreen extends ConsumerWidget {
                               _handleNotificationTap(context, notification);
                             },
                             onMarkAsRead: () {
-                              ref.read(notificationProvider(user.id))
+                              ref.read(notificationProvider(user.user?.id ?? '').notifier)
                                   .markAsRead(notification['id']);
                             },
                             onDelete: () {
-                              _showDeleteConfirmation(context, ref, user.id, notification['id']);
+                              _showDeleteConfirmation(context, ref, user.user?.id ?? '', notification['id']);
                             },
                           );
                         },
@@ -209,7 +209,7 @@ class NotificationScreen extends ConsumerWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ref.read(notificationProvider(userId)).deleteNotification(notificationId);
+              ref.read(notificationProvider(userId).notifier).deleteNotification(notificationId);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Đã xóa thông báo'),

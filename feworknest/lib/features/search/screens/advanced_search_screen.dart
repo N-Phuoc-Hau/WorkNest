@@ -37,7 +37,9 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
     
     // Load initial recommendations
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(searchProvider('candidate')).getJobRecommendations();
+      final user = ref.read(authProvider);
+      final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+      ref.read(searchProvider(userRole).notifier).getJobRecommendations();
     });
   }
 
@@ -50,6 +52,9 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
 
   void _onSearchChanged() {
     final query = _searchController.text.trim();
+    final user = ref.read(authProvider);
+    final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+    
     if (query.isNotEmpty) {
       setState(() {
         _showSuggestions = true;
@@ -57,10 +62,10 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
       });
       
       // Get search suggestions
-      ref.read(searchProvider('candidate')).getSearchSuggestions(query);
+      ref.read(searchProvider(userRole).notifier).getSearchSuggestions(query);
       
       // Get search filters
-      ref.read(searchProvider('candidate')).getSearchFilters(query);
+      ref.read(searchProvider(userRole).notifier).getSearchFilters(query);
     } else {
       setState(() {
         _showSuggestions = false;
@@ -71,19 +76,24 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
 
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      ref.read(searchProvider('candidate')).loadMoreJobs();
+      final user = ref.read(authProvider);
+      final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+      ref.read(searchProvider(userRole).notifier).loadMoreJobs();
     }
   }
 
   void _performSearch() {
     final query = _searchController.text.trim();
+    final user = ref.read(authProvider);
+    final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+    
     if (query.isNotEmpty) {
       setState(() {
         _showSuggestions = false;
         _showRecommendations = false;
       });
       
-      ref.read(searchProvider('candidate')).searchJobs(
+      ref.read(searchProvider(userRole).notifier).searchJobs(
         keyword: query,
         location: _selectedLocation,
         jobType: _selectedJobType,
@@ -109,8 +119,9 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final searchState = ref.watch(searchProvider('candidate'));
     final user = ref.watch(authProvider);
+    final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+    final searchState = ref.watch(searchProvider(userRole));
 
     return Scaffold(
       appBar: AppBar(
@@ -153,7 +164,9 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
                             icon: const Icon(Icons.clear),
                             onPressed: () {
                               _searchController.clear();
-                              ref.read(searchProvider('candidate')).clearSearch();
+                              final user = ref.read(authProvider);
+                              final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+                              ref.read(searchProvider(userRole).notifier).clearSearch();
                             },
                           )
                         : null,
@@ -370,7 +383,9 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () {
-                ref.read(searchProvider('candidate')).clearError();
+                final user = ref.read(authProvider);
+                final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+                ref.read(searchProvider(userRole).notifier).clearError();
                 _performSearch();
               },
               child: const Text('Thử lại'),
@@ -517,7 +532,9 @@ class _AdvancedSearchScreenState extends ConsumerState<AdvancedSearchScreen> {
               if (searchState.currentPage < searchState.totalPages)
                 TextButton(
                   onPressed: () {
-                    ref.read(searchProvider('candidate')).loadMoreJobs();
+                    final user = ref.read(authProvider);
+                    final userRole = user?.user?.role.toLowerCase() ?? 'candidate';
+                    ref.read(searchProvider(userRole).notifier).loadMoreJobs();
                   },
                   child: const Text('Xem thêm'),
                 ),

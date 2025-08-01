@@ -24,7 +24,7 @@ namespace BEWorkNest.Authorization
 
         protected string? GetCurrentUserRole()
         {
-            return _httpContextAccessor.HttpContext?.User?.FindFirst("role")?.Value;
+            return _httpContextAccessor.HttpContext?.User?.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
         }
     }
 

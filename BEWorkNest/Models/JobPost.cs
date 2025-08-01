@@ -14,6 +14,7 @@ namespace BEWorkNest.Models
         public string Requirements { get; set; } = string.Empty;
         public string Benefits { get; set; } = string.Empty;
         public decimal Salary { get; set; }
+
         public string WorkingHours { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
         public string JobType { get; set; } = "Full-time";

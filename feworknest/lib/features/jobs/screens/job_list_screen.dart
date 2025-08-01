@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/job_provider.dart';
 import '../../../shared/widgets/job_card.dart';
+import '../../candidate/widgets/job_filter_bottom_sheet.dart';
 
 class JobListScreen extends ConsumerStatefulWidget {
   const JobListScreen({super.key});

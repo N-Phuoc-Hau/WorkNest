@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/models/job_model.dart';
-import '../../../core/providers/favorite_provider.dart';
-import '../../../core/utils/auth_guard.dart';
+import '../../core/models/job_model.dart';
+import '../../core/providers/favorite_provider.dart';
+import '../../core/utils/auth_guard.dart';
 
 class JobCard extends ConsumerWidget {
   final JobModel job;

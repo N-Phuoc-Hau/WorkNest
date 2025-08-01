@@ -1,5 +1,5 @@
 using BEWorkNest.Data;
-using BEWorkNest.DTOs;
+using BEWorkNest.Models.DTOs;
 using BEWorkNest.Models;
 using Microsoft.EntityFrameworkCore;
 

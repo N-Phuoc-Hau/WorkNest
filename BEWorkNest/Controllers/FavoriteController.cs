@@ -1,6 +1,7 @@
 using BEWorkNest.Data;
-using BEWorkNest.DTOs;
+using BEWorkNest.Models.DTOs;
 using BEWorkNest.Models;
+using BEWorkNest.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class FavoriteController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -21,7 +22,7 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpPost("{jobId}")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> AddToFavorite(int jobId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -61,7 +62,7 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpDelete("{jobId}")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> RemoveFromFavorite(int jobId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -81,7 +82,7 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpGet("my-favorites")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetMyFavorites([FromQuery] int page = 1, [FromQuery] int pageSize = 10)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -124,7 +125,7 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpGet("check/{jobId}")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> CheckFavoriteStatus(int jobId)
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -136,7 +137,7 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpGet("stats")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetFavoriteStats()
         {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

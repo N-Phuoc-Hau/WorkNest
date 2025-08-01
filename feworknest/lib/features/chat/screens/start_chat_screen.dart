@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_provider.dart';
 import '../widgets/user_search_tile.dart';
+import 'chat_screen.dart';
 
 class StartChatScreen extends ConsumerStatefulWidget {
   const StartChatScreen({super.key});
@@ -56,7 +57,7 @@ class _StartChatScreenState extends ConsumerState<StartChatScreen> {
             'title': 'Software Engineer',
           },
         ].where((user) => 
-          user['name'].toLowerCase().contains(query.toLowerCase()) ||
+          (user['name']?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
           (user['company']?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
           (user['title']?.toLowerCase().contains(query.toLowerCase()) ?? false)
         ).toList();
@@ -77,27 +78,27 @@ class _StartChatScreenState extends ConsumerState<StartChatScreen> {
 
   Future<void> _startChat(Map<String, dynamic> otherUser) async {
     final user = ref.read(authProvider);
-    if (user == null) return;
+    if (user?.user == null) return;
 
     try {
       final chatNotifier = ref.read(chatProvider({
-        'userId': user.id,
-        'userType': user.role.toLowerCase(),
-      }));
+        'userId': user!.user!.id,
+        'userType': user.user!.role.toLowerCase(),
+      }).notifier);
 
       final roomId = await chatNotifier.createOrGetChatRoom(
-        recruiterId: user.role.toLowerCase() == 'recruiter' ? user.id : otherUser['id'],
-        candidateId: user.role.toLowerCase() == 'candidate' ? user.id : otherUser['id'],
-        recruiterInfo: user.role.toLowerCase() == 'recruiter' ? {
-          'name': user.firstName + ' ' + user.lastName,
-          'avatar': user.avatar,
+        recruiterId: user.user!.role.toLowerCase() == 'recruiter' ? user.user!.id : otherUser['id'],
+        candidateId: user.user!.role.toLowerCase() == 'candidate' ? user.user!.id : otherUser['id'],
+        recruiterInfo: user.user!.role.toLowerCase() == 'recruiter' ? {
+          'name': user.user!.firstName + ' ' + user.user!.lastName,
+          'avatar': user.user!.avatar,
         } : {
           'name': otherUser['name'],
           'avatar': otherUser['avatar'],
         },
-        candidateInfo: user.role.toLowerCase() == 'candidate' ? {
-          'name': user.firstName + ' ' + user.lastName,
-          'avatar': user.avatar,
+        candidateInfo: user.user!.role.toLowerCase() == 'candidate' ? {
+          'name': user.user!.firstName + ' ' + user.user!.lastName,
+          'avatar': user.user!.avatar,
         } : {
           'name': otherUser['name'],
           'avatar': otherUser['avatar'],

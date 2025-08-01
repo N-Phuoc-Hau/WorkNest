@@ -36,7 +36,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
 
     if (success && mounted) {
-      // Navigation will be handled by GoRouter redirect
+      // Get user info to determine redirect
+      final user = ref.read(authProvider).user;
+      if (user != null) {
+        // Redirect based on user role
+        if (user.role == 'Admin') {
+          context.go('/admin-dashboard');
+        } else if (user.isRecruiter) {
+          context.go('/recruiter-dashboard');
+        } else {
+          context.go('/candidate-dashboard');
+        }
+      } else {
+        context.go('/candidate-dashboard'); // Default fallback
+      }
     } else if (mounted) {
       // Show error message
       final error = ref.read(authProvider).error;

@@ -34,18 +34,6 @@ namespace BEWorkNest.Models.DTOs
         public string Password { get; set; } = string.Empty;
     }
 
-    public class UserDto
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
-        public string? Avatar { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public CompanyDto? Company { get; set; }
-    }
-
     public class LoginResponseDto
     {
         public string AccessToken { get; set; } = string.Empty;

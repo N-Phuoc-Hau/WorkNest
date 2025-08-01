@@ -1,5 +1,5 @@
 using BEWorkNest.Data;
-using BEWorkNest.DTOs;
+using BEWorkNest.Models.DTOs;
 using BEWorkNest.Models;
 using BEWorkNest.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -11,7 +11,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class FollowController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -26,13 +26,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> FollowCompany([FromBody] CreateFollowDto createDto)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể theo dõi công ty.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             // Check if company exists
@@ -101,13 +128,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpDelete("{companyId}")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> UnfollowCompany(int companyId)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể bỏ theo dõi công ty.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var company = await _context.Companies
@@ -136,15 +190,42 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("my-following")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetMyFollowing(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể xem danh sách theo dõi của mình.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var query = _context.Follows
@@ -197,15 +278,42 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("followers")]
-        [Authorize(Policy = "IsRecruiter")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetMyFollowers(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has recruiter role
+            var hasRecruiterRole = userRole == "recruiter" || customRole == "recruiter";
+            if (!hasRecruiterRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể xem danh sách người theo dõi.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var query = _context.Follows
@@ -246,13 +354,40 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("company/{companyId}/is-following")]
-        [Authorize(Policy = "IsCandidate")]
+        [AllowAnonymous]
         public async Task<IActionResult> IsFollowing(int companyId)
         {
+            // Check if user is authenticated
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var customRole = User.FindFirst("role")?.Value;
+
             if (userId == null)
             {
-                return Unauthorized();
+                return BadRequest(new { 
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
+            }
+
+            // Check if user has candidate role
+            var hasCandidateRole = userRole == "candidate" || customRole == "candidate";
+            if (!hasCandidateRole)
+            {
+                return BadRequest(new { 
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể kiểm tra trạng thái theo dõi.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? customRole ?? "unknown"
+                });
             }
 
             var company = await _context.Companies

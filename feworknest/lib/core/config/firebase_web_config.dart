@@ -4,26 +4,28 @@ import 'package:flutter/foundation.dart';
 
 class FirebaseWebConfig {
   static const Map<String, dynamic> firebaseConfig = {
-    "apiKey": "YOUR_API_KEY",
+    "apiKey": "AIzaSyCIMcF2niWutcfWzw1OlGm7EWZA3U4e5F0",
     "authDomain": "jobappchat.firebaseapp.com",
     "projectId": "jobappchat",
-    "storageBucket": "jobappchat.appspot.com",
-    "messagingSenderId": "YOUR_SENDER_ID",
-    "appId": "YOUR_APP_ID",
-    "measurementId": "YOUR_MEASUREMENT_ID"
+    "storageBucket": "jobappchat.firebasestorage.com",
+    "messagingSenderId": "501808058071",
+    "appId": "1:501808058071:web:7091b099f4484ac2caea92",
+    "measurementId": "G-JZ5Q97ER4D",
+    "databaseURL": "https://jobappchat-default-rtdb.firebaseio.com"
   };
 
   static Future<void> initializeFirebase() async {
     if (kIsWeb) {
       await Firebase.initializeApp(
         options: const FirebaseOptions(
-          apiKey: "YOUR_API_KEY",
+          apiKey: "AIzaSyCIMcF2niWutcfWzw1OlGm7EWZA3U4e5F0",
           authDomain: "jobappchat.firebaseapp.com",
           projectId: "jobappchat",
-          storageBucket: "jobappchat.appspot.com",
-          messagingSenderId: "YOUR_SENDER_ID",
-          appId: "YOUR_APP_ID",
-          measurementId: "YOUR_MEASUREMENT_ID",
+          storageBucket: "jobappchat.firebasestorage.com",
+          messagingSenderId: "501808058071",
+          appId: "1:501808058071:web:7091b099f4484ac2caea92",
+          measurementId: "G-JZ5Q97ER4D",
+          databaseURL: "https://jobappchat-default-rtdb.firebaseio.com",
         ),
       );
     } else {

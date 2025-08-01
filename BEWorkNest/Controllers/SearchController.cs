@@ -10,6 +10,7 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowAnonymous]
     public class SearchController : ControllerBase
     {
         private readonly ApplicationDbContext _context;

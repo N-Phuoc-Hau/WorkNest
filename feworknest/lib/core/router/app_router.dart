@@ -6,6 +6,13 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/onboarding_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
+import '../../features/chat/screens/chat_list_screen.dart';
+import '../../features/chat/screens/chat_screen.dart';
+import '../../features/chat/screens/start_chat_screen.dart';
+import '../../features/dashboard/screens/admin_dashboard_screen.dart'; // Added
+import '../../features/dashboard/screens/candidate_dashboard_screen.dart'; // Added
+import '../../features/dashboard/screens/guest_dashboard_screen.dart'; // Added
+import '../../features/dashboard/screens/recruiter_dashboard_screen.dart'; // Added
 import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/job_posting/screens/create_job_screen.dart';
 import '../../features/job_posting/screens/edit_job_screen.dart';
@@ -13,19 +20,13 @@ import '../../features/job_posting/screens/manage_jobs_screen.dart';
 import '../../features/jobs/screens/job_detail_screen.dart';
 import '../../features/jobs/screens/job_list_screen.dart';
 import '../../features/navigation/screens/main_navigation_screen.dart';
+import '../../features/notifications/screens/notification_screen.dart';
 import '../../features/recruiter/screens/recruiter_home_screen.dart';
 import '../../features/reviews/screens/candidate_review_screen.dart';
 import '../../features/reviews/screens/company_review_screen.dart';
 import '../../features/reviews/screens/review_list_screen.dart';
-import '../../features/splash/splash_screen.dart';
-import '../../features/chat/screens/chat_list_screen.dart';
-import '../../features/chat/screens/chat_screen.dart';
-import '../../features/chat/screens/start_chat_screen.dart';
-import '../../features/notifications/screens/notification_screen.dart';
 import '../../features/search/screens/advanced_search_screen.dart'; // Added
-import '../../features/dashboard/screens/admin_dashboard_screen.dart'; // Added
-import '../../features/dashboard/screens/recruiter_dashboard_screen.dart'; // Added
-import '../../features/dashboard/screens/candidate_dashboard_screen.dart'; // Added
+import '../../features/splash/splash_screen.dart';
 import '../providers/auth_provider.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -50,6 +51,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         '/onboarding', 
         '/splash',
         '/main',              // Allow main navigation
+        '/guest-dashboard',   // Allow guest dashboard
         '/jobs',              // Allow job list view
         '/jobs/',             // Allow job detail view (but with limited features)
       ];
@@ -57,20 +59,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Check if current location is a job detail route
       final isJobDetailRoute = RegExp(r'^/jobs/\d+$').hasMatch(location);
       
-      // If not authenticated and trying to access protected routes, go to main (public browsing)
+      // If not authenticated and trying to access protected routes, go to guest dashboard
       if (!isAuthenticated && 
           !publicRoutes.any((route) => location.startsWith(route)) &&
           !isJobDetailRoute) {
-        return '/main';
+        return '/guest-dashboard';
       }
       
-      // If authenticated and on auth screens, redirect to main navigation
+      // If authenticated and on auth screens, redirect to appropriate dashboard
       if (isAuthenticated && 
           (location == '/login' || 
            location == '/register' || 
            location == '/onboarding' ||
            location == '/splash')) {
-        return '/main';
+        // Redirect to appropriate dashboard based on user role
+        final user = authState.user;
+        if (user != null) {
+          if (user.role == 'Admin') {
+            return '/admin-dashboard';
+          } else if (user.isRecruiter) {
+            return '/recruiter-dashboard';
+          } else {
+            return '/candidate-dashboard';
+          }
+        }
+        return '/candidate-dashboard'; // Default fallback
       }
       
       return null; // No redirect needed
@@ -230,6 +243,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
              builder: (context, state) => const AdvancedSearchScreen(),
            ),
            // Dashboard routes
+           GoRoute(
+             path: '/guest-dashboard',
+             builder: (context, state) => const GuestDashboardScreen(),
+           ),
            GoRoute(
              path: '/admin-dashboard',
              builder: (context, state) => const AdminDashboardScreen(),

@@ -4,13 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/job_provider.dart';
-import '../../../core/providers/notification_provider.dart';
 import '../../applications/screens/my_applications_screen.dart';
+import '../../chat/screens/chat_list_screen.dart';
+import '../../dashboard/screens/candidate_dashboard_screen.dart';
+import '../../dashboard/screens/guest_dashboard_screen.dart';
+import '../../dashboard/screens/recruiter_dashboard_screen.dart';
 import '../../favorites/screens/favorite_screen.dart';
 import '../../jobs/screens/job_list_screen.dart';
-import '../../profile/screens/profile_screen.dart';
-import '../../chat/screens/chat_list_screen.dart';
 import '../../notifications/screens/notification_screen.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../widgets/notification_badge.dart';
 
 class MainNavigationScreen extends ConsumerStatefulWidget {
@@ -42,55 +44,210 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
         ? _getAuthenticatedTabs()
         : _getPublicTabs();
     
+    // Check if device is mobile or tablet
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,  
         children: tabs.map((tab) => tab.screen).toList(),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          // Check if user needs authentication for this tab
-          if (!isAuthenticated && tabs[index].requiresAuth) {
-            _showLoginDialog(context);
-            return;
-          }
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Theme.of(context).primaryColor,
-        unselectedItemColor: Colors.grey,
-        items: tabs.asMap().entries.map((entry) {
-          final index = entry.key;
-          final tab = entry.value;
-          
-          // Add notification badge for notification tab
-          if (tab.label == 'Thông báo') {
-            return BottomNavigationBarItem(
-              icon: NotificationBadge(
-                child: Icon(tab.icon),
-              ),
-              activeIcon: NotificationBadge(
-                child: Icon(tab.activeIcon),
-              ),
-              label: tab.label,
-            );
-          }
-          
+      bottomNavigationBar: isMobile ? _buildBottomNavigation(context, tabs, isAuthenticated) : null,
+      drawer: !isMobile ? _buildDrawerNavigation(context, tabs, isAuthenticated) : null,
+    );
+  }
+  
+  Widget _buildBottomNavigation(BuildContext context, List<NavigationTab> tabs, bool isAuthenticated) {
+    // Limit tabs to 5 for mobile bottom navigation
+    final displayTabs = tabs.length > 5 ? tabs.sublist(0, 5) : tabs;
+    
+    return BottomNavigationBar(
+      currentIndex: _currentIndex < displayTabs.length ? _currentIndex : 0,
+      onTap: (index) {
+        // Check if user needs authentication for this tab
+        if (!isAuthenticated && displayTabs[index].requiresAuth) {
+          _showLoginDialog(context);
+          return;
+        }
+        setState(() {
+          _currentIndex = index;
+        });
+      },
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: Theme.of(context).primaryColor,
+      unselectedItemColor: Colors.grey,
+      selectedFontSize: 12,
+      unselectedFontSize: 12,
+      items: displayTabs.asMap().entries.map((entry) {
+        final tab = entry.value;
+        
+        // Add notification badge for notification tab
+        if (tab.label == 'Thông báo') {
           return BottomNavigationBarItem(
-            icon: Icon(tab.icon),
-            activeIcon: Icon(tab.activeIcon),
+            icon: NotificationBadge(
+              child: Icon(tab.icon),
+            ),
+            activeIcon: NotificationBadge(
+              child: Icon(tab.activeIcon),
+            ),
             label: tab.label,
           );
-        }).toList(),
+        }
+        
+        return BottomNavigationBarItem(
+          icon: Icon(tab.icon),
+          activeIcon: Icon(tab.activeIcon),
+          label: tab.label,
+        );
+      }).toList(),
+    );
+  }
+  
+  Widget _buildDrawerNavigation(BuildContext context, List<NavigationTab> tabs, bool isAuthenticated) {
+    final user = ref.watch(authProvider).user;
+    
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).primaryColor,
+                    Theme.of(context).primaryColor.withOpacity(0.8),
+                  ],
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    child: Icon(
+                      isAuthenticated 
+                        ? (user?.isRecruiter == true ? Icons.business : Icons.person)
+                        : Icons.work,
+                      size: 30,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    isAuthenticated 
+                      ? 'Xin chào, ${user?.firstName ?? 'User'}!'
+                      : 'Chào mừng đến WorkNest',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (isAuthenticated && user != null)
+                    Text(
+                      user.email,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
+            // Navigation items
+            Expanded(
+              child: ListView.builder(
+                itemCount: tabs.length,
+                itemBuilder: (context, index) {
+                  final tab = tabs[index];
+                  final isSelected = _currentIndex == index;
+                  
+                  return ListTile(
+                    leading: Icon(
+                      isSelected ? tab.activeIcon : tab.icon,
+                      color: isSelected 
+                        ? Theme.of(context).primaryColor 
+                        : Colors.grey[600],
+                    ),
+                    title: Text(
+                      tab.label,
+                      style: TextStyle(
+                        color: isSelected 
+                          ? Theme.of(context).primaryColor 
+                          : Colors.grey[800],
+                        fontWeight: isSelected 
+                          ? FontWeight.bold 
+                          : FontWeight.normal,
+                      ),
+                    ),
+                    selected: isSelected,
+                    onTap: () {
+                      if (!isAuthenticated && tab.requiresAuth) {
+                        Navigator.pop(context);
+                        _showLoginDialog(context);
+                        return;
+                      }
+                      setState(() {
+                        _currentIndex = index;
+                      });
+                      Navigator.pop(context);
+                    },
+                  );
+                },
+              ),
+            ),
+            
+            // Bottom actions
+            if (!isAuthenticated) ...[
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.login, color: Colors.blue),
+                title: const Text('Đăng nhập'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/login');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_add, color: Colors.green),
+                title: const Text('Đăng ký'),
+                onTap: () {
+                  Navigator.pop(context);
+                  context.push('/register');
+                },
+              ),
+            ] else ...[
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Đăng xuất'),
+                onTap: () {
+                  Navigator.pop(context);
+                  ref.read(authProvider.notifier).logout();
+                },
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
   
   List<NavigationTab> _getPublicTabs() {
     return [
+      NavigationTab(
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard,
+        label: 'Trang chủ',
+        screen: const GuestDashboardScreen(),
+        requiresAuth: false,
+      ),
       NavigationTab(
         icon: Icons.work_outline,
         activeIcon: Icons.work,
@@ -136,6 +293,13 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   List<NavigationTab> _getCandidateTabs() {
     return [
       NavigationTab(
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard,
+        label: 'Dashboard',
+        screen: const CandidateDashboardScreen(),
+        requiresAuth: true,
+      ),
+      NavigationTab(
         icon: Icons.work_outline,
         activeIcon: Icons.work,
         label: 'Việc làm',
@@ -175,6 +339,13 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   
   List<NavigationTab> _getRecruiterTabs() {
     return [
+      NavigationTab(
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard,
+        label: 'Dashboard',
+        screen: const RecruiterDashboardScreen(),
+        requiresAuth: true,
+      ),
       NavigationTab(
         icon: Icons.business_center_outlined,
         activeIcon: Icons.business_center,

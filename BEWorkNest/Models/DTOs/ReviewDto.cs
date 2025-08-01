@@ -33,18 +33,4 @@ namespace BEWorkNest.Models.DTOs
         [Required]
         public string CandidateId { get; set; } = string.Empty;
     }
-
-    public class FollowDto
-    {
-        public int Id { get; set; }
-        public UserDto Follower { get; set; } = null!;
-        public UserDto Recruiter { get; set; } = null!;
-        public DateTime CreatedAt { get; set; }
-    }
-
-    public class CreateFollowDto
-    {
-        [Required]
-        public int CompanyId { get; set; }
-    }
 }

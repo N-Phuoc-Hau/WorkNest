@@ -53,7 +53,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
   }
 
-  Future<void> createOrGetChatRoom({
+  Future<String> createOrGetChatRoom({
     required String recruiterId,
     required String candidateId,
     String? jobId,

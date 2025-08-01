@@ -160,7 +160,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: OutlinedButton(
                       onPressed: () async {
                         await OnboardingStorage.setOnboardingSeen();
-                        if (context.mounted) context.go('/main');
+                        if (context.mounted) context.go('/guest-dashboard');
                       },
                       child: const Text('Xem việc làm không cần đăng nhập'),
                     ),

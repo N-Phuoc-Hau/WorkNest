@@ -23,7 +23,8 @@ namespace BEWorkNest.Services
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Email, user.Email!),
                 new Claim(ClaimTypes.Name, $"{user.FirstName} {user.LastName}"),
-                new Claim("role", user.Role),
+                new Claim(ClaimTypes.Role, user.Role), // Thêm claim chuẩn
+                new Claim("role", user.Role), // Giữ lại claim cũ
                 new Claim("firstName", user.FirstName),
                 new Claim("lastName", user.LastName),
                 new Claim("userId", user.Id),
@@ -109,7 +110,13 @@ namespace BEWorkNest.Services
         public string? GetRoleFromToken(string token)
         {
             var principal = ValidateToken(token);
-            return principal?.FindFirst("role")?.Value;
+            if (principal == null) return null;
+            
+            // Try both ClaimTypes.Role and "role"
+            var role1 = principal.FindFirst(ClaimTypes.Role)?.Value;
+            var role2 = principal.FindFirst("role")?.Value;
+            
+            return role1 ?? role2;
         }
     }
 }

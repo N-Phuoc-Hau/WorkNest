@@ -35,11 +35,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _subscribeToMessages() {
     final user = ref.read(authProvider);
-    if (user != null) {
+    if (user?.user != null) {
       ref.read(chatProvider({
-        'userId': user.id,
-        'userType': user.role.toLowerCase(),
-      })).subscribeToMessages(widget.roomId);
+        'userId': user!.user!.id,
+        'userType': user.user!.role.toLowerCase(),
+      }).notifier).subscribeToMessages(widget.roomId);
     }
   }
 
@@ -64,7 +64,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (_messageController.text.trim().isEmpty) return;
 
     final user = ref.read(authProvider);
-    if (user == null) return;
+    if (user?.user == null) return;
 
     setState(() {
       _isLoading = true;
@@ -72,15 +72,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     try {
       await ref.read(chatProvider({
-        'userId': user.id,
-        'userType': user.role.toLowerCase(),
-      })).sendMessage(
+        'userId': user!.user!.id,
+        'userType': user.user!.role.toLowerCase(),
+      }).notifier).sendMessage(
         widget.roomId,
         _messageController.text.trim(),
-        user.role.toLowerCase(),
+        user.user!.role.toLowerCase(),
         {
-          'name': user.firstName + ' ' + user.lastName,
-          'avatar': user.avatar,
+          'name': user.user!.firstName + ' ' + user.user!.lastName,
+          'avatar': user.user!.avatar,
         },
       );
 
@@ -104,7 +104,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider);
     
-    if (user == null) {
+    if (user?.user == null) {
       return const Scaffold(
         body: Center(
           child: Text('Vui lòng đăng nhập'),
@@ -113,8 +113,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final chatState = ref.watch(chatProvider({
-      'userId': user.id,
-      'userType': user.role.toLowerCase(),
+      'userId': user!.user!.id,
+      'userType': user.user!.role.toLowerCase(),
     }));
 
     return Scaffold(
@@ -186,9 +186,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ElevatedButton(
                           onPressed: () {
                             ref.read(chatProvider({
-                              'userId': user.id,
-                              'userType': user.role.toLowerCase(),
-                            })).clearError();
+                              'userId': user.user!.id,
+                              'userType': user.user!.role.toLowerCase(),
+                            }).notifier).clearError();
                             _subscribeToMessages();
                           },
                           child: const Text('Thử lại'),
@@ -231,7 +231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         itemCount: chatState.messages.length,
                         itemBuilder: (context, index) {
                           final message = chatState.messages[index];
-                          final isMe = message['senderId'] == user.id;
+                          final isMe = message['senderId'] == user.user!.id;
                           
                           return MessageTile(
                             message: message,
@@ -389,22 +389,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final user = ref.read(authProvider);
     if (user != null) {
       ref.read(chatProvider({
-        'userId': user.id,
-        'userType': user.role.toLowerCase(),
-      })).deleteChatRoom(widget.roomId).then((_) {
+        'userId': user.user!.id,
+        'userType': user.user!.role.toLowerCase(),
+      }).notifier).deleteChatRoom(widget.roomId).then((_) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã xóa cuộc trò chuyện'),
-          ),
-        );
-      }).catchError((e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi xóa chat: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        Navigator.pop(context);
       });
     }
   }
