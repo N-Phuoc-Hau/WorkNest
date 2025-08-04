@@ -132,18 +132,18 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
   List<SidebarMenuItem> _getMenuItems(bool isAuthenticated, dynamic user) {
     final List<SidebarMenuItem> items = [
       SidebarMenuItem(
-        icon: Icons.dashboard,
+        icon: Icons.home,
         title: 'Trang chủ',
         route: isAuthenticated 
-            ? (user?.isRecruiter == true ? '/recruiter/home' : '/candidate/home')
+            ? (user?.isRecruiter == true ? '/recruiter/home' : '/home')
             : '/',
       ),
       SidebarMenuItem(
         icon: Icons.work,
         title: 'Việc làm',
         route: isAuthenticated 
-            ? (user?.isRecruiter == true ? '/recruiter/jobs' : '/candidate/jobs')
-            : '/candidate/jobs',
+            ? (user?.isRecruiter == true ? '/recruiter/jobs' : '/jobs')
+            : '/jobs',
       ),
     ];
 
@@ -194,12 +194,12 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           SidebarMenuItem(
             icon: Icons.description,
             title: 'Đơn ứng tuyển',
-            route: '/candidate/applications',
+            route: '/applications',
           ),
           SidebarMenuItem(
             icon: Icons.favorite,
             title: 'Việc làm đã lưu',
-            route: '/candidate/favorites',
+            route: '/favorites',
           ),
         ]);
       }
@@ -209,8 +209,8 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           icon: Icons.chat,
           title: 'Tin nhắn',
           route: isAuthenticated 
-              ? (user?.isRecruiter == true ? '/recruiter/chat' : '/candidate/chat')
-              : '/candidate/chat',
+              ? (user?.isRecruiter == true ? '/recruiter/chat' : '/chat')
+              : '/chat',
           badge: '3',
         ),
         SidebarMenuItem(
@@ -247,7 +247,10 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     final isSelected = _selectedRoute == item.route;
     
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      margin: EdgeInsets.symmetric(
+        horizontal: widget.isCollapsed ? 8 : 12, 
+        vertical: 2
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -259,7 +262,10 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
             context.go(item.route);
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.isCollapsed ? 8 : 16, 
+              vertical: 12
+            ),
             decoration: BoxDecoration(
               color: isSelected 
                   ? Theme.of(context).primaryColor.withOpacity(0.1)
@@ -269,49 +275,57 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                   ? Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3))
                   : null,
             ),
-            child: Row(
-              children: [
-                Icon(
-                  item.icon,
-                  color: isSelected 
-                      ? Theme.of(context).primaryColor
-                      : Colors.grey[600],
-                  size: 20,
-                ),
-                if (!widget.isCollapsed) ...[
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      item.title,
-                      style: TextStyle(
+            child: widget.isCollapsed
+                ? Center(
+                    child: Icon(
+                      item.icon,
+                      color: isSelected 
+                          ? Theme.of(context).primaryColor
+                          : Colors.grey[600],
+                      size: 20,
+                    ),
+                  )
+                : Row(
+                    children: [
+                      Icon(
+                        item.icon,
                         color: isSelected 
                             ? Theme.of(context).primaryColor
-                            : Colors.grey[700],
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                        fontSize: 14,
+                            : Colors.grey[600],
+                        size: 20,
                       ),
-                    ),
-                  ),
-                  if (item.badge != null) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        item.badge!,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          item.title,
+                          style: TextStyle(
+                            color: isSelected 
+                                ? Theme.of(context).primaryColor
+                                : Colors.grey[700],
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontSize: 14,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ],
-              ],
-            ),
+                      if (item.badge != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            item.badge!,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
           ),
         ),
       ),
@@ -322,18 +336,30 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     if (!isAuthenticated) {
       if (widget.isCollapsed) {
         return Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(8),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
                 onPressed: () => context.go('/login'),
-                icon: const Icon(Icons.login, color: Colors.blue),
+                icon: const Icon(Icons.login, color: Colors.blue, size: 20),
                 tooltip: 'Đăng nhập',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
               ),
+              const SizedBox(height: 4),
               IconButton(
                 onPressed: () => context.go('/register'),
-                icon: const Icon(Icons.person_add, color: Colors.green),
+                icon: const Icon(Icons.person_add, color: Colors.green, size: 20),
                 tooltip: 'Đăng ký',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
+                ),
               ),
             ],
           ),
@@ -343,6 +369,8 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
               width: double.infinity,
@@ -351,12 +379,13 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).primaryColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  minimumSize: const Size(0, 36),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('Đăng nhập'),
+                child: const Text('Đăng nhập', style: TextStyle(fontSize: 14)),
               ),
             ),
             const SizedBox(height: 8),
@@ -367,12 +396,13 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Theme.of(context).primaryColor,
                   side: BorderSide(color: Theme.of(context).primaryColor),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  minimumSize: const Size(0, 36),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('Đăng ký'),
+                child: const Text('Đăng ký', style: TextStyle(fontSize: 14)),
               ),
             ),
           ],
@@ -381,7 +411,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(widget.isCollapsed ? 8 : 16),
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(color: Colors.grey[200]!),
@@ -389,6 +419,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       ),
       child: widget.isCollapsed
           ? Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
                   radius: 16,
@@ -405,11 +436,19 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                 const SizedBox(height: 8),
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, size: 16),
+                  iconSize: 16,
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Menu',
                   onSelected: (value) {
                     if (value == 'profile') {
                       context.go('/profile');
                     } else if (value == 'settings') {
-                      context.go('/settings');
+                      final user = ref.read(authProvider).user;
+                      if (user?.isRecruiter == true) {
+                        context.go('/recruiter/settings');
+                      } else {
+                        context.go('/settings');
+                      }
                     } else if (value == 'logout') {
                       ref.read(authProvider.notifier).logout();
                     }
@@ -448,6 +487,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         user?.fullName ?? 'User',
@@ -456,7 +496,9 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                           fontSize: 14,
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         user?.email ?? '',
                         style: TextStyle(
@@ -464,17 +506,26 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                           fontSize: 12,
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 4),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
+                  icon: const Icon(Icons.more_vert, size: 18),
+                  iconSize: 18,
+                  padding: EdgeInsets.zero,
                   onSelected: (value) {
                     if (value == 'profile') {
                       context.go('/profile');
                     } else if (value == 'settings') {
-                      context.go('/settings');
+                      final user = ref.read(authProvider).user;
+                      if (user?.isRecruiter == true) {
+                        context.go('/recruiter/settings');
+                      } else {
+                        context.go('/settings');
+                      }
                     } else if (value == 'logout') {
                       ref.read(authProvider.notifier).logout();
                     }

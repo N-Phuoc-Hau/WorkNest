@@ -243,13 +243,13 @@ class LandingPage extends ConsumerWidget {
           height: 30,
           color: Colors.grey[300],
         ),
-        Expanded(
+        Flexible(
           child: DropdownButtonFormField<String>(
             decoration: InputDecoration(
               hintText: 'Địa điểm',
               prefixIcon: Icon(Icons.location_on, color: Colors.grey[600]),
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             items: const [
               DropdownMenuItem(value: 'all', child: Text('Tất cả')),
@@ -293,13 +293,13 @@ class LandingPage extends ConsumerWidget {
         Divider(color: Colors.grey[300], height: 1),
         Row(
           children: [
-            Expanded(
+            Flexible(
               child: DropdownButtonFormField<String>(
                 decoration: InputDecoration(
                   hintText: 'Địa điểm',
                   prefixIcon: Icon(Icons.location_on, color: Colors.grey[600]),
                   border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
                 items: const [
                   DropdownMenuItem(value: 'all', child: Text('Tất cả')),

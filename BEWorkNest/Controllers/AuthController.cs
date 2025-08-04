@@ -244,67 +244,102 @@ namespace BEWorkNest.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetProfile()
         {
-            // Check if user is authenticated
-            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-            if (!isAuthenticated)
+            // Try to get token from Authorization header
+            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
             {
                 return BadRequest(new { 
-                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                    message = "Không có token hoặc token không hợp lệ",
                     errorCode = "AUTH_REQUIRED"
                 });
             }
 
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+            
+            try
+            {
+                // Validate token first
+                var isExpired = _jwtService.IsTokenExpired(token);
+                if (isExpired)
+                {
+                    return BadRequest(new { 
+                        message = "Token đã hết hạn",
+                        errorCode = "TOKEN_EXPIRED"
+                    });
+                }
+
+                // Extract user ID from token
+                var userId = _jwtService.GetUserIdFromToken(token);
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy thông tin người dùng trong token",
+                        errorCode = "USER_ID_NOT_FOUND"
+                    });
+                }
+
+                var user = await _userManager.FindByIdAsync(userId);
+                if (user == null)
+                {
+                    return BadRequest(new { 
+                        message = "Người dùng không tồn tại trong hệ thống",
+                        errorCode = "USER_NOT_FOUND"
+                    });
+                }
+
+                if (!user.IsActive)
+                {
+                    return BadRequest(new { 
+                        message = "Tài khoản đã bị vô hiệu hóa",
+                        errorCode = "ACCOUNT_DISABLED"
+                    });
+                }
+
+                // Load company info if user is recruiter
+                CompanyDto? company = null;
+                if (user.Role == "recruiter")
+                {
+                    var userCompany = await _context.Companies
+                        .Include(c => c.Images)
+                        .FirstOrDefaultAsync(c => c.UserId == user.Id);
+                    
+                    if (userCompany != null)
+                    {
+                        company = new CompanyDto
+                        {
+                            Id = userCompany.Id,
+                            Name = userCompany.Name,
+                            TaxCode = userCompany.TaxCode,
+                            Description = userCompany.Description,
+                            Location = userCompany.Location,
+                            IsVerified = userCompany.IsVerified,
+                            Images = userCompany.Images.Select(i => i.ImageUrl).ToList()
+                        };
+                    }
+                }
+
+                var userDto = new UserDto
+                {
+                    Id = user.Id,
+                    Email = user.Email!,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Role = user.Role,
+                    Avatar = user.Avatar,
+                    CreatedAt = user.CreatedAt,
+                    Company = company
+                };
+
+                return Ok(userDto);
+            }
+            catch (Exception ex)
             {
                 return BadRequest(new { 
-                    message = "Không tìm thấy thông tin người dùng trong token",
-                    errorCode = "USER_ID_NOT_FOUND"
+                    message = "Lỗi xử lý token", 
+                    error = ex.Message,
+                    errorCode = "TOKEN_PROCESSING_ERROR"
                 });
             }
-
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            // Load company info if user is recruiter
-            CompanyDto? company = null;
-            if (user.Role == "recruiter")
-            {
-                var userCompany = await _context.Companies
-                    .Include(c => c.Images)
-                    .FirstOrDefaultAsync(c => c.UserId == user.Id);
-                
-                if (userCompany != null)
-                {
-                    company = new CompanyDto
-                    {
-                        Id = userCompany.Id,
-                        Name = userCompany.Name,
-                        TaxCode = userCompany.TaxCode,
-                        Description = userCompany.Description,
-                        Location = userCompany.Location,
-                        IsVerified = userCompany.IsVerified,
-                        Images = userCompany.Images.Select(i => i.ImageUrl).ToList()
-                    };
-                }
-            }
-
-            var userDto = new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email!,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                Role = user.Role,
-                Avatar = user.Avatar,
-                CreatedAt = user.CreatedAt,
-                Company = company
-            };
-
-            return Ok(userDto);
         }
 
         // Simple auth test endpoint
