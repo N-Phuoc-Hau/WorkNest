@@ -44,13 +44,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         // Continue anyway to allow offline browsing
       }
       
-      // Step 2: Check if user has seen onboarding
+      // Step 2: Wait for auth loading to complete
+      _updateStatus('Đang kiểm tra đăng nhập...');
+      
+      // Wait for auth provider to finish loading
+      while (ref.read(authProvider).isLoading) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
+      // Step 3: Check if user has seen onboarding
       _updateStatus('Đang khởi tạo...');
       
       final hasSeenOnboarding = await OnboardingStorage.hasSeenOnboarding();
-      
-      // Step 3: Check authentication
-      _updateStatus('Đang kiểm tra đăng nhập...');
       
       await Future.delayed(const Duration(milliseconds: 500));
       
@@ -79,14 +84,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         } else {
           _updateStatus('Chuyển đến trang chủ...');
           await Future.delayed(const Duration(milliseconds: 500));
-          // User has seen onboarding but not authenticated, go to guest dashboard
-          if (mounted) context.go('/guest-dashboard');
+          // User has seen onboarding but not authenticated, go to main navigation
+          if (mounted) context.go('/main');
         }
       }
     } catch (e) {
       _updateStatus('Có lỗi xảy ra, đang thử lại...');
       await Future.delayed(const Duration(seconds: 1));
-      if (mounted) context.go('/guest-dashboard');
+      if (mounted) context.go('/main');
     }
   }
 

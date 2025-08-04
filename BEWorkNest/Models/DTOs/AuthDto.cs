@@ -24,6 +24,28 @@ namespace BEWorkNest.Models.DTOs
         public string? Avatar { get; set; }
     }
 
+    public class RegisterFormDto
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+        
+        [Required]
+        [MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+        
+        [Required]
+        public string FirstName { get; set; } = string.Empty;
+        
+        [Required]
+        public string LastName { get; set; } = string.Empty;
+        
+        [Required]
+        public string Role { get; set; } = "candidate"; // candidate, recruiter, admin
+        
+        public IFormFile? Avatar { get; set; }
+    }
+
     public class LoginDto
     {
         [Required]
@@ -61,5 +83,39 @@ namespace BEWorkNest.Models.DTOs
     {
         [Required]
         public string RefreshToken { get; set; } = string.Empty;
+    }
+
+    public class RegisterRecruiterFormDto
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+        
+        [Required]
+        [MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+        
+        [Required]
+        public string FirstName { get; set; } = string.Empty;
+        
+        [Required]
+        public string LastName { get; set; } = string.Empty;
+        
+        [Required]
+        public string CompanyName { get; set; } = string.Empty;
+        
+        [Required]
+        public string TaxCode { get; set; } = string.Empty;
+        
+        [Required]
+        public string Description { get; set; } = string.Empty;
+        
+        [Required]
+        public string Location { get; set; } = string.Empty;
+        
+        public IFormFile? Avatar { get; set; }
+        
+        [Required]
+        public List<IFormFile> Images { get; set; } = new List<IFormFile>();
     }
 }

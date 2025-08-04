@@ -11,6 +11,9 @@ namespace BEWorkNest.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public bool IsActive { get; set; } = true;
+        
+        // Navigation properties
+        public UserProfile? UserProfile { get; set; }
 
         // Navigation properties
         public Company? Company { get; set; }

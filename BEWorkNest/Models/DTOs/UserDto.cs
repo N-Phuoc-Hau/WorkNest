@@ -14,6 +14,9 @@ namespace BEWorkNest.Models.DTOs
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }
         public CompanyDto? Company { get; set; }
+        
+        // Additional properties
+        public UserProfileDto? UserProfile { get; set; }
     }
 
     public class UpdateUserDto

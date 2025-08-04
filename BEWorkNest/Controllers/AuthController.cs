@@ -18,51 +18,88 @@ namespace BEWorkNest.Controllers
         private readonly JwtService _jwtService;
         private readonly RefreshTokenService _refreshTokenService;
         private readonly ApplicationDbContext _context;
+        private readonly CloudinaryService _cloudinaryService;
 
         public AuthController(
             UserManager<User> userManager,
             SignInManager<User> signInManager,
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
-            ApplicationDbContext context)
+            ApplicationDbContext context,
+            CloudinaryService cloudinaryService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _jwtService = jwtService;
             _refreshTokenService = refreshTokenService;
             _context = context;
+            _cloudinaryService = cloudinaryService;
         }
 
         [HttpPost("register/candidate")]
-        public async Task<IActionResult> RegisterCandidate([FromBody] RegisterDto registerDto)
+        [AllowAnonymous]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> RegisterCandidate([FromForm] RegisterFormDto registerDto)
         {
-            var user = new User
+            try
             {
-                UserName = registerDto.Email,
-                Email = registerDto.Email,
-                FirstName = registerDto.FirstName,
-                LastName = registerDto.LastName,
-                Role = "candidate",
-                Avatar = registerDto.Avatar
-            };
+                // Handle avatar upload if provided
+                string? avatarUrl = null;
+                if (registerDto.Avatar != null)
+                {
+                    if (!_cloudinaryService.IsImageFile(registerDto.Avatar))
+                    {
+                        return BadRequest("Avatar must be an image file");
+                    }
+                    avatarUrl = await _cloudinaryService.UploadImageAsync(registerDto.Avatar, "avatars");
+                }
 
-            var result = await _userManager.CreateAsync(user, registerDto.Password);
+                var user = new User
+                {
+                    UserName = registerDto.Email,
+                    Email = registerDto.Email,
+                    FirstName = registerDto.FirstName,
+                    LastName = registerDto.LastName,
+                    Role = "candidate",
+                    Avatar = avatarUrl
+                };
 
-            if (result.Succeeded)
-            {
-                return Ok(new { message = "Candidate registered successfully", userId = user.Id });
+                var result = await _userManager.CreateAsync(user, registerDto.Password);
+
+                if (result.Succeeded)
+                {
+                    return Ok(new { message = "Candidate registered successfully", userId = user.Id });
+                }
+
+                return BadRequest(result.Errors);
             }
-
-            return BadRequest(result.Errors);
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Registration failed", error = ex.Message });
+            }
         }
 
         [HttpPost("register/recruiter")]
-        public async Task<IActionResult> RegisterRecruiter([FromBody] RegisterRecruiterDto registerDto)
+        [Consumes("multipart/form-data")]
+        [AllowAnonymous]
+        public async Task<IActionResult> RegisterRecruiter([FromForm] RegisterRecruiterFormDto registerDto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             
             try
             {
+                // Handle avatar upload if provided
+                string? avatarUrl = null;
+                if (registerDto.Avatar != null)
+                {
+                    if (!_cloudinaryService.IsImageFile(registerDto.Avatar))
+                    {
+                        await transaction.RollbackAsync();
+                        return BadRequest("Avatar must be an image file");
+                    }
+                    avatarUrl = await _cloudinaryService.UploadImageAsync(registerDto.Avatar, "avatars");
+                }
+
                 var user = new User
                 {
                     UserName = registerDto.Email,
@@ -70,7 +107,7 @@ namespace BEWorkNest.Controllers
                     FirstName = registerDto.FirstName,
                     LastName = registerDto.LastName,
                     Role = "recruiter",
-                    Avatar = registerDto.Avatar
+                    Avatar = avatarUrl
                 };
 
                 var result = await _userManager.CreateAsync(user, registerDto.Password);
@@ -94,10 +131,24 @@ namespace BEWorkNest.Controllers
                 _context.Companies.Add(company);
                 await _context.SaveChangesAsync();
 
-                // Add company images
+                // Handle company images upload
                 if (registerDto.Images != null && registerDto.Images.Count >= 3)
                 {
-                    foreach (var imageUrl in registerDto.Images)
+                    // Validate all files are images
+                    foreach (var image in registerDto.Images)
+                    {
+                        if (!_cloudinaryService.IsImageFile(image))
+                        {
+                            await transaction.RollbackAsync();
+                            return BadRequest($"File {image.FileName} is not a valid image file");
+                        }
+                    }
+
+                    // Upload images to Cloudinary
+                    var imageUrls = await _cloudinaryService.UploadMultipleImagesAsync(registerDto.Images, "companies");
+
+                    // Add company images to database
+                    foreach (var imageUrl in imageUrls)
                     {
                         var companyImage = new CompanyImage
                         {

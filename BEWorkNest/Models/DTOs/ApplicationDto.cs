@@ -29,11 +29,18 @@ namespace BEWorkNest.Models.DTOs
         public DateTime CreatedAt { get; set; }
         public UserDto Applicant { get; set; } = null!;
         public JobPostDto Job { get; set; } = null!;
+        
+        // Additional properties to match Flutter ApplicationModel
+        public string? RejectionReason { get; set; }
+        public DateTime? AppliedAt { get; set; }
     }
 
     public class UpdateApplicationStatusDto
     {
         [Required]
         public string Status { get; set; } = string.Empty;
+        
+        // Additional property for rejection reason
+        public string? RejectionReason { get; set; }
     }
 }

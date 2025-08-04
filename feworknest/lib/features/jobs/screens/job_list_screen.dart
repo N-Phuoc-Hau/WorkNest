@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/job_provider.dart';
 import '../../../shared/widgets/job_card.dart';
-import '../../candidate/widgets/job_filter_bottom_sheet.dart';
 
 class JobListScreen extends ConsumerStatefulWidget {
   const JobListScreen({super.key});
@@ -70,7 +69,7 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => JobFilterBottomSheet(
+      builder: (context) => JobListFilterBottomSheet(
         selectedSpecialized: _selectedSpecialized,
         selectedLocation: _selectedLocation,
         onApplyFilter: (specialized, location) {
@@ -227,12 +226,12 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
   }
 }
 
-class JobFilterBottomSheet extends StatefulWidget {
+class JobListFilterBottomSheet extends StatefulWidget {
   final String? selectedSpecialized;
   final String? selectedLocation;
   final Function(String?, String?) onApplyFilter;
 
-  const JobFilterBottomSheet({
+  const JobListFilterBottomSheet({
     super.key,
     this.selectedSpecialized,
     this.selectedLocation,
@@ -240,10 +239,10 @@ class JobFilterBottomSheet extends StatefulWidget {
   });
 
   @override
-  State<JobFilterBottomSheet> createState() => _JobFilterBottomSheetState();
+  State<JobListFilterBottomSheet> createState() => _JobListFilterBottomSheetState();
 }
 
-class _JobFilterBottomSheetState extends State<JobFilterBottomSheet> {
+class _JobListFilterBottomSheetState extends State<JobListFilterBottomSheet> {
   String? _specialized;
   String? _location;
 

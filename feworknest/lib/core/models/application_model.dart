@@ -14,6 +14,8 @@ class ApplicationModel {
   final UserModel? applicant;
   final JobModel? job;
   final bool isActive;
+  final String? rejectionReason;
+  final DateTime? appliedAt;
 
   const ApplicationModel({
     required this.id,
@@ -26,6 +28,8 @@ class ApplicationModel {
     this.applicant,
     this.job,
     this.isActive = true,
+    this.rejectionReason,
+    this.appliedAt,
   });
 
   factory ApplicationModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +48,10 @@ class ApplicationModel {
           ? JobModel.fromJson(json['job'] as Map<String, dynamic>)
           : null,
       isActive: json['isActive'] as bool? ?? true,
+      rejectionReason: json['rejectionReason'] as String?,
+      appliedAt: json['appliedAt'] != null 
+          ? DateTime.parse(json['appliedAt'] as String)
+          : null,
     );
   }
 
@@ -72,6 +80,8 @@ class ApplicationModel {
       'applicant': applicant?.toJson(),
       'job': job?.toJson(),
       'isActive': isActive,
+      'rejectionReason': rejectionReason,
+      'appliedAt': appliedAt?.toIso8601String(),
     };
   }
 
@@ -86,6 +96,8 @@ class ApplicationModel {
     UserModel? applicant,
     JobModel? job,
     bool? isActive,
+    String? rejectionReason,
+    DateTime? appliedAt,
   }) {
     return ApplicationModel(
       id: id ?? this.id,
@@ -98,8 +110,17 @@ class ApplicationModel {
       applicant: applicant ?? this.applicant,
       job: job ?? this.job,
       isActive: isActive ?? this.isActive,
+      rejectionReason: rejectionReason ?? this.rejectionReason,
+      appliedAt: appliedAt ?? this.appliedAt,
     );
   }
+
+  // Getters for convenience
+  String get jobTitle => job?.title ?? 'Unknown Job';
+  String get companyName => job?.recruiter.company?.name ?? 'Unknown Company';
+  String get applicantName => applicant?.fullName ?? 'Unknown Applicant';
+  String get applicantEmail => applicant?.email ?? '';
+  DateTime get appliedDate => appliedAt ?? createdAt;
 }
 
 class CreateApplicationModel {

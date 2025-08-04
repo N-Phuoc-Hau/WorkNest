@@ -187,6 +187,7 @@ namespace BEWorkNest.Controllers
 
         [HttpPost("{id}/images")]
         [AllowAnonymous]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadCompanyImages(int id, [FromForm] List<IFormFile> images)
         {
             try

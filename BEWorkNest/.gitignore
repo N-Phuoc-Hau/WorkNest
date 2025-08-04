@@ -1,0 +1,5 @@
+# Firebase Admin SDK
+firebase-adminsdk.json
+*.json
+!appsettings.json
+!appsettings.Development.json 

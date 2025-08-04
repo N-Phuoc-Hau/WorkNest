@@ -15,6 +15,10 @@ namespace BEWorkNest.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
         public bool IsActive { get; set; } = true;
+        
+        // Additional properties to match Flutter ApplicationModel
+        public string? RejectionReason { get; set; }
+        public DateTime? AppliedAt { get; set; }
 
         // Navigation properties
         [ForeignKey("ApplicantId")]

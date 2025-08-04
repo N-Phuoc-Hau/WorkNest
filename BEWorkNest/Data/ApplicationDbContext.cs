@@ -21,6 +21,7 @@ namespace BEWorkNest.Data
         public DbSet<UserDevice> UserDevices { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Analytics> Analytics { get; set; }
+        public DbSet<UserProfile> UserProfiles { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

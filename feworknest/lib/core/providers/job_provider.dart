@@ -1,49 +1,63 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/job_model.dart';
 import '../services/job_service.dart';
 
 class JobsState {
   final List<JobModel> jobs;
   final List<JobModel> myJobs;
+  final List<JobModel> featuredJobs;
   final JobModel? selectedJob;
   final bool isLoading;
   final String? error;
   final int currentPage;
   final int totalPages;
+  final int totalCount;
+  final bool hasMore;
 
   const JobsState({
     this.jobs = const [],
     this.myJobs = const [],
+    this.featuredJobs = const [],
     this.selectedJob,
     this.isLoading = false,
     this.error,
     this.currentPage = 1,
     this.totalPages = 1,
+    this.totalCount = 0,
+    this.hasMore = true,
   });
 
   JobsState copyWith({
     List<JobModel>? jobs,
     List<JobModel>? myJobs,
+    List<JobModel>? featuredJobs,
     JobModel? selectedJob,
     bool? isLoading,
     String? error,
     int? currentPage,
     int? totalPages,
+    int? totalCount,
+    bool? hasMore,
   }) {
     return JobsState(
       jobs: jobs ?? this.jobs,
       myJobs: myJobs ?? this.myJobs,
+      featuredJobs: featuredJobs ?? this.featuredJobs,
       selectedJob: selectedJob ?? this.selectedJob,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
       currentPage: currentPage ?? this.currentPage,
       totalPages: totalPages ?? this.totalPages,
+      totalCount: totalCount ?? this.totalCount,
+      hasMore: hasMore ?? this.hasMore,
     );
   }
 }
 
 class JobNotifier extends StateNotifier<JobsState> {
   final JobService _jobService;
+  Map<String, dynamic> _currentFilters = {};
 
   JobNotifier(this._jobService) : super(const JobsState());
 
@@ -69,6 +83,8 @@ class JobNotifier extends StateNotifier<JobsState> {
       );
 
       final newJobs = result['jobs'] as List<JobModel>;
+      final totalCount = result['totalCount'] as int? ?? newJobs.length;
+      final hasMoreItems = newJobs.length == pageSize; // If we got full page, there might be more
       
       if (loadMore && page > 1) {
         // Append to existing jobs for pagination
@@ -76,14 +92,23 @@ class JobNotifier extends StateNotifier<JobsState> {
           jobs: [...state.jobs, ...newJobs],
           currentPage: page,
           totalPages: result['totalPages'],
+          totalCount: totalCount,
+          hasMore: hasMoreItems,
           isLoading: false,
         );
       } else {
         // Replace jobs for new search or first load
+        _currentFilters = {
+          'search': search,
+          'specialized': specialized,
+          'location': location,
+        };
         state = state.copyWith(
           jobs: newJobs,
           currentPage: page,
           totalPages: result['totalPages'],
+          totalCount: totalCount,
+          hasMore: hasMoreItems,
           isLoading: false,
         );
       }
@@ -251,6 +276,77 @@ class JobNotifier extends StateNotifier<JobsState> {
   void clearSelectedJob() {
     state = state.copyWith(selectedJob: null);
   }
+
+  // Additional methods for enhanced functionality
+  Future<void> loadMoreJobs() async {
+    if (!state.hasMore || state.isLoading) return;
+    
+    await getJobPosts(
+      page: state.currentPage + 1,
+      pageSize: 10,
+      search: _currentFilters['search'],
+      specialized: _currentFilters['specialized'],
+      location: _currentFilters['location'],
+      loadMore: true,
+    );
+  }
+
+  Future<void> refreshJobs() async {
+    await getJobPosts(
+      page: 1,
+      pageSize: 10,
+      search: _currentFilters['search'],
+      specialized: _currentFilters['specialized'],
+      location: _currentFilters['location'],
+      loadMore: false,
+    );
+  }
+
+  Future<void> searchJobs({
+    String? search,
+    String? specialized,
+    String? location,
+  }) async {
+    await getJobPosts(
+      page: 1,
+      pageSize: 10,
+      search: search,
+      specialized: specialized,
+      location: location,
+      loadMore: false,
+    );
+  }
+
+  Future<void> getFeaturedJobs() async {
+    try {
+      final result = await _jobService.getJobPosts(
+        page: 1,
+        pageSize: 6,
+      );
+
+      final featuredJobs = result['jobs'] as List<JobModel>;
+      
+      state = state.copyWith(
+        featuredJobs: featuredJobs,
+      );
+    } catch (e) {
+      // Don't update error state for featured jobs, just fail silently
+    }
+  }
+
+  // Get job by ID (for job detail screen)
+  Future<JobModel?> getJobById(int jobId) async {
+    try {
+      final job = await _jobService.getJobById(jobId);
+      
+      // Update selected job
+      state = state.copyWith(selectedJob: job);
+      return job;
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return null;
+    }
+  }
 }
 
 // Providers
@@ -258,4 +354,64 @@ final jobServiceProvider = Provider<JobService>((ref) => JobService());
 
 final jobProvider = StateNotifierProvider<JobNotifier, JobsState>((ref) {
   return JobNotifier(ref.watch(jobServiceProvider));
+});
+
+// Featured Jobs Provider
+final featuredJobsProvider = FutureProvider<List<JobModel>>((ref) async {
+  final jobService = JobService();
+  final result = await jobService.getJobPosts(
+    page: 1,
+    pageSize: 6,
+  );
+  return result['jobs'] as List<JobModel>;
+});
+
+// Job Statistics Provider
+final jobStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  // Mock statistics for now - replace with actual API call when available
+  return {
+    'totalJobs': 50000,
+    'totalCompanies': 10000,
+    'totalCandidates': 1000000,
+    'successRate': 95,
+  };
+});
+
+// Single Job Provider
+final jobByIdProvider = FutureProvider.family<JobModel?, int>((ref, jobId) async {
+  final jobService = JobService();
+  try {
+    final job = await jobService.getJobById(jobId);
+    return job;
+  } catch (e) {
+    return null;
+  }
+});
+
+// Search Suggestions Provider
+final searchSuggestionsProvider = FutureProvider.family<List<String>, String>((ref, query) async {
+  if (query.length < 2) return [];
+  
+  // Mock search suggestions - replace with actual API call when available
+  final suggestions = [
+    'Flutter Developer',
+    'React Developer', 
+    'Frontend Developer',
+    'Backend Developer',
+    'Full Stack Developer',
+    'Mobile Developer',
+    'UI/UX Designer',
+    'Product Manager',
+    'DevOps Engineer',
+    'Data Analyst',
+    'Software Engineer',
+    'QA Engineer',
+    'Business Analyst',
+    'Marketing Manager',
+    'Sales Manager',
+  ].where((suggestion) => 
+    suggestion.toLowerCase().contains(query.toLowerCase())
+  ).take(5).toList();
+  
+  return suggestions;
 });

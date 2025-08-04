@@ -127,6 +127,16 @@ class JobService {
     }
   }
 
+  Future<JobModel> getJobById(int jobId) async {
+    try {
+      final response = await _dio.get('${ApiConstants.jobs}/$jobId');
+      final data = response.data;
+      return JobModel.fromJson(data['data'] ?? data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   String _handleError(DioException e) {
     if (e.response != null) {
       final data = e.response!.data;

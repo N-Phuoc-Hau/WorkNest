@@ -9,7 +9,7 @@ import '../../../core/providers/job_provider.dart';
 import '../../../core/utils/auth_guard.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
-  final int jobId;
+  final String jobId;
 
   const JobDetailScreen({
     super.key,
@@ -25,7 +25,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(jobProvider.notifier).getJobPost(widget.jobId);
+      final jobIdInt = int.tryParse(widget.jobId) ?? 0;
+      ref.read(jobProvider.notifier).getJobPost(jobIdInt);
     });
   }
 

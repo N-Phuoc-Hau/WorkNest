@@ -1,3 +1,5 @@
+import 'user_profile_model.dart';
+
 class UserModel {
   final String id;
   final String email;
@@ -7,6 +9,7 @@ class UserModel {
   final String? avatar;
   final DateTime createdAt;
   final CompanyModel? company; // Chỉ có khi role = 'recruiter'
+  final UserProfileModel? userProfile; // Chỉ có khi role = 'candidate'
 
   const UserModel({
     required this.id,
@@ -17,6 +20,7 @@ class UserModel {
     this.avatar,
     required this.createdAt,
     this.company,
+    this.userProfile,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -31,6 +35,9 @@ class UserModel {
       company: json['company'] != null
           ? CompanyModel.fromJson(json['company'] as Map<String, dynamic>)
           : null,
+      userProfile: json['userProfile'] != null
+          ? UserProfileModel.fromJson(json['userProfile'] as Map<String, dynamic>)
+          : null,
     );
   }
 
@@ -44,6 +51,7 @@ class UserModel {
       'avatar': avatar,
       'createdAt': createdAt.toIso8601String(),
       'company': company?.toJson(),
+      'userProfile': userProfile?.toJson(),
     };
   }
 
@@ -56,6 +64,7 @@ class UserModel {
     String? avatar,
     DateTime? createdAt,
     CompanyModel? company,
+    UserProfileModel? userProfile,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -66,12 +75,23 @@ class UserModel {
       avatar: avatar ?? this.avatar,
       createdAt: createdAt ?? this.createdAt,
       company: company ?? this.company,
+      userProfile: userProfile ?? this.userProfile,
     );
   }
 
   String get fullName => '$firstName $lastName';
   bool get isRecruiter => role == 'recruiter';
   bool get isCandidate => role == 'candidate';
+  
+  // Convenience getters for UserProfile data
+  String? get position => userProfile?.position;
+  String? get experience => userProfile?.experience;
+  String? get education => userProfile?.education;
+  String? get skills => userProfile?.skills;
+  String? get bio => userProfile?.bio;
+  String? get address => userProfile?.address;
+  DateTime? get dateOfBirth => userProfile?.dateOfBirth;
+  String? get phoneNumber => userProfile?.phoneNumber;
 }
 
 class CompanyModel {

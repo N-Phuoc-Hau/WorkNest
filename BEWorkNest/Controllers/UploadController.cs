@@ -17,6 +17,7 @@ namespace BEWorkNest.Controllers
 
         [HttpPost("avatar")]
         [AllowAnonymous]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadAvatar(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -42,6 +43,7 @@ namespace BEWorkNest.Controllers
 
         [HttpPost("image")]
         [AllowAnonymous]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadImage(IFormFile file, [FromQuery] string folder = "images")
         {
             if (file == null || file.Length == 0)
@@ -67,6 +69,7 @@ namespace BEWorkNest.Controllers
 
         [HttpPost("images")]
         [AllowAnonymous]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadImages(List<IFormFile> files, [FromQuery] string folder = "images")
         {
             if (files == null || files.Count == 0)
@@ -98,6 +101,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost("pdf")]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadPdf(IFormFile file, [FromQuery] string folder = "pdfs")
         {
             if (file == null || file.Length == 0)
@@ -122,6 +126,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost("cv")]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadCv(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -146,6 +151,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost("file")]
+        [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadFile(IFormFile file, [FromQuery] string folder = "files")
         {
             if (file == null || file.Length == 0)

@@ -1,0 +1,159 @@
+Màu chủ đạo là màu xanh trắng không cần lấy Theme hiện tại của máy
+# WorkNest – UI Flow, Screens & Widget Tree (Mobile + Web)
+
+## 🌐 1. Web Application – UI Flow
+
+### A. Roles:
+
+* **Candidate (Ứng viên)**
+* **Recruiter (Nhà tuyển dụng)**
+* **Admin (Quản trị viên)**
+
+### B. Layout Structure:
+
+* **HeaderBar**: Logo, Search, Notification, User Menu
+* **Sidebar (Left)**: Navigation menu (collapsible)
+* **Main Content**: Dynamic router views
+* **Footer** (optional): Links, contact, etc.
+
+### C. Web Navigation Flow
+
+#### 1. Public Routes
+
+* `/`: Landing Page
+* `/login`: Đăng nhập
+* `/register`: Đăng ký
+* `/job-detail/:id`: Chi tiết công việc
+* `/company/:id`: Trang công ty
+
+#### 2. Candidate Routes
+
+* `/candidate/home`: Trang chính ứng viên
+* `/candidate/jobs`: Tìm kiếm công việc
+* `/candidate/favorites`: Việc làm yêu thích
+* `/candidate/applications`: Hồ sơ đã ứng tuyển
+* `/candidate/profile`: Quản lý hồ sơ cá nhân
+* `/candidate/chat`: Chat HR (Firebase)
+* `/candidate/settings`: Cài đặt
+
+#### 3. Recruiter Routes
+
+* `/recruiter/home`: Dashboard nhà tuyển dụng
+* `/recruiter/post-job`: Đăng tin tuyển dụng
+* `/recruiter/jobs`: Quản lý tin tuyển dụng
+* `/recruiter/applicants`: Xem hồ sơ ứng viên
+* `/recruiter/chat`: Chat ứng viên
+* `/recruiter/company`: Trang công ty
+* `/recruiter/settings`: Cài đặt
+
+#### 4. Admin Routes
+
+* `/admin/users`: Quản lý người dùng
+* `/admin/jobs`: Quản lý tin tuyển dụng
+* `/admin/companies`: Duyệt công ty
+
+---
+
+## 📱 2. Mobile App – UI Flow
+
+### A. Layout Structure:
+
+* **BottomNavigationBar**: Ứng viên, nhà tuyển dụng
+* **Drawer (SideBar)**: Thêm tính năng phụ, avatar
+* **AppBar**: Tùy từng trang
+
+### B. Mobile Navigation Flow
+
+#### Candidate
+
+* Home (Gợi ý việc làm, tin mới)
+* Tìm kiếm việc làm
+* Danh sách yêu thích
+* Hồ sơ
+* Ứng tuyển
+* Chat
+* Cài đặt
+
+#### Recruiter
+
+* Dashboard tuyển dụng
+* Đăng tin tuyển dụng
+* Danh sách tin tuyển dụng
+* Hồ sơ ứng viên
+* Chat
+* Cài đặt
+
+---
+
+## 🧱 Widget Tree Structure
+
+### Candidate (Mobile)
+
+```dart
+Scaffold (
+  bottomNavigationBar: BottomNavBar(),
+  drawer: CandidateDrawer(),
+  body: GoRouterView(),
+)
+```
+
+### Recruiter (Mobile)
+
+```dart
+Scaffold (
+  bottomNavigationBar: BottomNavBar(),
+  drawer: RecruiterDrawer(),
+  body: GoRouterView(),
+)
+```
+
+### Web Shared Layout
+
+```dart
+Row(
+  children: [
+    Sidebar(),
+    Expanded(
+      child: Column(
+        children: [
+          HeaderBar(),
+          Expanded(child: GoRouterView()),
+        ],
+      ),
+    )
+  ],
+)
+```
+
+---
+
+## 🔐 Shared Pages/Widgets
+
+* `LoginPage`
+* `RegisterPage`
+* `JobDetailPage`
+* `ProfileForm`
+* `JobCard`, `JobList`, `CompanyCard`
+* `FirebaseChatWidget`
+* `NotificationService` (with FCM)
+* `SearchBar`, `SuggestionList`
+
+---
+
+## ✅ Status: **Đã bao phủ đầy đủ các chức năng bạn yêu cầu:**
+
+* Đăng nhập / Đăng ký / Google Auth (sẽ thêm sau)
+* Đăng tin, ứng tuyển, chat, thông báo
+* Gợi ý công việc / hồ sơ
+* Yêu thích, đánh giá
+* Web: Sidebar + HeaderBar ✅
+* Mobile: BottomBar + Sidebar ✅
+
+---
+
+👉 Hãy nói mình biết bạn muốn tiếp tục phần nào:
+
+* Wireframe chi tiết cho từng màn hình
+* Thiết kế responsive Flutter layout
+* Cấu hình GoRouter
+* Firebase Auth hoặc Chat realtime

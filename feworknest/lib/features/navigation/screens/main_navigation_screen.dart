@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/job_provider.dart';
+import '../../../shared/screens/placeholder_screens.dart';
 import '../../applications/screens/my_applications_screen.dart';
 import '../../chat/screens/chat_list_screen.dart';
 import '../../dashboard/screens/candidate_dashboard_screen.dart';
-import '../../dashboard/screens/guest_dashboard_screen.dart';
 import '../../dashboard/screens/recruiter_dashboard_screen.dart';
 import '../../favorites/screens/favorite_screen.dart';
 import '../../jobs/screens/job_list_screen.dart';
@@ -242,17 +242,17 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
   List<NavigationTab> _getPublicTabs() {
     return [
       NavigationTab(
-        icon: Icons.dashboard_outlined,
-        activeIcon: Icons.dashboard,
-        label: 'Trang chủ',
-        screen: const GuestDashboardScreen(),
-        requiresAuth: false,
-      ),
-      NavigationTab(
         icon: Icons.work_outline,
         activeIcon: Icons.work,
         label: 'Việc làm',
         screen: const JobListScreen(),
+        requiresAuth: false,
+      ),
+      NavigationTab(
+        icon: Icons.business_outlined,
+        activeIcon: Icons.business,
+        label: 'Công ty',
+        screen: const CompanyListScreen(),
         requiresAuth: false,
       ),
       NavigationTab(

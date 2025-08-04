@@ -2,36 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/applications/screens/my_applications_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
-import '../../features/recruiter/screens/recruiter_home_screen.dart';
-import '../../features/jobs/screens/job_list_screen.dart';
-import '../../features/jobs/screens/job_detail_screen.dart';
-import '../../features/landing/landing_page.dart';
-import '../../features/applications/screens/my_applications_screen.dart';
-import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
+import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/job_posting/screens/create_job_screen.dart';
 import '../../features/job_posting/screens/manage_jobs_screen.dart';
-import '../../features/profile/screens/profile_screen.dart';
-import '../../features/notifications/screens/notification_screen.dart';
-import '../../features/navigation/layouts/web_layout.dart';
+import '../../features/jobs/screens/job_detail_screen.dart';
+import '../../features/jobs/screens/job_list_screen.dart';
+import '../../features/landing/landing_page.dart';
 import '../../features/navigation/layouts/mobile_layout.dart';
+import '../../features/navigation/layouts/web_layout.dart';
+import '../../features/notifications/screens/notification_screen.dart';
+import '../../features/profile/screens/profile_screen.dart';
+import '../../features/recruiter/screens/recruiter_home_screen.dart';
 import '../../shared/screens/company_screen.dart';
-import '../../features/dashboard/screens/admin_dashboard_screen.dart';
-import '../../features/admin/screens/admin_users_screen.dart';
-import '../../features/admin/screens/admin_jobs_screen.dart';
-import '../../features/admin/screens/admin_companies_screen.dart';
-import '../../features/settings/screens/candidate_settings_screen.dart';
-import '../../features/settings/screens/recruiter_settings_screen.dart';
-import '../../features/settings/screens/admin_settings_screen.dart';
-import '../../features/recruiter/screens/recruiter_applicants_screen.dart';
-import '../../features/recruiter/screens/recruiter_company_screen.dart';
 import '../providers/auth_provider.dart';
 
-final appRouterProvider = Provider<GoRouter>((ref) {
+final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
   
   return GoRouter(
@@ -212,88 +203,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             },
           ),
         ],
-      ),
-
-      // Admin Routes
-      GoRoute(
-        path: '/admin',
-        redirect: (context, state) => '/admin/users',
-      ),
-      GoRoute(
-        path: '/admin-dashboard',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const AdminDashboardScreen(),
-          'admin',
-        ),
-      ),
-      GoRoute(
-        path: '/admin/users',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const AdminUsersScreen(),
-          'admin',
-        ),
-      ),
-      GoRoute(
-        path: '/admin/jobs',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const AdminJobsScreen(),
-          'admin',
-        ),
-      ),
-      GoRoute(
-        path: '/admin/companies',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const AdminCompaniesScreen(),
-          'admin',
-        ),
-      ),
-
-      // Settings Routes
-      GoRoute(
-        path: '/candidate/settings',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const CandidateSettingsScreen(),
-          'candidate',
-        ),
-      ),
-      GoRoute(
-        path: '/recruiter/settings',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const RecruiterSettingsScreen(),
-          'recruiter',
-        ),
-      ),
-      GoRoute(
-        path: '/admin/settings',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const AdminSettingsScreen(),
-          'admin',
-        ),
-      ),
-
-      // Additional Recruiter Routes
-      GoRoute(
-        path: '/recruiter/applicants',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const RecruiterApplicantsScreen(),
-          'recruiter',
-        ),
-      ),
-      GoRoute(
-        path: '/recruiter/company',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const RecruiterCompanyScreen(),
-          'recruiter',
-        ),
       ),
 
       // Shared notification route

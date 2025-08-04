@@ -30,6 +30,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authNotifier = ref.read(authProvider.notifier);
+    
+    // Clear any previous errors
+    authNotifier.clearError();
+    
     final success = await authNotifier.login(
       _emailController.text.trim(),
       _passwordController.text,
@@ -37,8 +41,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     if (success && mounted) {
       // Get user info to determine redirect
-      final user = ref.read(authProvider).user;
+      final authState = ref.read(authProvider);
+      final user = authState.user;
+      
       if (user != null) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đăng nhập thành công! Chào mừng ${user.fullName}'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Small delay to ensure auth state is fully updated
+        await Future.delayed(const Duration(milliseconds: 100));
+        
         // Redirect based on user role
         if (user.role == 'Admin') {
           context.go('/admin-dashboard');
@@ -48,7 +65,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           context.go('/candidate-dashboard');
         }
       } else {
-        context.go('/candidate-dashboard'); // Default fallback
+        // Fallback if user is null but login was successful
+        context.go('/candidate-dashboard');
       }
     } else if (mounted) {
       // Show error message

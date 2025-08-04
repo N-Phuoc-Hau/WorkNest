@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/dashboard_provider.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/utils/responsive_utils.dart';
+import '../../navigation/layouts/web_layout.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/chart_widget.dart';
 
@@ -24,30 +26,19 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(dashboardProvider);
-    final user = ref.watch(authProvider).user;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Candidate Dashboard',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+    // Use WebLayout for responsive design
+    return WebLayout(
+      title: 'Dashboard Ứng viên',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh),
+          onPressed: () {
+            ref.read(dashboardProvider.notifier).refresh();
+          },
         ),
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.read(dashboardProvider.notifier).refresh();
-            },
-          ),
-        ],
-      ),
-      body: dashboardState.isLoading
+      ],
+      child: dashboardState.isLoading
           ? const Center(child: CircularProgressIndicator())
           : dashboardState.error != null
               ? _buildErrorWidget(dashboardState.error!)
@@ -94,31 +85,88 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
         await ref.read(dashboardProvider.notifier).refresh();
       },
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+        padding: ResponsiveUtils.getContentPadding(context),
+        child: ResponsiveUtils.isWeb(context) 
+            ? _buildWebDashboard(data)
+            : _buildMobileDashboard(data),
+      ),
+    );
+  }
+
+  Widget _buildWebDashboard(Map<String, dynamic> data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Welcome Section - Full width
+        _buildWelcomeSection(),
+        const SizedBox(height: 32),
+
+        // Main Content Row
+        Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome Section
-            _buildWelcomeSection(),
-            const SizedBox(height: 24),
-
-            // Stats Cards
-            _buildStatsCards(data),
-            const SizedBox(height: 24),
-
-            // Recent Applications
-            _buildRecentApplications(data),
-            const SizedBox(height: 24),
-
-            // Charts Section
-            _buildChartsSection(data),
-            const SizedBox(height: 24),
-
-            // Quick Actions
-            _buildQuickActions(),
+            // Left Column - Stats and Charts
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Stats Cards Grid
+                  _buildStatsCards(data),
+                  const SizedBox(height: 32),
+                  
+                  // Charts Section
+                  _buildChartsSection(data),
+                ],
+              ),
+            ),
+            
+            const SizedBox(width: 32),
+            
+            // Right Sidebar - Recent Applications and Quick Actions
+            Expanded(
+              flex: 1,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Recent Applications
+                  _buildRecentApplications(data),
+                  const SizedBox(height: 24),
+                  
+                  // Quick Actions
+                  _buildQuickActions(),
+                ],
+              ),
+            ),
           ],
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildMobileDashboard(Map<String, dynamic> data) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Welcome Section
+        _buildWelcomeSection(),
+        const SizedBox(height: 24),
+
+        // Stats Cards
+        _buildStatsCards(data),
+        const SizedBox(height: 24),
+
+        // Recent Applications
+        _buildRecentApplications(data),
+        const SizedBox(height: 24),
+
+        // Charts Section
+        _buildChartsSection(data),
+        const SizedBox(height: 24),
+
+        // Quick Actions
+        _buildQuickActions(),
+      ],
     );
   }
 
@@ -185,13 +233,20 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
   }
 
   Widget _buildStatsCards(Map<String, dynamic> data) {
+    final crossAxisCount = ResponsiveUtils.getCrossAxisCount(
+      context,
+      mobile: 2,
+      tablet: 3,
+      desktop: 3,
+    );
+
     return GridView.count(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      crossAxisSpacing: 16,
-      mainAxisSpacing: 16,
-      childAspectRatio: 1.2,
+      crossAxisCount: crossAxisCount,
+      crossAxisSpacing: ResponsiveUtils.isWeb(context) ? 24 : 16,
+      mainAxisSpacing: ResponsiveUtils.isWeb(context) ? 24 : 16,
+      childAspectRatio: ResponsiveUtils.isWeb(context) ? 1.4 : 1.2,
       children: [
         StatCard(
           title: 'Tổng đơn ứng tuyển',
@@ -440,11 +495,15 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
   }
 
   Widget _buildQuickActions() {
+    final isWeb = ResponsiveUtils.isWeb(context);
+    final crossAxisCount = isWeb ? 1 : 2;
+    final childAspectRatio = isWeb ? 4.0 : 2.5;
+
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(isWeb ? 20 : 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(isWeb ? 12 : 16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -456,21 +515,21 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Thao tác nhanh',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: isWeb ? 20 : 18,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: isWeb ? 20 : 16),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
+            crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 2.5,
+            childAspectRatio: childAspectRatio,
             children: [
               _buildQuickActionCard(
                 'Tìm việc làm',
