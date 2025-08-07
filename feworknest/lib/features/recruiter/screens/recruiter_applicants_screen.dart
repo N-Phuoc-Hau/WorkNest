@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/recruiter_applicants_provider.dart';
+
 import '../../../core/models/application_model.dart';
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/chat_provider.dart';
+import '../../../core/providers/recruiter_applicants_provider.dart';
+import '../../../shared/widgets/common_widgets.dart';
+import '../../chat/screens/chat_screen.dart';
 
 class RecruiterApplicantsScreen extends ConsumerStatefulWidget {
   const RecruiterApplicantsScreen({super.key});
@@ -421,9 +426,9 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _handleApplicantAction('contact', applicant),
-                    icon: const Icon(Icons.message, size: 16),
-                    label: const Text('Liên hệ'),
+                    onPressed: () => _startChatWithApplicant(applicant),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 16),
+                    label: const Text('Nhắn tin'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
@@ -489,13 +494,97 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
         );
         break;
       case 'contact':
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Liên hệ: ${applicant.applicantName}')),
-        );
+        _startChatWithApplicant(applicant);
         break;
       case 'more':
         _showMoreOptionsDialog(applicant);
         break;
+    }
+  }
+
+  Future<void> _startChatWithApplicant(ApplicationModel applicant) async {
+    try {
+      // Show loading indicator with custom message
+      LoadingDialog.show(context, message: 'Đang tạo cuộc trò chuyện...');
+
+      // Get current user info
+      final authState = ref.read(authProvider);
+      if (authState.user == null) {
+        LoadingDialog.hide(context);
+        NotificationHelper.showError(
+          context, 
+          'Vui lòng đăng nhập để sử dụng tính năng này'
+        );
+        return;
+      }
+
+      final currentUser = authState.user!;
+      
+      // Prepare user info for chat
+      final recruiterInfo = {
+        'id': currentUser.id,
+        'name': '${currentUser.firstName} ${currentUser.lastName}'.trim(),
+        'email': currentUser.email,
+        'avatar': currentUser.avatar,
+        'role': currentUser.role,
+      };
+
+      final candidateInfo = {
+        'id': applicant.applicantId,
+        'name': applicant.applicantName,
+        'email': applicant.applicant?.email ?? '',
+        'avatar': applicant.applicant?.avatar,
+        'role': 'candidate',
+      };
+
+      final jobInfo = {
+        'id': applicant.jobId.toString(), // Convert int to string
+        'title': applicant.job?.title ?? 'Không rõ',
+        'company': applicant.job?.recruiter.company?.name ?? 'Không rõ',
+      };
+
+      // Create or get chat room using chat provider
+      final chatNotifier = ref.read(chatProvider({
+        'userId': currentUser.id,
+        'userType': currentUser.role.toLowerCase(),
+      }).notifier);
+
+      final roomId = await chatNotifier.createOrGetChatRoom(
+        recruiterId: currentUser.id,
+        candidateId: applicant.applicantId,
+        jobId: applicant.jobId.toString(), // Convert int to string
+        recruiterInfo: recruiterInfo,
+        candidateInfo: candidateInfo,
+        jobInfo: jobInfo,
+      );
+
+      // Close loading dialog
+      LoadingDialog.hide(context);
+
+      // Navigate to chat screen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatScreen(
+            roomId: roomId,
+            otherUserInfo: candidateInfo,
+            jobInfo: jobInfo,
+          ),
+        ),
+      );
+
+      NotificationHelper.showSuccess(
+        context,
+        'Đã tạo cuộc trò chuyện với ${applicant.applicantName}',
+      );
+    } catch (e) {
+      // Close loading dialog if still open
+      LoadingDialog.hide(context);
+      
+      NotificationHelper.showError(
+        context,
+        'Lỗi khi tạo cuộc trò chuyện: ${e.toString()}',
+      );
     }
   }
 
@@ -507,6 +596,14 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: const Icon(Icons.message, color: Colors.blue),
+              title: const Text('Nhắn tin'),
+              onTap: () {
+                Navigator.pop(context);
+                _startChatWithApplicant(applicant);
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.download),
               title: const Text('Tải CV'),

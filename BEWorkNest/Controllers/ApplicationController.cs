@@ -36,14 +36,14 @@ namespace BEWorkNest.Controllers
         {
             string? userId = null;
             string? userRole = null;
-            
+
             try
             {
                 // Debug logging
                 Console.WriteLine($"DEBUG: CreateApplication called with JobId: {createDto.JobId}");
                 Console.WriteLine($"DEBUG: User.Identity.IsAuthenticated: {User.Identity?.IsAuthenticated}");
                 Console.WriteLine($"DEBUG: User claims count: {User.Claims.Count()}");
-                
+
                 foreach (var claim in User.Claims)
                 {
                     Console.WriteLine($"DEBUG: Claim {claim.Type}: {claim.Value}");
@@ -70,7 +70,8 @@ namespace BEWorkNest.Controllers
                     else
                     {
                         Console.WriteLine("DEBUG: No candidate user found in database");
-                        return BadRequest(new { 
+                        return BadRequest(new
+                        {
                             message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
                             errorCode = "USER_ID_NOT_FOUND"
                         });
@@ -81,7 +82,8 @@ namespace BEWorkNest.Controllers
                 if (userRole != "candidate")
                 {
                     Console.WriteLine($"DEBUG: User role '{userRole}' is not candidate - returning error");
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
                         message = "Không có quyền truy cập. Chỉ ứng viên mới có thể nộp đơn ứng tuyển.",
                         errorCode = "INSUFFICIENT_PERMISSIONS",
                         userRole = userRole ?? "unknown"
@@ -107,7 +109,7 @@ namespace BEWorkNest.Controllers
             // Check if application already exists
             var existingApplication = await _context.Applications
                 .FirstOrDefaultAsync(a => a.ApplicantId == userId && a.JobId == createDto.JobId);
-            
+
             if (existingApplication != null)
             {
                 return BadRequest("You have already applied for this job");
@@ -233,13 +235,14 @@ namespace BEWorkNest.Controllers
                 else
                 {
                     Console.WriteLine("DEBUG: No user found in database for GetApplication");
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
                         message = "Không tìm thấy thông tin người dùng trong token và không có user nào trong DB",
                         errorCode = "USER_ID_NOT_FOUND"
                     });
                 }
             }
-            
+
             var application = await _context.Applications
                 .Include(a => a.Applicant)
                 .Include(a => a.Job)
@@ -257,7 +260,7 @@ namespace BEWorkNest.Controllers
             {
                 return Forbid("You can only view your own applications");
             }
-            
+
             if (userRole == "recruiter" && application.Job.RecruiterId != userId)
             {
                 return Forbid("You can only view applications for your jobs");
@@ -334,7 +337,8 @@ namespace BEWorkNest.Controllers
                 else
                 {
                     Console.WriteLine("DEBUG: No candidate user found in database for my-applications");
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
                         message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
                         errorCode = "USER_ID_NOT_FOUND"
                     });
@@ -344,7 +348,8 @@ namespace BEWorkNest.Controllers
             // Check if user has candidate role
             if (userRole != "candidate")
             {
-                return BadRequest(new { 
+                return BadRequest(new
+                {
                     message = "Không có quyền truy cập. Chỉ ứng viên mới có thể xem đơn ứng tuyển của mình.",
                     errorCode = "INSUFFICIENT_PERMISSIONS",
                     userRole = userRole ?? "unknown"
@@ -433,6 +438,265 @@ namespace BEWorkNest.Controllers
             });
         }
 
+
+        [HttpGet("my-job-applications")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetMyJobApplications(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? status = null,
+            [FromQuery] int? jobId = null)
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            Console.WriteLine($"DEBUG: GetMyJobApplications - userId: {userId}, userRole: {userRole}");
+
+            // FOR TESTING: If no token, try to find any recruiter user
+            if (userId == null)
+            {
+                Console.WriteLine("DEBUG: No token found for GetMyJobApplications, looking for any recruiter user...");
+                var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                if (recruiterUser != null)
+                {
+                    userId = recruiterUser.Id;
+                    userRole = "recruiter";
+                    Console.WriteLine($"DEBUG: Using test recruiter user for GetMyJobApplications: {userId}");
+                }
+                else
+                {
+                    Console.WriteLine("DEBUG: No recruiter user found in database for GetMyJobApplications");
+                    return BadRequest(new
+                    {
+                        message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
+                        errorCode = "USER_ID_NOT_FOUND"
+                    });
+                }
+            }
+
+            // Check if user has recruiter role
+            if (userRole != "recruiter")
+            {
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể xem đơn ứng tuyển cho công việc của mình.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? "unknown"
+                });
+            }
+
+            // Build query to get all applications for jobs created by this recruiter
+            var query = _context.Applications
+                .Include(a => a.Applicant)
+                .Include(a => a.Job)
+                .ThenInclude(j => j.Recruiter)
+                .ThenInclude(r => r.Company)
+                .Where(a => a.Job.RecruiterId == userId && a.IsActive);
+
+            // Filter by specific job if provided
+            if (jobId.HasValue)
+            {
+                query = query.Where(a => a.JobId == jobId.Value);
+            }
+
+            // Filter by status if provided
+            if (!string.IsNullOrEmpty(status))
+            {
+                if (Enum.TryParse<ApplicationStatus>(status, true, out var statusEnum))
+                {
+                    query = query.Where(a => a.Status == statusEnum);
+                }
+            }
+
+            var totalCount = await query.CountAsync();
+            var applications = await query
+                .OrderByDescending(a => a.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var applicationDtos = applications.Select(a => new ApplicationDto
+            {
+                Id = a.Id,
+                ApplicantId = a.ApplicantId,
+                JobId = a.JobId,
+                CvUrl = a.CvUrl,
+                CoverLetter = a.CoverLetter,
+                Status = a.Status.ToString(),
+                CreatedAt = a.CreatedAt,
+                IsActive = a.IsActive,
+                RejectionReason = a.RejectionReason,
+                AppliedAt = a.CreatedAt,
+                Applicant = a.Applicant != null ? new UserDto
+                {
+                    Id = a.Applicant.Id,
+                    Email = a.Applicant.Email!,
+                    FirstName = a.Applicant.FirstName,
+                    LastName = a.Applicant.LastName,
+                    Role = a.Applicant.Role,
+                    Avatar = a.Applicant.Avatar,
+                    CreatedAt = a.Applicant.CreatedAt
+                } : null,
+                Job = new JobPostDto
+                {
+                    Id = a.Job.Id,
+                    Title = a.Job.Title,
+                    Specialized = a.Job.Specialized,
+                    Description = a.Job.Description,
+                    Requirements = a.Job.Requirements,
+                    Benefits = a.Job.Benefits,
+                    Salary = a.Job.Salary,
+                    WorkingHours = a.Job.WorkingHours,
+                    Location = a.Job.Location,
+                    JobType = a.Job.JobType,
+                    ExperienceLevel = a.Job.ExperienceLevel,
+                    DeadLine = a.Job.DeadLine,
+                    CreatedAt = a.Job.CreatedAt,
+                    ApplicationCount = _context.Applications.Count(app => app.JobId == a.Job.Id && app.IsActive),
+                    Recruiter = new UserDto
+                    {
+                        Id = a.Job.Recruiter.Id,
+                        Email = a.Job.Recruiter.Email!,
+                        FirstName = a.Job.Recruiter.FirstName,
+                        LastName = a.Job.Recruiter.LastName,
+                        Role = a.Job.Recruiter.Role,
+                        Avatar = a.Job.Recruiter.Avatar,
+                        CreatedAt = a.Job.Recruiter.CreatedAt,
+                        Company = a.Job.Recruiter.Company != null ? new CompanyDto
+                        {
+                            Id = a.Job.Recruiter.Company.Id,
+                            Name = a.Job.Recruiter.Company.Name,
+                            Description = a.Job.Recruiter.Company.Description,
+                            IsVerified = a.Job.Recruiter.Company.IsVerified
+                        } : null
+                    }
+                }
+            }).ToList();
+
+            // Get summary statistics
+            var totalApplications = await _context.Applications
+                .Where(a => a.Job.RecruiterId == userId && a.IsActive)
+                .CountAsync();
+
+            var pendingCount = await _context.Applications
+                .Where(a => a.Job.RecruiterId == userId && a.IsActive && a.Status == ApplicationStatus.Pending)
+                .CountAsync();
+
+            var acceptedCount = await _context.Applications
+                .Where(a => a.Job.RecruiterId == userId && a.IsActive && a.Status == ApplicationStatus.Accepted)
+                .CountAsync();
+
+            var rejectedCount = await _context.Applications
+                .Where(a => a.Job.RecruiterId == userId && a.IsActive && a.Status == ApplicationStatus.Rejected)
+                .CountAsync();
+
+            var jobsWithApplications = await _context.JobPosts
+                .Where(j => j.RecruiterId == userId && j.IsActive)
+                .Select(j => new
+                {
+                    id = j.Id,
+                    title = j.Title,
+                    applicationCount = j.Applications.Count(a => a.IsActive)
+                })
+                .Where(j => j.applicationCount > 0)
+                .OrderByDescending(j => j.applicationCount)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                data = applicationDtos,
+                totalCount,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+                summary = new
+                {
+                    totalApplications,
+                    pendingCount,
+                    acceptedCount,
+                    rejectedCount,
+                    jobsWithApplications
+                },
+                filters = new
+                {
+                    status = status,
+                    jobId = jobId
+                }
+            });
+        }
+
+        [HttpPut("{id}/status")]
+        [AllowAnonymous]
+        public async Task<IActionResult> UpdateApplicationStatus(int id, [FromBody] UpdateApplicationStatusDto updateDto)
+        {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // FOR TESTING: If no token, try to find any recruiter user
+            if (userId == null)
+            {
+                Console.WriteLine("DEBUG: No token found for UpdateApplicationStatus, looking for any recruiter user...");
+                var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                if (recruiterUser != null)
+                {
+                    userId = recruiterUser.Id;
+                    userRole = "recruiter";
+                    Console.WriteLine($"DEBUG: Using test recruiter user for UpdateApplicationStatus: {userId}");
+                }
+                else
+                {
+                    Console.WriteLine("DEBUG: No recruiter user found in database for UpdateApplicationStatus");
+                    return BadRequest(new
+                    {
+                        message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
+                        errorCode = "USER_ID_NOT_FOUND"
+                    });
+                }
+            }
+
+            // Check if user has recruiter role
+            if (userRole != "recruiter")
+            {
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể cập nhật trạng thái đơn ứng tuyển.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? "unknown"
+                });
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .FirstOrDefaultAsync(a => a.Id == id && a.IsActive);
+
+            if (application == null)
+            {
+                return NotFound();
+            }
+
+            // Check if current user is the recruiter of the job
+            if (application.Job.RecruiterId != userId)
+            {
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Bạn chỉ có thể cập nhật đơn ứng tuyển cho công việc của mình.",
+                    errorCode = "NOT_JOB_OWNER"
+                });
+            }
+
+            if (Enum.TryParse<ApplicationStatus>(updateDto.Status, out var status))
+            {
+                application.Status = status;
+                application.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = "Application status updated successfully" });
+            }
+
+            return BadRequest("Invalid status");
+        }
+
+
+
         [HttpGet("job/{jobId}/applications")]
         [AllowAnonymous]
         public async Task<IActionResult> GetJobApplications(int jobId,
@@ -456,7 +720,8 @@ namespace BEWorkNest.Controllers
                 else
                 {
                     Console.WriteLine("DEBUG: No recruiter user found in database for GetJobApplications");
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
                         message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
                         errorCode = "USER_ID_NOT_FOUND"
                     });
@@ -466,7 +731,8 @@ namespace BEWorkNest.Controllers
             // Check if user has recruiter role
             if (userRole != "recruiter")
             {
-                return BadRequest(new { 
+                return BadRequest(new
+                {
                     message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể xem đơn ứng tuyển cho công việc của mình.",
                     errorCode = "INSUFFICIENT_PERMISSIONS",
                     userRole = userRole ?? "unknown"
@@ -476,7 +742,8 @@ namespace BEWorkNest.Controllers
             var jobPost = await _context.JobPosts.FindAsync(jobId);
             if (jobPost == null || jobPost.RecruiterId != userId)
             {
-                return BadRequest(new { 
+                return BadRequest(new
+                {
                     message = "Không có quyền truy cập. Bạn chỉ có thể xem đơn ứng tuyển cho công việc của mình.",
                     errorCode = "NOT_JOB_OWNER"
                 });
@@ -552,7 +819,8 @@ namespace BEWorkNest.Controllers
                 else
                 {
                     Console.WriteLine("DEBUG: No candidate user found in database for DeleteApplication");
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
                         message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
                         errorCode = "USER_ID_NOT_FOUND"
                     });
@@ -562,7 +830,8 @@ namespace BEWorkNest.Controllers
             // Check if user has candidate role
             if (userRole != "candidate")
             {
-                return BadRequest(new { 
+                return BadRequest(new
+                {
                     message = "Không có quyền truy cập. Chỉ ứng viên mới có thể xóa đơn ứng tuyển của mình.",
                     errorCode = "INSUFFICIENT_PERMISSIONS",
                     userRole = userRole ?? "unknown"
@@ -620,7 +889,8 @@ namespace BEWorkNest.Controllers
                 else
                 {
                     Console.WriteLine("DEBUG: No candidate user found in database for UpdateApplication");
-                    return BadRequest(new { 
+                    return BadRequest(new
+                    {
                         message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
                         errorCode = "USER_ID_NOT_FOUND"
                     });
@@ -630,7 +900,8 @@ namespace BEWorkNest.Controllers
             // Check if user has candidate role
             if (userRole != "candidate")
             {
-                return BadRequest(new { 
+                return BadRequest(new
+                {
                     message = "Không có quyền truy cập. Chỉ ứng viên mới có thể cập nhật đơn ứng tuyển của mình.",
                     errorCode = "INSUFFICIENT_PERMISSIONS",
                     userRole = userRole ?? "unknown"

@@ -120,6 +120,91 @@ namespace BEWorkNest.Services
             }
         }
         
+        public async Task<string> SendChatNotificationAsync(string fcmToken, string senderName, string message, string chatRoomId, Dictionary<string, string>? additionalData = null)
+        {
+            if (_firebaseMessaging == null)
+            {
+                _logger.LogWarning("Firebase messaging is not available. Chat notification will not be sent.");
+                return string.Empty;
+            }
+            
+            try
+            {
+                var data = new Dictionary<string, string>
+                {
+                    ["type"] = "chat",
+                    ["chatRoomId"] = chatRoomId,
+                    ["senderName"] = senderName,
+                    ["message"] = message
+                };
+                
+                if (additionalData != null)
+                {
+                    foreach (var item in additionalData)
+                    {
+                        data[item.Key] = item.Value;
+                    }
+                }
+                
+                var notificationMessage = new Message()
+                {
+                    Token = fcmToken,
+                    Notification = new Notification()
+                    {
+                        Title = $"Tin nhắn từ {senderName}",
+                        Body = message.Length > 50 ? message.Substring(0, 47) + "..." : message
+                    },
+                    Data = data,
+                    Android = new AndroidConfig()
+                    {
+                        Priority = Priority.High,
+                        Notification = new AndroidNotification()
+                        {
+                            Title = $"Tin nhắn từ {senderName}",
+                            Body = message.Length > 50 ? message.Substring(0, 47) + "..." : message,
+                            Icon = "ic_chat",
+                            Color = "#4CAF50",
+                            Sound = "default",
+                            ChannelId = "chat_messages"
+                        }
+                    },
+                    Apns = new ApnsConfig()
+                    {
+                        Aps = new Aps()
+                        {
+                            Alert = new ApsAlert()
+                            {
+                                Title = $"Tin nhắn từ {senderName}",
+                                Body = message.Length > 50 ? message.Substring(0, 47) + "..." : message
+                            },
+                            Badge = 1,
+                            Sound = "default",
+                            Category = "chat"
+                        }
+                    },
+                    Webpush = new WebpushConfig()
+                    {
+                        Notification = new WebpushNotification()
+                        {
+                            Title = $"Tin nhắn từ {senderName}",
+                            Body = message.Length > 50 ? message.Substring(0, 47) + "..." : message,
+                            Icon = "/icons/chat-icon.png",
+                            Tag = chatRoomId
+                        }
+                    }
+                };
+                
+                var response = await _firebaseMessaging.SendAsync(notificationMessage);
+                _logger.LogInformation($"Successfully sent chat notification: {response}");
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error sending chat notification to token: {fcmToken}");
+                throw;
+            }
+        }
+        
         public async Task<BatchResponse?> SendPushNotificationToMultipleAsync(List<string> fcmTokens, string title, string body, Dictionary<string, string>? data = null)
         {
             if (_firebaseMessaging == null)
