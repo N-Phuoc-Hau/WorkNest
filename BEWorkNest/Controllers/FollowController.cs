@@ -115,7 +115,11 @@ namespace BEWorkNest.Controllers
                 
                 if (user != null && followedCompany != null)
                 {
-                    await _emailService.SendFollowNotificationAsync(user.Email, user.UserName, followedCompany.Name);
+                    await _emailService.SendFollowNotificationAsync(
+                        user.Email ?? "", 
+                        user.UserName ?? "", 
+                        followedCompany.Name ?? ""
+                    );
                 }
             }
             catch (Exception)

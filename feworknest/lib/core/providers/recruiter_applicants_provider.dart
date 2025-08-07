@@ -52,7 +52,7 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
   RecruiterApplicantsNotifier(this._applicationService) : super(const RecruiterApplicantsState());
 
   Future<void> loadJobApplicants(
-    int jobId, {
+    int? jobId, {
     int page = 1,
     int pageSize = 10,
     String? search,
@@ -64,10 +64,11 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
     }
 
     try {
-      final result = await _applicationService.getJobApplications(
-        jobId,
+      final result = await _applicationService.getMyJobApplications(
         page: page,
         pageSize: pageSize,
+        status: status,
+        jobId: jobId,
       );
 
       final newApplicants = result['applications'] as List<ApplicationModel>;
@@ -159,7 +160,7 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
   }
 
   Future<void> searchApplicants(
-    int jobId, {
+    int? jobId, {
     String? search,
     String? status,
     int page = 1,
@@ -174,7 +175,7 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
     );
   }
 
-  Future<void> loadMoreApplicants(int jobId) async {
+  Future<void> loadMoreApplicants(int? jobId) async {
     if (state.currentPage < state.totalPages) {
       await loadJobApplicants(
         jobId,

@@ -103,7 +103,7 @@ namespace BEWorkNest.Authorization
         public CanCandidateReviewHandler(ApplicationDbContext context, IHttpContextAccessor httpContextAccessor) 
             : base(context, httpContextAccessor) { }
 
-        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, CanCandidateReviewRequirement requirement)
+        protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, CanCandidateReviewRequirement requirement)
         {
             var userId = GetCurrentUserId();
             var role = GetCurrentUserRole();
@@ -111,12 +111,13 @@ namespace BEWorkNest.Authorization
             if (userId == null || role != "candidate")
             {
                 context.Fail();
-                return;
+                return Task.CompletedTask;
             }
 
             // Get company_id from request (this would need to be passed through context)
             // For now, we'll mark this as succeeded - actual implementation would check application status
             context.Succeed(requirement);
+            return Task.CompletedTask;
         }
     }
 
@@ -125,7 +126,7 @@ namespace BEWorkNest.Authorization
         public CanRecruiterReviewHandler(ApplicationDbContext context, IHttpContextAccessor httpContextAccessor) 
             : base(context, httpContextAccessor) { }
 
-        protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, CanRecruiterReviewRequirement requirement)
+        protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, CanRecruiterReviewRequirement requirement)
         {
             var userId = GetCurrentUserId();
             var role = GetCurrentUserRole();
@@ -133,11 +134,12 @@ namespace BEWorkNest.Authorization
             if (userId == null || role != "recruiter")
             {
                 context.Fail();
-                return;
+                return Task.CompletedTask;
             }
 
             // Similar to candidate review - actual implementation would check application status
             context.Succeed(requirement);
+            return Task.CompletedTask;
         }
     }
 }

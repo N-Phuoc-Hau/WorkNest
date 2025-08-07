@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
-import '../../../shared/widgets/image_picker_widget.dart';
+import '../../../shared/widgets/register_image_picker_widget.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -32,9 +33,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _obscureConfirmPassword = true;
   bool _isRecruiter = false;
   
-  // Image URLs
-  String _avatarUrl = '';
-  List<String> _companyImageUrls = [];
+  // Image files for registration
+  XFile? _avatarFile;
+  List<XFile> _companyImageFiles = [];
 
   @override
   void dispose() {
@@ -63,13 +64,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     };
 
     // Add avatar if selected
-    if (_avatarUrl.isNotEmpty) {
-      userData['avatar'] = _avatarUrl;
-    }
+    // Avatar file will be handled separately in registerWithFiles
+
+    print('DEBUG RegisterScreen: userData before register: $userData');
+    print('DEBUG RegisterScreen: isRecruiter: $_isRecruiter');
 
     if (_isRecruiter) {
       // Validate company images
-      if (_companyImageUrls.length < 3) {
+      if (_companyImageFiles.length < 3) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Công ty phải có ít nhất 3 ảnh môi trường làm việc'),
@@ -84,13 +86,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'taxCode': _taxCodeController.text.trim(),
         'description': _companyDescriptionController.text.trim(),
         'location': _locationController.text.trim(),
-        'images': _companyImageUrls,
       });
     }
 
-    final success = await authNotifier.register(userData, isRecruiter: _isRecruiter);
+    final success = await authNotifier.registerWithFiles(
+      userData, 
+      isRecruiter: _isRecruiter,
+      avatarFile: _avatarFile,
+      companyImageFiles: _companyImageFiles,
+    );
+
+    print('DEBUG RegisterScreen: Registration result: $success');
 
     if (success && mounted) {
+      print('DEBUG RegisterScreen: Registration SUCCESS, navigating to login');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Đăng ký thành công! Vui lòng đăng nhập.'),
@@ -99,6 +108,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
       context.go('/login');
     } else if (mounted) {
+      print('DEBUG RegisterScreen: Registration FAILED, staying on register page');
       final error = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -106,6 +116,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           backgroundColor: Colors.red,
         ),
       );
+      
+      // Force rebuild to show error state
+      setState(() {});
     }
   }
 
@@ -208,12 +221,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 const SizedBox(height: 16),
                 
                 // Avatar picker
-                ImagePickerWidget(
+                RegisterImagePickerWidget(
                   label: 'Ảnh đại diện (tùy chọn)',
-                  uploadFolder: 'avatars',
-                  onImageSelected: (imageUrl) {
+                  isMultiple: false,
+                  onSingleImageSelected: (file) {
                     setState(() {
-                      _avatarUrl = imageUrl;
+                      _avatarFile = file;
                     });
                   },
                 ),
@@ -389,20 +402,47 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 16),
                   
                   // Company images picker
-                  ImagePickerWidget(
+                  RegisterImagePickerWidget(
                     label: 'Ảnh môi trường làm việc (tối thiểu 3 ảnh)',
                     isMultiple: true,
                     maxImages: 5,
-                    uploadFolder: 'companies',
-                    onImageSelected: (imageUrls) {
+                    onSingleImageSelected: (file) {}, // Not used for multiple
+                    onMultipleImagesSelected: (files) {
                       setState(() {
-                        _companyImageUrls = imageUrls.split(',').where((url) => url.isNotEmpty).toList();
+                        _companyImageFiles = files;
                       });
                     },
                   ),
                 ],
                 
                 const SizedBox(height: 32),
+                
+                // Error message display
+                if (authState.error != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red[700], size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            authState.error!,
+                            style: TextStyle(
+                              color: Colors.red[700],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 
                 // Register button
                 AppButton(

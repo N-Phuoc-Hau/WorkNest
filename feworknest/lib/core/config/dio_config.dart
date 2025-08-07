@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import '../utils/token_storage.dart';
+
 import '../services/auth_service.dart';
+import '../utils/token_storage.dart';
 
 class DioConfig {
   static Dio createDio({
@@ -44,8 +45,13 @@ class DioConfig {
         handler.next(options);
       },
       onError: (error, handler) async {
-        // Handle 401 Unauthorized errors
-        if (error.response?.statusCode == 401) {
+        // Skip token refresh for auth endpoints (login, register, etc.)
+        final isAuthEndpoint = error.requestOptions.path.contains('/Auth/login') ||
+                              error.requestOptions.path.contains('/Auth/register') ||
+                              error.requestOptions.path.contains('/Auth/refresh-token');
+        
+        // Handle 401 Unauthorized errors only for protected endpoints
+        if (error.response?.statusCode == 401 && !isAuthEndpoint) {
           try {
             // Check if we have a refresh token
             final refreshToken = await TokenStorage.getRefreshToken();
@@ -54,7 +60,7 @@ class DioConfig {
               if (await TokenStorage.isRefreshTokenExpired()) {
                 // Refresh token is expired, clear all tokens
                 await TokenStorage.clearAll();
-                return handler.reject(error);
+                return handler.next(error);
               }
 
               // Try to refresh the access token
@@ -91,7 +97,8 @@ class DioConfig {
           }
         }
 
-        if (kDebugMode) {
+        // Only log non-auth endpoint errors to avoid double logging
+        if (kDebugMode && !isAuthEndpoint) {
           print('❌ API Error: ${error.message}');
           print('🔍 Error Type: ${error.type}');
           if (error.response != null) {

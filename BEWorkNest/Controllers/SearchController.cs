@@ -148,7 +148,7 @@ namespace BEWorkNest.Controllers
                             {
                                 Id = j.Recruiter.Company.Id,
                                 Name = j.Recruiter.Company.Name,
-                                Location = j.Recruiter.Company.Location,
+                                Location = j.Recruiter.Company.Location ?? "",
                             } : null
                         }
                     })
@@ -262,47 +262,47 @@ namespace BEWorkNest.Controllers
 
         [HttpGet("search-history")]
         [Authorize]
-        public async Task<IActionResult> GetSearchHistory()
+        public Task<IActionResult> GetSearchHistory()
         {
             try
             {
                 var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (userId == null)
                 {
-                    return Unauthorized();
+                    return Task.FromResult<IActionResult>(Unauthorized());
                 }
 
                 // TODO: Implement search history tracking
                 // For now, return empty list
-                return Ok(new { searchHistory = new List<object>() });
+                return Task.FromResult<IActionResult>(Ok(new { searchHistory = new List<object>() }));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting search history");
-                return StatusCode(500, new { message = "Internal server error" });
+                return Task.FromResult<IActionResult>(StatusCode(500, new { message = "Internal server error" }));
             }
         }
 
         [HttpPost("save-search")]
         [Authorize]
-        public async Task<IActionResult> SaveSearch([FromBody] SaveSearchDto saveSearchDto)
+        public Task<IActionResult> SaveSearch([FromBody] SaveSearchDto saveSearchDto)
         {
             try
             {
                 var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (userId == null)
                 {
-                    return Unauthorized();
+                    return Task.FromResult<IActionResult>(Unauthorized());
                 }
 
                 // TODO: Implement save search functionality
                 // For now, just return success
-                return Ok(new { message = "Search saved successfully" });
+                return Task.FromResult<IActionResult>(Ok(new { message = "Search saved successfully" }));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving search");
-                return StatusCode(500, new { message = "Internal server error" });
+                return Task.FromResult<IActionResult>(StatusCode(500, new { message = "Internal server error" }));
             }
         }
     }

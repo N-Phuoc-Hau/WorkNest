@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/utils/onboarding_storage.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -103,7 +102,7 @@ class ProfileScreen extends ConsumerWidget {
               title: 'Chỉnh sửa hồ sơ',
               subtitle: 'Cập nhật thông tin cá nhân',
               onTap: () {
-                // Navigate to edit profile
+                context.push('/profile/edit');
               },
             ),
             _buildMenuItem(
@@ -112,7 +111,7 @@ class ProfileScreen extends ConsumerWidget {
               title: 'Đánh giá của tôi',
               subtitle: 'Xem các đánh giá đã nhận',
               onTap: () {
-                context.push('/reviews?showMyReviews=true');
+                context.push('/reviews');
               },
             ),
             if (user?.isRecruiter == true) ...[
@@ -122,7 +121,7 @@ class ProfileScreen extends ConsumerWidget {
                 title: 'Thông tin công ty',
                 subtitle: 'Quản lý thông tin công ty',
                 onTap: () {
-                  // Navigate to company profile
+                  context.push('/recruiter/company');
                 },
               ),
               _buildMenuItem(
@@ -131,7 +130,7 @@ class ProfileScreen extends ConsumerWidget {
                 title: 'Quản lý tin tuyển dụng',
                 subtitle: 'Xem và chỉnh sửa tin đã đăng',
                 onTap: () {
-                  context.push('/manage-jobs');
+                  context.push('/recruiter/jobs');
                 },
               ),
             ] else ...[
@@ -141,7 +140,7 @@ class ProfileScreen extends ConsumerWidget {
                 title: 'Đơn ứng tuyển',
                 subtitle: 'Theo dõi trạng thái đơn ứng tuyển',
                 onTap: () {
-                  context.push('/candidate/applications');
+                  context.push('/applications');
                 },
               ),
               _buildMenuItem(
@@ -150,7 +149,7 @@ class ProfileScreen extends ConsumerWidget {
                 title: 'Việc làm đã lưu',
                 subtitle: 'Danh sách việc làm yêu thích',
                 onTap: () {
-                  context.push('/candidate/favorites');
+                  context.push('/favorites');
                 },
               ),
             ],
@@ -160,7 +159,7 @@ class ProfileScreen extends ConsumerWidget {
               title: 'Thông báo',
               subtitle: 'Cài đặt thông báo',
               onTap: () {
-                // Navigate to notifications settings
+                context.push('/notifications');
               },
             ),
             _buildMenuItem(
@@ -169,18 +168,9 @@ class ProfileScreen extends ConsumerWidget {
               title: 'Trợ giúp',
               subtitle: 'Câu hỏi thường gặp',
               onTap: () {
-                // Navigate to help
+                context.push('/help');
               },
             ),
-            // Debug: Reset onboarding (only in debug mode)
-            if (const bool.fromEnvironment('dart.vm.product') == false)
-              _buildMenuItem(
-                context,
-                icon: Icons.refresh,
-                title: 'Reset Onboarding (Debug)',
-                subtitle: 'Đặt lại màn hình giới thiệu',
-                onTap: () => _resetOnboarding(context),
-              ),
             _buildMenuItem(
               context,
               icon: Icons.logout,
@@ -261,42 +251,10 @@ class ProfileScreen extends ConsumerWidget {
                 Navigator.of(context).pop();
                 await ref.read(authProvider.notifier).logout();
                 if (context.mounted) {
-                  context.go('/main');
+                  context.go('/');
                 }
               },
               child: const Text('Đăng xuất'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _resetOnboarding(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Reset Onboarding'),
-          content: const Text('Bạn có muốn đặt lại màn hình giới thiệu không? Lần khởi động tiếp theo sẽ hiện onboarding.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Hủy'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await OnboardingStorage.resetOnboarding();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đã reset onboarding. Khởi động lại app để thấy hiệu ứng.'),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Reset'),
             ),
           ],
         );

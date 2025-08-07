@@ -96,7 +96,7 @@ class _FavoriteScreenState extends ConsumerState<FavoriteScreen> {
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
-                              onPressed: () => context.go('/candidate/jobs'),
+                              onPressed: () => context.go('/jobs'),
                               child: const Text('Tìm kiếm công việc'),
                             ),
                           ],
@@ -270,7 +270,7 @@ class FavoriteJobCard extends StatelessWidget {
             if (value == 'remove') {
               _showRemoveDialog(context);
             } else if (value == 'view') {
-              context.go('/candidate/jobs/${favorite.jobId}');
+              context.go('/job-detail/${favorite.jobId}');
             }
           },
           itemBuilder: (context) => [
@@ -292,7 +292,7 @@ class FavoriteJobCard extends StatelessWidget {
             ),
           ],
         ),
-        onTap: () => context.go('/candidate/jobs/${favorite.jobId}'),
+        onTap: () => context.go('/job-detail/${favorite.jobId}'),
       ),
     );
   }

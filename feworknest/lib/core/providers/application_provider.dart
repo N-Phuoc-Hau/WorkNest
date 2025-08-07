@@ -1,12 +1,59 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../models/application_model.dart';
 import '../services/application_service.dart';
+import '../utils/token_storage.dart';
 
 class ApplicationNotifier extends StateNotifier<ApplicationsState> {
   final ApplicationService _applicationService;
 
   ApplicationNotifier(this._applicationService) : super(const ApplicationsState());
+
+  /// Submit job application
+  Future<bool> submitApplication({
+    required int jobId,
+    required String coverLetter,
+    File? cvFile,
+    XFile? cvXFile,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      print('DEBUG ApplicationProvider: Submitting application for job $jobId');
+      
+      // Check authentication status
+      final accessToken = await TokenStorage.getAccessToken();
+      print('DEBUG ApplicationProvider: Access token available: ${accessToken != null}');
+      if (accessToken != null) {
+        print('DEBUG ApplicationProvider: Token length: ${accessToken.length}');
+      }
+      
+      final newApplication = await _applicationService.submitApplication(
+        jobId: jobId,
+        coverLetter: coverLetter,
+        cvFile: cvFile,
+        cvXFile: cvXFile,
+      );
+      
+      print('DEBUG ApplicationProvider: Application submitted successfully');
+      
+      state = state.copyWith(
+        myApplications: [newApplication, ...state.myApplications],
+        isLoading: false,
+      );
+      return true;
+    } catch (e) {
+      print('DEBUG ApplicationProvider: Error submitting application: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+      return false;
+    }
+  }
 
   Future<bool> createApplication({
     required CreateApplicationModel createApplication,
@@ -16,7 +63,8 @@ class ApplicationNotifier extends StateNotifier<ApplicationsState> {
 
     try {
       final newApplication = await _applicationService.createApplication(
-        createApplication: createApplication,
+        jobId: createApplication.jobId,
+        coverLetter: createApplication.coverLetter ?? '',
         cvFile: cvFile,
       );
       

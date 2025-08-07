@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/application_provider.dart';
+
 import '../../../core/models/application_model.dart';
+import '../../../core/providers/application_provider.dart';
 
 class MyApplicationsScreen extends ConsumerStatefulWidget {
   const MyApplicationsScreen({super.key});
@@ -182,7 +183,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        application.jobTitle,
+                        application.job?.title ?? 'Không có tiêu đề',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -190,7 +191,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        application.companyName,
+                        application.job?.recruiter.company?.name ?? 'Không có tên công ty',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
@@ -276,7 +277,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                     onPressed: () {
                       // TODO: Navigate to job detail
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xem chi tiết: ${application.jobTitle}')),
+                        SnackBar(content: Text('Xem chi tiết: ${application.job?.title ?? "công việc"}')),
                       );
                     },
                     child: const Text('Xem chi tiết'),

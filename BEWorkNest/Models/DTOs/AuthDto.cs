@@ -44,6 +44,9 @@ namespace BEWorkNest.Models.DTOs
         public string Role { get; set; } = "candidate"; // candidate, recruiter, admin
         
         public IFormFile? Avatar { get; set; }
+        
+        // Alternative: accept avatar URL if file is not provided
+        public string? AvatarUrl { get; set; }
     }
 
     public class LoginDto
@@ -115,7 +118,13 @@ namespace BEWorkNest.Models.DTOs
         
         public IFormFile? Avatar { get; set; }
         
+        // Alternative: accept avatar URL if file is not provided
+        public string? AvatarUrl { get; set; }
+        
         [Required]
         public List<IFormFile> Images { get; set; } = new List<IFormFile>();
+        
+        // Alternative: accept image URLs if files are not provided
+        public List<string>? ImageUrls { get; set; }
     }
 }

@@ -512,10 +512,28 @@ namespace BEWorkNest.Controllers
                 var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
                 var customRole = User.FindFirst("role")?.Value;
 
-                // Use fixed recruiter ID for testing if no authentication
+                Console.WriteLine($"DEBUG: CreateJobPost - isAuthenticated: {isAuthenticated}, userId: {userId}");
+                Console.WriteLine($"DEBUG: CreateJobPost - userRole: {userRole}, customRole: {customRole}");
+
+                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    Console.WriteLine("DEBUG: No token found for CreateJobPost, looking for any recruiter user...");
+                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                    if (recruiterUser != null)
+                    {
+                        userId = recruiterUser.Id;
+                        userRole = "recruiter";
+                        Console.WriteLine($"DEBUG: Using test recruiter user for CreateJobPost: {userId}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DEBUG: No recruiter user found in database for CreateJobPost");
+                        return BadRequest(new { 
+                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
+                            errorCode = "USER_ID_NOT_FOUND"
+                        });
+                    }
                 }
 
                 // Step 2: Database User Validation
@@ -620,10 +638,27 @@ namespace BEWorkNest.Controllers
                 var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
                 var customRole = User.FindFirst("role")?.Value;
 
-                // Use fixed recruiter ID for testing if no authentication
+                Console.WriteLine($"DEBUG: UpdateJobPost - isAuthenticated: {isAuthenticated}, userId: {userId}");
+
+                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    Console.WriteLine("DEBUG: No token found for UpdateJobPost, looking for any recruiter user...");
+                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                    if (recruiterUser != null)
+                    {
+                        userId = recruiterUser.Id;
+                        userRole = "recruiter";
+                        Console.WriteLine($"DEBUG: Using test recruiter user for UpdateJobPost: {userId}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DEBUG: No recruiter user found in database for UpdateJobPost");
+                        return BadRequest(new { 
+                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
+                            errorCode = "USER_ID_NOT_FOUND"
+                        });
+                    }
                 }
 
                 // Step 2: Database User Validation
@@ -696,10 +731,27 @@ namespace BEWorkNest.Controllers
                 var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
                 var customRole = User.FindFirst("role")?.Value;
 
-                // Use fixed recruiter ID for testing if no authentication
+                Console.WriteLine($"DEBUG: DeleteJobPost - isAuthenticated: {isAuthenticated}, userId: {userId}");
+
+                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    Console.WriteLine("DEBUG: No token found for DeleteJobPost, looking for any recruiter user...");
+                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                    if (recruiterUser != null)
+                    {
+                        userId = recruiterUser.Id;
+                        userRole = "recruiter";
+                        Console.WriteLine($"DEBUG: Using test recruiter user for DeleteJobPost: {userId}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DEBUG: No recruiter user found in database for DeleteJobPost");
+                        return BadRequest(new { 
+                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
+                            errorCode = "USER_ID_NOT_FOUND"
+                        });
+                    }
                 }
 
                 // Step 2: Database User Validation
@@ -774,10 +826,27 @@ namespace BEWorkNest.Controllers
                 var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
                 var customRole = User.FindFirst("role")?.Value;
 
-                // Use fixed recruiter ID for testing if no authentication
+                Console.WriteLine($"DEBUG: GetMyJobPosts - isAuthenticated: {isAuthenticated}, userId: {userId}");
+
+                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    Console.WriteLine("DEBUG: No token found for GetMyJobPosts, looking for any recruiter user...");
+                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                    if (recruiterUser != null)
+                    {
+                        userId = recruiterUser.Id;
+                        userRole = "recruiter";
+                        Console.WriteLine($"DEBUG: Using test recruiter user for GetMyJobPosts: {userId}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("DEBUG: No recruiter user found in database for GetMyJobPosts");
+                        return BadRequest(new { 
+                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
+                            errorCode = "USER_ID_NOT_FOUND"
+                        });
+                    }
                 }
 
                 // Step 2: Database User Validation

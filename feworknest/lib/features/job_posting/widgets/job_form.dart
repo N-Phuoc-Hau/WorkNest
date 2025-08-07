@@ -26,6 +26,8 @@ class _JobFormState extends State<JobForm> {
   final _titleController = TextEditingController();
   final _specializedController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _requirementsController = TextEditingController();
+  final _benefitsController = TextEditingController();
   final _locationController = TextEditingController();
   final _salaryController = TextEditingController();
   final _workingHoursController = TextEditingController();
@@ -71,6 +73,8 @@ class _JobFormState extends State<JobForm> {
     _titleController.text = job.title;
     _specializedController.text = job.specialized;
     _descriptionController.text = job.description;
+    _requirementsController.text = job.requirements;
+    _benefitsController.text = job.benefits;
     _locationController.text = job.location;
     _salaryController.text = job.salary.toString();
     _workingHoursController.text = job.workingHours;
@@ -82,6 +86,8 @@ class _JobFormState extends State<JobForm> {
     _titleController.dispose();
     _specializedController.dispose();
     _descriptionController.dispose();
+    _requirementsController.dispose();
+    _benefitsController.dispose();
     _locationController.dispose();
     _salaryController.dispose();
     _workingHoursController.dispose();
@@ -149,14 +155,52 @@ class _JobFormState extends State<JobForm> {
           AppTextField(
             controller: _descriptionController,
             label: 'Mô tả công việc *',
-            hintText: 'Mô tả chi tiết về công việc, yêu cầu, quyền lợi...',
-            maxLines: 5,
+            hintText: 'Mô tả chi tiết về công việc và trách nhiệm...',
+            maxLines: 4,
             validator: (value) {
               if (value == null || value.trim().isEmpty) {
                 return 'Vui lòng nhập mô tả công việc';
               }
               if (value.trim().length < 50) {
                 return 'Mô tả công việc phải có ít nhất 50 ký tự';
+              }
+              return null;
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // Requirements
+          AppTextField(
+            controller: _requirementsController,
+            label: 'Yêu cầu công việc *',
+            hintText: 'Kinh nghiệm, kỹ năng, bằng cấp yêu cầu...',
+            maxLines: 4,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Vui lòng nhập yêu cầu công việc';
+              }
+              if (value.trim().length < 20) {
+                return 'Yêu cầu công việc phải có ít nhất 20 ký tự';
+              }
+              return null;
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // Benefits
+          AppTextField(
+            controller: _benefitsController,
+            label: 'Quyền lợi và phúc lợi *',
+            hintText: 'Lương thưởng, bảo hiểm, nghỉ phép, đào tạo...',
+            maxLines: 4,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Vui lòng nhập quyền lợi và phúc lợi';
+              }
+              if (value.trim().length < 20) {
+                return 'Quyền lợi phải có ít nhất 20 ký tự';
               }
               return null;
             },
@@ -285,6 +329,8 @@ class _JobFormState extends State<JobForm> {
         title: _titleController.text.trim(),
         specialized: _specializedController.text.trim(),
         description: _descriptionController.text.trim(),
+        requirements: _requirementsController.text.trim(),
+        benefits: _benefitsController.text.trim(),
         location: _locationController.text.trim(),
         salary: salary,
         workingHours: _workingHoursController.text.trim(),
@@ -297,6 +343,8 @@ class _JobFormState extends State<JobForm> {
         title: _titleController.text.trim(),
         specialized: _specializedController.text.trim(),
         description: _descriptionController.text.trim(),
+        requirements: _requirementsController.text.trim(),
+        benefits: _benefitsController.text.trim(),
         location: _locationController.text.trim(),
         salary: salary,
         workingHours: _workingHoursController.text.trim(),

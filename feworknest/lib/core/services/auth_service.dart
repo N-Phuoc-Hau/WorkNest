@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../config/dio_config.dart';
 import '../constants/api_constants.dart';
@@ -33,11 +36,13 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
+      print('DEBUG AuthService: Sending login request...');
       final response = await _dio.post(ApiConstants.login, data: {
         'email': email,
         'password': password,
       });
 
+      print('DEBUG AuthService: Login SUCCESS, response received');
       // Backend C# trả về: { accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt, user }
       final user = response.data['user'];
       
@@ -50,23 +55,55 @@ class AuthService {
         'refresh_token_expires_at': response.data['refreshTokenExpiresAt'],
         'role': user['role'],
       };
-    } catch (e) {
-      if (e is DioException) {
+    } on DioException catch (e) {
+      print('DEBUG AuthService: DioException caught - StatusCode: ${e.response?.statusCode}');
+      if (e.response?.statusCode == 401) {
+        print('DEBUG AuthService: 401 error, returning false with message');
         return {
           'success': false,
-          'message': e.response?.data['message'] ?? 'Đăng nhập thất bại',
+          'message': 'Sai tài khoản hoặc mật khẩu',
         };
       }
+      print('DEBUG AuthService: Other DioException, returning false');
       return {
         'success': false,
-        'message': 'Có lỗi xảy ra: ${e.toString()}',
+        'message': e.response?.data['message'] ?? 'Đã có lỗi xảy ra, vui lòng thử lại.',
+      };
+    } catch (e) {
+      print('DEBUG AuthService: General exception caught: $e');
+      return {
+        'success': false,
+        'message': 'Đã có lỗi xảy ra, vui lòng thử lại.',
       };
     }
   }
 
   Future<Map<String, dynamic>> registerCandidate(Map<String, dynamic> userData) async {
     try {
-      final response = await _dio.post(ApiConstants.registerCandidate, data: userData);
+      // Convert to FormData since backend expects multipart/form-data
+      FormData formData = FormData.fromMap({
+        'email': userData['email'],
+        'password': userData['password'],
+        'firstName': userData['firstName'],
+        'lastName': userData['lastName'],
+      });
+
+      // Add avatar if provided
+      if (userData['avatar'] != null && userData['avatar'].toString().isNotEmpty) {
+        // If avatar is a URL, we need to handle it differently
+        // For now, let's send it as a string field
+        formData.fields.add(MapEntry('avatarUrl', userData['avatar']));
+      }
+
+      final response = await _dio.post(
+        ApiConstants.registerCandidate, 
+        data: formData,
+        options: Options(
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        ),
+      );
 
       return {
         'success': true,
@@ -74,7 +111,9 @@ class AuthService {
         'userId': response.data['userId'],
       };
     } catch (e) {
+      print('DEBUG AuthService: registerCandidate error: $e');
       if (e is DioException) {
+        print('DEBUG AuthService: DioException response: ${e.response?.data}');
         return {
           'success': false,
           'message': e.response?.data['message'] ?? 'Đăng ký thất bại',
@@ -89,7 +128,40 @@ class AuthService {
 
   Future<Map<String, dynamic>> registerRecruiter(Map<String, dynamic> userData) async {
     try {
-      final response = await _dio.post(ApiConstants.registerRecruiter, data: userData);
+      // Convert to FormData since backend expects multipart/form-data
+      FormData formData = FormData.fromMap({
+        'email': userData['email'],
+        'password': userData['password'],
+        'firstName': userData['firstName'],
+        'lastName': userData['lastName'],
+        'companyName': userData['companyName'],
+        'taxCode': userData['taxCode'],
+        'description': userData['description'],
+        'location': userData['location'],
+      });
+
+      // Add avatar if provided
+      if (userData['avatar'] != null && userData['avatar'].toString().isNotEmpty) {
+        formData.fields.add(MapEntry('avatarUrl', userData['avatar']));
+      }
+
+      // Add company images if provided
+      if (userData['images'] != null) {
+        List<String> imageUrls = List<String>.from(userData['images']);
+        for (int i = 0; i < imageUrls.length; i++) {
+          formData.fields.add(MapEntry('imageUrls[$i]', imageUrls[i]));
+        }
+      }
+
+      final response = await _dio.post(
+        ApiConstants.registerRecruiter, 
+        data: formData,
+        options: Options(
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        ),
+      );
 
       return {
         'success': true,
@@ -97,7 +169,170 @@ class AuthService {
         'userId': response.data['userId'],
       };
     } catch (e) {
+      print('DEBUG AuthService: registerRecruiter error: $e');
       if (e is DioException) {
+        print('DEBUG AuthService: DioException response: ${e.response?.data}');
+        return {
+          'success': false,
+          'message': e.response?.data['message'] ?? 'Đăng ký thất bại',
+        };
+      }
+      return {
+        'success': false,
+        'message': 'Có lỗi xảy ra: ${e.toString()}',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> registerCandidateWithFiles(
+    Map<String, dynamic> userData,
+    XFile? avatarFile,
+  ) async {
+    try {
+      // Create FormData with user data and files
+      FormData formData = FormData.fromMap({
+        'email': userData['email'],
+        'password': userData['password'],
+        'firstName': userData['firstName'],
+        'lastName': userData['lastName'],
+      });
+
+      // Add avatar file if provided
+      if (avatarFile != null) {
+        if (kIsWeb) {
+          final bytes = await avatarFile.readAsBytes();
+          formData.files.add(MapEntry(
+            'avatar',
+            MultipartFile.fromBytes(
+              bytes, 
+              filename: avatarFile.name,
+              contentType: _getMediaType(avatarFile.name),
+            ),
+          ));
+        } else {
+          formData.files.add(MapEntry(
+            'avatar',
+            await MultipartFile.fromFile(
+              avatarFile.path, 
+              filename: avatarFile.name,
+              contentType: _getMediaType(avatarFile.name),
+            ),
+          ));
+        }
+      }
+
+      final response = await _dio.post(
+        ApiConstants.registerCandidate, 
+        data: formData,
+        options: Options(
+          headers: {'Content-Type': 'multipart/form-data'},
+        ),
+      );
+
+      return {
+        'success': true,
+        'message': response.data['message'],
+        'userId': response.data['userId'],
+      };
+    } catch (e) {
+      print('DEBUG AuthService: registerCandidateWithFiles error: $e');
+      if (e is DioException) {
+        print('DEBUG AuthService: DioException response: ${e.response?.data}');
+        return {
+          'success': false,
+          'message': e.response?.data['message'] ?? 'Đăng ký thất bại',
+        };
+      }
+      return {
+        'success': false,
+        'message': 'Có lỗi xảy ra: ${e.toString()}',
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> registerRecruiterWithFiles(
+    Map<String, dynamic> userData,
+    XFile? avatarFile,
+    List<XFile> companyImageFiles,
+  ) async {
+    try {
+      // Create FormData with user data
+      FormData formData = FormData.fromMap({
+        'email': userData['email'],
+        'password': userData['password'],
+        'firstName': userData['firstName'],
+        'lastName': userData['lastName'],
+        'companyName': userData['companyName'],
+        'taxCode': userData['taxCode'],
+        'description': userData['description'],
+        'location': userData['location'],
+      });
+
+      // Add avatar file if provided
+      if (avatarFile != null) {
+        if (kIsWeb) {
+          final bytes = await avatarFile.readAsBytes();
+          formData.files.add(MapEntry(
+            'avatar',
+            MultipartFile.fromBytes(
+              bytes, 
+              filename: avatarFile.name,
+              contentType: _getMediaType(avatarFile.name),
+            ),
+          ));
+        } else {
+          formData.files.add(MapEntry(
+            'avatar',
+            await MultipartFile.fromFile(
+              avatarFile.path, 
+              filename: avatarFile.name,
+              contentType: _getMediaType(avatarFile.name),
+            ),
+          ));
+        }
+      }
+
+      // Add company image files
+      for (final imageFile in companyImageFiles) {
+        if (kIsWeb) {
+          final bytes = await imageFile.readAsBytes();
+          formData.files.add(MapEntry(
+            'images',
+            MultipartFile.fromBytes(
+              bytes, 
+              filename: imageFile.name,
+              contentType: _getMediaType(imageFile.name),
+            ),
+          ));
+        } else {
+          formData.files.add(MapEntry(
+            'images',
+            await MultipartFile.fromFile(
+              imageFile.path, 
+              filename: imageFile.name,
+              contentType: _getMediaType(imageFile.name),
+            ),
+          ));
+        }
+      }
+
+      final response = await _dio.post(
+        ApiConstants.registerRecruiter, 
+        data: formData,
+        options: Options(
+          headers: {'Content-Type': 'multipart/form-data'},
+        ),
+      );
+
+      return {
+        'success': true,
+        'message': response.data['message'],
+        'userId': response.data['userId'],
+      };
+    } catch (e) {
+      print('DEBUG AuthService: registerRecruiterWithFiles error: $e');
+      if (e is DioException) {
+        print('DEBUG AuthService: DioException response: ${e.response?.data}');
         return {
           'success': false,
           'message': e.response?.data['message'] ?? 'Đăng ký thất bại',
@@ -306,6 +541,23 @@ class AuthService {
         'success': false,
         'message': 'Không thể tải tài liệu API',
       };
+    }
+  }
+
+  MediaType _getMediaType(String filename) {
+    final extension = filename.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'jpg':
+      case 'jpeg':
+        return MediaType('image', 'jpeg');
+      case 'png':
+        return MediaType('image', 'png');
+      case 'gif':
+        return MediaType('image', 'gif');
+      case 'webp':
+        return MediaType('image', 'webp');
+      default:
+        return MediaType('image', 'jpeg'); // Default fallback
     }
   }
 

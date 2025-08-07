@@ -195,3 +195,5 @@ feworknest/web/firebase-config.js
 feworknest/web/firebase-messaging-sw.js
 firebase-config.json
 BEWorkNest/appsettings.json
+BEWorkNest/appsettings.json
+feworknest/pubspec.yaml

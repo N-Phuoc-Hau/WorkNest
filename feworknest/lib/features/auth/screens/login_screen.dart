@@ -34,55 +34,91 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Clear any previous errors
     authNotifier.clearError();
     
-    final success = await authNotifier.login(
+    print('DEBUG LoginScreen: Starting login process...');
+    
+    final user = await authNotifier.login(
       _emailController.text.trim(),
       _passwordController.text,
     );
 
-    if (success && mounted) {
-      // Get user info to determine redirect
-      final authState = ref.read(authProvider);
-      final user = authState.user;
+    print('DEBUG LoginScreen: Login completed, user result: $user');
+
+    if (!mounted) return;
+
+    if (user != null) {
+      // Đăng nhập thành công
+      print('DEBUG LoginScreen: Login SUCCESS - User: ${user.fullName}, Role: ${user.role}');
       
-      if (user != null) {
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Đăng nhập thành công! Chào mừng ${user.fullName}'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Small delay to ensure auth state is fully updated
-        await Future.delayed(const Duration(milliseconds: 100));
-        
-        // Redirect based on user role
-        if (user.role == 'Admin') {
-          context.go('/admin-dashboard');
-        } else if (user.isRecruiter) {
-          context.go('/recruiter-dashboard');
-        } else {
-          context.go('/candidate-dashboard');
-        }
-      } else {
-        // Fallback if user is null but login was successful
-        context.go('/candidate-dashboard');
-      }
-    } else if (mounted) {
-      // Show error message
-      final error = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error ?? 'Đăng nhập thất bại'),
-          backgroundColor: Colors.red,
+          content: Text('Đăng nhập thành công! Chào mừng ${user.fullName}'),
+          backgroundColor: Colors.green,
         ),
       );
+      
+      // Small delay to ensure auth state is fully updated
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // Check if we're still mounted and authenticated before navigation
+      if (!mounted) return;
+      
+      final currentAuthState = ref.read(authProvider);
+      if (currentAuthState.isAuthenticated && currentAuthState.user != null) {
+        print('DEBUG LoginScreen: Auth state confirmed, forcing navigation');
+        // Force navigation immediately
+        if (user.role == 'Admin') {
+          print('DEBUG LoginScreen: Redirecting Admin to /admin-dashboard');
+          context.go('/admin-dashboard');
+        } else if (user.isRecruiter) {
+          print('DEBUG LoginScreen: Redirecting Recruiter to /recruiter/home');
+          context.go('/recruiter/home');
+        } else {
+          print('DEBUG LoginScreen: Redirecting Candidate to /home');
+          context.go('/home');
+        }
+      } else {
+        print('DEBUG LoginScreen: Auth state not ready, waiting for router redirect');
+      }
+    } else {
+      // Đăng nhập thất bại - KHÔNG redirect, chỉ hiển thị lỗi
+      print('DEBUG LoginScreen: Login FAILED - user is null, staying on login page');
+      final authState = ref.read(authProvider);
+      print('DEBUG LoginScreen: Current error state: ${authState.error}');
+      print('DEBUG LoginScreen: Current loading state: ${authState.isLoading}');
+      print('DEBUG LoginScreen: Current authenticated state: ${authState.isAuthenticated}');
+      
+      // Force rebuild to show error widget
+      if (mounted) {
+        setState(() {});
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+
+        // Auto redirect when authenticated
+    ref.listen(authProvider, (previous, next) {
+      if (next.isAuthenticated && next.user != null && !next.isLoading) {
+        print('DEBUG LoginScreen: Auth state changed, user is authenticated');
+        print('DEBUG LoginScreen: User role: ${next.user!.role}');
+        print('DEBUG LoginScreen: User isRecruiter: ${next.user!.isRecruiter}');
+        
+        // Force immediate navigation
+        final user = next.user!;
+        if (user.role == 'Admin') {
+          print('DEBUG LoginScreen: Auto redirect to /admin-dashboard');
+          context.go('/admin-dashboard');
+        } else if (user.isRecruiter) {
+          print('DEBUG LoginScreen: Auto redirect to /recruiter/home');
+          context.go('/recruiter/home');
+        } else {
+          print('DEBUG LoginScreen: Auto redirect to /home');
+          context.go('/home');
+        }
+      }
+    });
 
     return Scaffold(
       body: SafeArea(
@@ -177,6 +213,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
+                
+                // Error message display
+                if (authState.error != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red[700], size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            authState.error!,
+                            style: TextStyle(
+                              color: Colors.red[700],
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 
                 // Login button
                 AppButton(

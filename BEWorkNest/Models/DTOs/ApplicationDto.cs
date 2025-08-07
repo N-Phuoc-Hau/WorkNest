@@ -23,11 +23,14 @@ namespace BEWorkNest.Models.DTOs
     public class ApplicationDto
     {
         public int Id { get; set; }
+        public string ApplicantId { get; set; } = string.Empty;
+        public int JobId { get; set; }
         public string? CvUrl { get; set; }
         public string CoverLetter { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
-        public UserDto Applicant { get; set; } = null!;
+        public bool IsActive { get; set; } = true;
+        public UserDto? Applicant { get; set; }
         public JobPostDto Job { get; set; } = null!;
         
         // Additional properties to match Flutter ApplicationModel

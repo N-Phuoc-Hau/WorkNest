@@ -13,7 +13,7 @@ class RecruiterApplicantsScreen extends ConsumerStatefulWidget {
 class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'all';
-  int _selectedJobId = 1; // TODO: Get from navigation or state
+  int? _selectedJobId; // Changed to nullable to support "all jobs"
 
   @override
   void initState() {
@@ -54,6 +54,10 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
       ),
       body: Column(
         children: [
+          // Summary Statistics
+          if (applicantsState.applicants.isNotEmpty)
+            _buildSummaryStatistics(applicantsState),
+          
           // Search Bar
           Container(
             padding: const EdgeInsets.all(16),
@@ -201,6 +205,88 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
     );
   }
 
+  Widget _buildSummaryStatistics(RecruiterApplicantsState state) {
+    final totalApplications = state.totalCount;
+    final pendingCount = state.applicants.where((app) => app.status == ApplicationStatus.pending).length;
+    final acceptedCount = state.applicants.where((app) => app.status == ApplicationStatus.accepted).length;
+    final rejectedCount = state.applicants.where((app) => app.status == ApplicationStatus.rejected).length;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Thống kê tổng quan',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard('Tổng cộng', totalApplications.toString(), Colors.blue),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatCard('Chờ xem xét', pendingCount.toString(), Colors.orange),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatCard('Đã chấp nhận', acceptedCount.toString(), Colors.green),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStatCard('Từ chối', rejectedCount.toString(), Colors.red),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildApplicantCard(ApplicationModel applicant) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -214,14 +300,21 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
                 CircleAvatar(
                   radius: 25,
                   backgroundColor: Colors.blue[100],
-                  child: Text(
-                    applicant.applicant?.avatar?.substring(0, 1).toUpperCase() ?? 'A',
-                    style: TextStyle(
-                      color: Colors.blue[800],
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
+                  backgroundImage: applicant.applicant?.avatar != null 
+                      ? NetworkImage(applicant.applicant!.avatar!)
+                      : null,
+                  child: applicant.applicant?.avatar == null
+                      ? Text(
+                          applicant.applicantName.isNotEmpty 
+                              ? applicant.applicantName.substring(0, 1).toUpperCase()
+                              : 'A',
+                          style: TextStyle(
+                            color: Colors.blue[800],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -237,10 +330,19 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        applicant.applicant?.position ?? 'Unknown Position',
+                        applicant.applicant?.position ?? 'Chưa cập nhật',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        applicant.jobTitle,
+                        style: TextStyle(
+                          color: Colors.blue[600],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -267,14 +369,14 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
                 Icon(Icons.work, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  'Kinh nghiệm: ${applicant.applicant?.experience ?? 'N/A'}',
+                  'Kinh nghiệm: ${applicant.applicant?.experience ?? 'Chưa cập nhật'}',
                   style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
                 const SizedBox(width: 16),
                 Icon(Icons.school, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 4),
                 Text(
-                  applicant.applicant?.education ?? 'N/A',
+                  applicant.applicant?.education ?? 'Chưa cập nhật',
                   style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
@@ -342,7 +444,7 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   }
 
   Color _getStatusColor(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'pending':
         return Colors.orange;
       case 'accepted':
@@ -355,7 +457,7 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   }
 
   String _getStatusText(String status) {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'pending':
         return 'Chờ xem xét';
       case 'accepted':
@@ -410,9 +512,7 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
               title: const Text('Tải CV'),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Tải CV: ${applicant.applicantName}')),
-                );
+                _downloadCV(applicant);
               },
             ),
             ListTile(
@@ -420,33 +520,122 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
               title: const Text('Lên lịch phỏng vấn'),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Lên lịch phỏng vấn: ${applicant.applicantName}')),
-                );
+                _scheduleInterview(applicant);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.check_circle),
-              title: const Text('Chấp nhận'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Chấp nhận: ${applicant.applicantName}')),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.cancel, color: Colors.red),
-              title: const Text('Từ chối', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Từ chối: ${applicant.applicantName}')),
-                );
-              },
+            if (applicant.status == ApplicationStatus.pending) ...[
+              ListTile(
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Chấp nhận', style: TextStyle(color: Colors.green)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _updateApplicationStatus(applicant, 'accepted');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Colors.red),
+                title: const Text('Từ chối', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showRejectionDialog(applicant);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _downloadCV(ApplicationModel applicant) {
+    if (applicant.cvUrl != null) {
+      // TODO: Implement CV download
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tải CV: ${applicant.applicantName}')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không có CV để tải')),
+      );
+    }
+  }
+
+  void _scheduleInterview(ApplicationModel applicant) {
+    // TODO: Implement interview scheduling
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Lên lịch phỏng vấn: ${applicant.applicantName}')),
+    );
+  }
+
+  void _updateApplicationStatus(ApplicationModel applicant, String status) async {
+    try {
+      final updateStatus = UpdateApplicationStatusModel(status: status);
+      final success = await ref.read(recruiterApplicantsProvider.notifier)
+          .updateApplicantStatus(applicant.id, updateStatus);
+      
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã ${status == 'accepted' ? 'chấp nhận' : 'từ chối'} ứng viên: ${applicant.applicantName}'),
+            backgroundColor: status == 'accepted' ? Colors.green : Colors.red,
+          ),
+        );
+        // Refresh the list after updating status
+        ref.read(recruiterApplicantsProvider.notifier).loadJobApplicants(_selectedJobId);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Có lỗi xảy ra khi cập nhật trạng thái'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showRejectionDialog(ApplicationModel applicant) {
+    final reasonController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Từ chối ứng viên'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Bạn có chắc chắn muốn từ chối ${applicant.applicantName}?'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Lý do từ chối (tùy chọn)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _updateApplicationStatus(applicant, 'rejected');
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Từ chối', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
@@ -473,6 +662,6 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
 } 

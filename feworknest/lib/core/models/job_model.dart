@@ -5,6 +5,8 @@ class JobModel {
   final String title;
   final String specialized;
   final String description;
+  final String requirements;
+  final String benefits;
   final String location;
   final double salary;
   final String workingHours;
@@ -19,6 +21,8 @@ class JobModel {
     required this.title,
     required this.specialized,
     required this.description,
+    required this.requirements,
+    required this.benefits,
     required this.location,
     required this.salary,
     required this.workingHours,
@@ -35,6 +39,8 @@ class JobModel {
       title: json['title'] as String,
       specialized: json['specialized'] as String,
       description: json['description'] as String,
+      requirements: json['requirements'] as String? ?? '',
+      benefits: json['benefits'] as String? ?? '',
       location: json['location'] as String,
       salary: (json['salary'] as num).toDouble(),
       workingHours: json['workingHours'] as String,
@@ -52,6 +58,8 @@ class JobModel {
       'title': title,
       'specialized': specialized,
       'description': description,
+      'requirements': requirements,
+      'benefits': benefits,
       'location': location,
       'salary': salary,
       'workingHours': workingHours,
@@ -68,6 +76,8 @@ class JobModel {
     String? title,
     String? specialized,
     String? description,
+    String? requirements,
+    String? benefits,
     String? location,
     double? salary,
     String? workingHours,
@@ -82,6 +92,8 @@ class JobModel {
       title: title ?? this.title,
       specialized: specialized ?? this.specialized,
       description: description ?? this.description,
+      requirements: requirements ?? this.requirements,
+      benefits: benefits ?? this.benefits,
       location: location ?? this.location,
       salary: salary ?? this.salary,
       workingHours: workingHours ?? this.workingHours,
@@ -98,6 +110,8 @@ class CreateJobModel {
   final String title;
   final String specialized;
   final String description;
+  final String requirements;
+  final String benefits;
   final String location;
   final double salary;
   final String workingHours;
@@ -107,6 +121,8 @@ class CreateJobModel {
     required this.title,
     required this.specialized,
     required this.description,
+    required this.requirements,
+    required this.benefits,
     required this.location,
     required this.salary,
     required this.workingHours,
@@ -118,6 +134,8 @@ class CreateJobModel {
       'title': title,
       'specialized': specialized,
       'description': description,
+      'requirements': requirements,
+      'benefits': benefits,
       'location': location,
       'salary': salary,
       'workingHours': workingHours,
@@ -130,6 +148,8 @@ class UpdateJobModel {
   final String? title;
   final String? specialized;
   final String? description;
+  final String? requirements;
+  final String? benefits;
   final String? location;
   final double? salary;
   final String? workingHours;
@@ -139,6 +159,8 @@ class UpdateJobModel {
     this.title,
     this.specialized,
     this.description,
+    this.requirements,
+    this.benefits,
     this.location,
     this.salary,
     this.workingHours,
@@ -150,6 +172,8 @@ class UpdateJobModel {
     if (title != null) data['title'] = title;
     if (specialized != null) data['specialized'] = specialized;
     if (description != null) data['description'] = description;
+    if (requirements != null) data['requirements'] = requirements;
+    if (benefits != null) data['benefits'] = benefits;
     if (location != null) data['location'] = location;
     if (salary != null) data['salary'] = salary;
     if (workingHours != null) data['workingHours'] = workingHours;

@@ -21,10 +21,12 @@ import '../../features/landing/landing_page.dart';
 import '../../features/navigation/layouts/mobile_layout.dart';
 import '../../features/navigation/layouts/web_layout.dart';
 import '../../features/notifications/screens/notification_screen.dart';
+import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/recruiter/screens/recruiter_applicants_screen.dart';
 import '../../features/recruiter/screens/recruiter_company_screen.dart';
 import '../../features/recruiter/screens/recruiter_home_screen.dart';
+import '../../features/search/screens/advanced_search_screen.dart';
 import '../../features/settings/screens/admin_settings_screen.dart';
 import '../../features/settings/screens/candidate_settings_screen.dart';
 import '../../features/settings/screens/recruiter_settings_screen.dart';
@@ -35,56 +37,88 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
   
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     redirect: (context, state) {
       final isLoggedIn = authState.isAuthenticated;
       final isLoading = authState.isLoading;
       final user = authState.user;
       final location = state.uri.toString();
 
+      print('DEBUG Router: location=$location, isLoggedIn=$isLoggedIn, isLoading=$isLoading, user=${user?.fullName}');
+
       // If loading, stay on current page
       if (isLoading) {
+        print('DEBUG Router: Still loading, staying on current page');
         return null;
       }
 
-      // Public routes that don't require authentication
+      // Public routes that don't require authentication (but exclude auth pages)
       final publicRoutes = [
         '/',
-        '/login',
-        '/register',
         '/jobs',
         '/search',
-        '/about',
         '/job-detail',
         '/company',
       ];
 
-      // Allow job detail and company pages for everyone
-      if (location.startsWith('/job-detail/') || 
-          location.startsWith('/company/') ||
-          location.startsWith('/jobs/')) {
-        return null;
-      }
+      // Protected routes that require authentication
+      final protectedRoutes = [
+        '/home',
+        '/favorites',
+        '/applications',
+        '/profile',
+        '/chat',
+        '/settings',
+        '/notifications',
+      ];
 
-      // If trying to access protected routes without login
-      if (!isLoggedIn && !publicRoutes.contains(location) && !location.startsWith('/recruiter')) {
-        return '/login';
-      }
-
-      // Protect recruiter routes - only allow recruiters
-      if (location.startsWith('/recruiter') && (!isLoggedIn || user?.isRecruiter != true)) {
-        return '/login';
-      }
-
-      // If logged in and trying to access auth pages, redirect to appropriate home
-      if (isLoggedIn && (location == '/login' || location == '/register')) {
-        if (user?.isRecruiter == true) {
+      // PRIORITY 1: If logged in and trying to access auth pages, redirect to appropriate home
+      if (isLoggedIn && user != null && (location == '/login' || location == '/register')) {
+        print('DEBUG Router: User is authenticated, redirecting from auth page');
+        print('DEBUG Router: user.role = ${user.role}');
+        print('DEBUG Router: user.isRecruiter = ${user.isRecruiter}');
+        print('DEBUG Router: Checking redirect logic...');
+        
+        if (user.role == 'Admin') {
+          print('DEBUG Router: Admin user, redirecting to /admin-dashboard');
+          return '/admin-dashboard';
+        } else if (user.isRecruiter == true) {
+          print('DEBUG Router: Logged in recruiter accessing auth page, redirecting to /recruiter/home');
           return '/recruiter/home';
         } else {
+          print('DEBUG Router: Logged in user accessing auth page, redirecting to /home');
           return '/home';
         }
       }
 
+      // PRIORITY 2: Allow job detail and company pages for everyone
+      if (location.startsWith('/job-detail/') || 
+          location.startsWith('/company/') ||
+          location.startsWith('/jobs/') ||
+          publicRoutes.contains(location)) {
+        print('DEBUG Router: Public route allowed');
+        return null;
+      }
+
+      // PRIORITY 3: If not logged in and trying to access protected routes, redirect to /login
+      if (!isLoggedIn && (protectedRoutes.contains(location) || location.startsWith('/recruiter'))) {
+        print('DEBUG Router: Not logged in, redirecting to /login');
+        return '/login';
+      }
+
+      // PRIORITY 4: Protect recruiter routes - only allow recruiters
+      if (location.startsWith('/recruiter') && (!isLoggedIn || user?.isRecruiter != true)) {
+        print('DEBUG Router: Recruiter route protection, redirecting to /login');
+        return '/login';
+      }
+
+      // PRIORITY 5: If not logged in and on root, redirect to login
+      if (!isLoggedIn && location == '/') {
+        print('DEBUG Router: Not logged in on root page, redirecting to /login');
+        return '/login';
+      }
+
+      print('DEBUG Router: No redirect needed');
       return null;
     },
     routes: [
@@ -155,6 +189,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           const ProfileScreen(),
           'candidate',
         ),
+        routes: [
+          GoRoute(
+            path: 'edit',
+            builder: (context, state) => _buildWithLayout(
+              context, 
+              const EditProfileScreen(),
+              'candidate',
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/chat',
@@ -175,19 +219,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/search',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const JobListScreen(), // You can create a dedicated search screen
-          'candidate',
-        ),
-      ),
-      GoRoute(
-        path: '/about',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const LandingPage(), // You can create a dedicated about screen
-          'candidate',
-        ),
+        builder: (context, state) => const AdvancedSearchScreen(),
       ),
       GoRoute(
         path: '/settings',
@@ -335,6 +367,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/notifications',
         builder: (context, state) => const NotificationScreen(),
+      ),
+      
+      // Help and Reviews routes
+      GoRoute(
+        path: '/help',
+        builder: (context, state) => _buildWithLayout(
+          context, 
+          const Scaffold(
+            body: Center(
+              child: Text('Trang Trợ giúp - Đang phát triển'),
+            ),
+          ),
+          'candidate',
+        ),
+      ),
+      GoRoute(
+        path: '/reviews',
+        builder: (context, state) => _buildWithLayout(
+          context, 
+          const Scaffold(
+            body: Center(
+              child: Text('Trang Đánh giá - Đang phát triển'),
+            ),
+          ),
+          'candidate',
+        ),
       ),
     ],
   );

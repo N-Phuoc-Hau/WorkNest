@@ -1,5 +1,8 @@
-import 'package:dio/dio.dart';
 import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../constants/api_constants.dart';
 import '../utils/token_storage.dart';
 
@@ -170,6 +173,82 @@ class UploadService {
         '/api/Upload/file',
         queryParameters: {'publicId': publicId},
       );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // Web-specific upload methods
+  Future<String> uploadAvatarWeb(XFile file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+        ),
+      });
+
+      final response = await _dio.post(
+        '/api/Upload/avatar',
+        data: formData,
+      );
+
+      return response.data['imageUrl'] as String;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<String> uploadImageWeb(XFile file, {String folder = 'images'}) async {
+    try {
+      final bytes = await file.readAsBytes();
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          bytes,
+          filename: file.name,
+        ),
+      });
+
+      final response = await _dio.post(
+        '/api/Upload/image',
+        queryParameters: {'folder': folder},
+        data: formData,
+      );
+
+      return response.data['imageUrl'] as String;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<List<String>> uploadImagesWeb(
+    List<XFile> files, {
+    String folder = 'images',
+  }) async {
+    try {
+      final formData = FormData();
+      
+      for (final file in files) {
+        final bytes = await file.readAsBytes();
+        formData.files.add(
+          MapEntry(
+            'files',
+            MultipartFile.fromBytes(
+              bytes,
+              filename: file.name,
+            ),
+          ),
+        );
+      }
+
+      final response = await _dio.post(
+        '/api/Upload/images',
+        queryParameters: {'folder': folder},
+        data: formData,
+      );
+
+      return List<String>.from(response.data['imageUrls']);
     } on DioException catch (e) {
       throw _handleError(e);
     }

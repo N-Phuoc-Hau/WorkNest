@@ -1,9 +1,10 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
-import '../../core/services/upload_service.dart';
-import '../../core/services/public_upload_service.dart';
+
 import '../../core/providers/upload_provider.dart';
 
 class ImagePickerWidget extends ConsumerStatefulWidget {
@@ -52,10 +53,71 @@ class _ImagePickerWidgetState extends ConsumerState<ImagePickerWidget> {
       );
 
       if (image != null) {
-        await _uploadImage(File(image.path));
+        if (kIsWeb) {
+          // On web, work with XFile directly
+          await _uploadImageWeb(image);
+        } else {
+          // On mobile, convert to File
+          await _uploadImage(File(image.path));
+        }
       }
     } catch (e) {
       _showErrorSnackBar('Lỗi khi chọn ảnh: $e');
+    }
+  }
+
+  Future<void> _uploadImageWeb(XFile imageFile) async {
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      String imageUrl;
+      
+      // Try public upload first (for registration), fallback to authenticated upload
+      final publicUploadService = ref.read(publicUploadServiceProvider);
+      final uploadService = ref.read(uploadServiceProvider);
+      
+      try {
+        if (widget.uploadFolder == 'avatars') {
+          imageUrl = await publicUploadService.uploadAvatarWeb(imageFile);
+        } else {
+          imageUrl = await publicUploadService.uploadImageWeb(imageFile, folder: widget.uploadFolder);
+        }
+      } catch (e) {
+        // Fallback to authenticated upload if public upload fails
+        if (widget.uploadFolder == 'avatars') {
+          imageUrl = await uploadService.uploadAvatarWeb(imageFile);
+        } else {
+          imageUrl = await uploadService.uploadImageWeb(imageFile, folder: widget.uploadFolder);
+        }
+      }
+
+      setState(() {
+        if (widget.isMultiple) {
+          if (_selectedImageUrls.length < widget.maxImages) {
+            _selectedImageUrls.add(imageUrl);
+          } else {
+            _selectedImageUrls[_selectedImageUrls.length - 1] = imageUrl;
+          }
+        } else {
+          _selectedImageUrls = [imageUrl];
+        }
+      });
+
+      // Notify parent widget about the selected images
+      if (widget.isMultiple) {
+        widget.onImageSelected(_selectedImageUrls.join(','));
+      } else {
+        widget.onImageSelected(imageUrl);
+      }
+
+    } catch (e) {
+      _showErrorSnackBar('Lỗi khi tải ảnh lên: $e');
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
     }
   }
 
@@ -115,6 +177,25 @@ class _ImagePickerWidgetState extends ConsumerState<ImagePickerWidget> {
     }
   }
 
+  Future<void> _pickMultipleImagesWeb() async {
+    try {
+      final List<XFile> images = await _picker.pickMultipleMedia(
+        imageQuality: 80,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+
+      if (images.isNotEmpty) {
+        for (final image in images) {
+          if (_selectedImageUrls.length >= widget.maxImages) break;
+          await _uploadImageWeb(image);
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('Lỗi khi chọn ảnh: $e');
+    }
+  }
+
   void _removeImage(int index) {
     setState(() {
       _selectedImageUrls.removeAt(index);
@@ -149,9 +230,22 @@ class _ImagePickerWidgetState extends ConsumerState<ImagePickerWidget> {
                 title: const Text('Thư viện ảnh'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  _pickImage(ImageSource.gallery);
+                  if (widget.isMultiple && kIsWeb) {
+                    _pickMultipleImagesWeb();
+                  } else {
+                    _pickImage(ImageSource.gallery);
+                  }
                 },
               ),
+              if (widget.isMultiple && kIsWeb)
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Chọn nhiều ảnh'),
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    _pickMultipleImagesWeb();
+                  },
+                ),
             ],
           ),
         );

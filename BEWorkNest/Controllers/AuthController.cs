@@ -85,7 +85,6 @@ namespace BEWorkNest.Controllers
         public async Task<IActionResult> RegisterRecruiter([FromForm] RegisterRecruiterFormDto registerDto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
-            
             try
             {
                 // Handle avatar upload if provided
@@ -111,7 +110,6 @@ namespace BEWorkNest.Controllers
                 };
 
                 var result = await _userManager.CreateAsync(user, registerDto.Password);
-
                 if (!result.Succeeded)
                 {
                     await transaction.RollbackAsync();
@@ -127,11 +125,11 @@ namespace BEWorkNest.Controllers
                     Description = registerDto.Description,
                     Location = registerDto.Location
                 };
-
                 _context.Companies.Add(company);
                 await _context.SaveChangesAsync();
 
                 // Handle company images upload
+                List<string> imageUrls = new List<string>();
                 if (registerDto.Images != null && registerDto.Images.Count >= 3)
                 {
                     // Validate all files are images
@@ -143,27 +141,31 @@ namespace BEWorkNest.Controllers
                             return BadRequest($"File {image.FileName} is not a valid image file");
                         }
                     }
-
                     // Upload images to Cloudinary
-                    var imageUrls = await _cloudinaryService.UploadMultipleImagesAsync(registerDto.Images, "companies");
-
-                    // Add company images to database
-                    foreach (var imageUrl in imageUrls)
-                    {
-                        var companyImage = new CompanyImage
-                        {
-                            CompanyId = company.Id,
-                            ImageUrl = imageUrl
-                        };
-                        _context.CompanyImages.Add(companyImage);
-                    }
-                    await _context.SaveChangesAsync();
+                    imageUrls = await _cloudinaryService.UploadMultipleImagesAsync(registerDto.Images, "companies");
+                }
+                else if (registerDto.ImageUrls != null && registerDto.ImageUrls.Count >= 3)
+                {
+                    // Use provided image URLs
+                    imageUrls = registerDto.ImageUrls;
                 }
                 else
                 {
                     await transaction.RollbackAsync();
-                    return BadRequest("Công ty phải có ít nhất 3 ảnh môi trường làm việc");
+                    return BadRequest("Company must have at least 3 images");
                 }
+
+                // Add company images to database
+                foreach (var imageUrl in imageUrls)
+                {
+                    var companyImage = new CompanyImage
+                    {
+                        CompanyId = company.Id,
+                        ImageUrl = imageUrl
+                    };
+                    _context.CompanyImages.Add(companyImage);
+                }
+                await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
                 return Ok(new { message = "Recruiter registered successfully", userId = user.Id });
@@ -254,7 +256,7 @@ namespace BEWorkNest.Controllers
                 });
             }
 
-            var token = authHeader.Substring("Bearer ".Length).Trim();
+            var token = authHeader!.Substring("Bearer ".Length).Trim();
             
             try
             {
@@ -369,7 +371,7 @@ namespace BEWorkNest.Controllers
                 return Ok(new { message = "Not a Bearer token", debugInfo });
             }
 
-            var token = authHeader.Substring("Bearer ".Length).Trim();
+                            var token = authHeader!.Substring("Bearer ".Length).Trim();
             
             try
             {
@@ -431,9 +433,17 @@ namespace BEWorkNest.Controllers
         public IActionResult GetTokenStatus()
         {
             var authHeader = Request.Headers["Authorization"].FirstOrDefault();
-            if (authHeader?.StartsWith("Bearer ") == true)
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
             {
-                var token = authHeader.Substring("Bearer ".Length).Trim();
+                return BadRequest(new { 
+                    message = "Không có token hoặc token không hợp lệ",
+                    errorCode = "AUTH_REQUIRED"
+                });
+            }
+
+            try
+            {
+                var token = authHeader!.Substring("Bearer ".Length).Trim();
                 var expirationTime = _jwtService.GetTokenExpirationTime(token);
                 var isExpired = _jwtService.IsTokenExpired(token);
                 var userId = _jwtService.GetUserIdFromToken(token);
@@ -449,8 +459,14 @@ namespace BEWorkNest.Controllers
                     timeToExpiry = isExpired ? TimeSpan.Zero : expirationTime - DateTime.UtcNow
                 });
             }
-
-            return BadRequest("No valid token found");
+            catch (Exception ex)
+            {
+                return BadRequest(new { 
+                    message = "Lỗi xử lý token", 
+                    error = ex.Message,
+                    errorCode = "TOKEN_PROCESSING_ERROR"
+                });
+            }
         }
 
         [HttpPost("refresh-token")]

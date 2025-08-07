@@ -272,14 +272,14 @@ class _WebLayoutState extends ConsumerState<WebLayout> {
                           if (user?.isRecruiter == true) {
                             context.go('/recruiter/profile');
                           } else {
-                            context.go('/candidate/profile');
+                            context.go('/profile');
                           }
                           break;
                         case 'settings':
                           if (user?.isRecruiter == true) {
                             context.go('/recruiter/settings');
                           } else {
-                            context.go('/candidate/settings');
+                            context.go('/settings');
                           }
                           break;
                         case 'logout':

@@ -164,11 +164,11 @@ class MobileBottomNavBar extends StatelessWidget {
   List<String> _getBottomNavRoutes(String userRole) {
     if (userRole == 'candidate') {
       return [
-        '/candidate/home',
-        '/candidate/jobs',
-        '/candidate/favorites',
-        '/candidate/applications',
-        '/candidate/profile',
+        '/home',
+        '/jobs',
+        '/favorites',
+        '/applications',
+        '/profile',
       ];
     } else if (userRole == 'recruiter') {
       return [
@@ -280,10 +280,10 @@ class MobileDrawer extends ConsumerWidget {
   List<Widget> _buildDrawerItems(BuildContext context, String userRole) {
     if (userRole == 'candidate') {
       return [
-        _buildDrawerItem(context, 'Chat với HR', Icons.chat_outlined, '/candidate/chat'),
-        _buildDrawerItem(context, 'Cài đặt', Icons.settings_outlined, '/candidate/settings'),
-        _buildDrawerItem(context, 'Thông báo', Icons.notifications_outlined, '/candidate/notifications'),
-        _buildDrawerItem(context, 'Hỗ trợ', Icons.help_outline, '/candidate/support'),
+        _buildDrawerItem(context, 'Chat với HR', Icons.chat_outlined, '/chat'),
+        _buildDrawerItem(context, 'Cài đặt', Icons.settings_outlined, '/settings'),
+        _buildDrawerItem(context, 'Thông báo', Icons.notifications_outlined, '/notifications'),
+        _buildDrawerItem(context, 'Hỗ trợ', Icons.help_outline, '/help'),
       ];
     } else if (userRole == 'recruiter') {
       return [

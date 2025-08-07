@@ -6,6 +6,7 @@ import '../../../core/models/job_model.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/favorite_provider.dart';
 import '../../../core/providers/job_provider.dart';
+import '../../../core/utils/application_utils.dart';
 import '../../../core/utils/auth_guard.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
@@ -416,49 +417,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   }
 
   void _showApplyDialog(BuildContext context, JobModel job) {
-    final coverLetterController = TextEditingController();
-    
-    showDialog(
+    ApplicationUtils.showApplicationDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Ứng tuyển công việc'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Bạn có muốn ứng tuyển cho vị trí "${job.title}"?'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: coverLetterController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Thư xin việc (tùy chọn)',
-                hintText: 'Viết vài dòng giới thiệu về bản thân...',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              // TODO: Implement application logic
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Ứng tuyển thành công!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            child: const Text('Ứng tuyển'),
-          ),
-        ],
-      ),
+      jobId: job.id,
+      jobTitle: job.title,
+      companyName: job.recruiter.company?.name ?? 'Unknown Company',
     );
   }
 }

@@ -121,25 +121,25 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPost("mark-as-read/{chatId}")]
-        public async Task<IActionResult> MarkChatAsRead(string chatId)
+        public Task<IActionResult> MarkChatAsRead(string chatId)
         {
             try
             {
                 var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
                 if (userId == null)
                 {
-                    return Unauthorized();
+                    return Task.FromResult<IActionResult>(Unauthorized());
                 }
 
                 // Mark messages as read logic here
                 // This would update the messages in Firebase Realtime Database
 
-                return Ok(new { message = "Chat marked as read" });
+                return Task.FromResult<IActionResult>(Ok(new { message = "Chat marked as read" }));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error marking chat as read: {chatId}");
-                return BadRequest(new { message = "Failed to mark chat as read", error = ex.Message });
+                return Task.FromResult<IActionResult>(BadRequest(new { message = "Failed to mark chat as read", error = ex.Message }));
             }
         }
 

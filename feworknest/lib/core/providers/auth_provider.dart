@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
@@ -28,17 +29,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> _loadFromStorage() async {
+    print('DEBUG AuthProvider: _loadFromStorage started');
     state = state.copyWith(isLoading: true);
     
     try {
       final accessToken = await TokenStorage.getAccessToken();
       final refreshToken = await TokenStorage.getRefreshToken();
 
+      print('DEBUG AuthProvider: Storage tokens - accessToken: ${accessToken != null ? "EXISTS" : "NULL"}, refreshToken: ${refreshToken != null ? "EXISTS" : "NULL"}');
+
       if (accessToken != null && refreshToken != null) {
+        print('DEBUG AuthProvider: Tokens found, checking expiration...');
         // Check if access token is expired
         if (await TokenStorage.isAccessTokenExpired()) {
+          print('DEBUG AuthProvider: Access token expired, trying to refresh...');
           // Access token expired, try to refresh
           if (await TokenStorage.isRefreshTokenExpired()) {
+            print('DEBUG AuthProvider: Refresh token also expired, logging out...');
             // Refresh token also expired, logout
             await logout();
             return;
@@ -48,6 +55,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
           final refreshResult = await authService.refreshToken(refreshToken);
           
           if (refreshResult['success'] == true) {
+            print('DEBUG AuthProvider: Token refresh SUCCESS');
             // Save new tokens
             await TokenStorage.updateTokens(
               accessToken: refreshResult['access_token'],
@@ -60,22 +68,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
               accessToken: refreshResult['access_token'],
               isAuthenticated: true,
             );
+            print('DEBUG AuthProvider: Set isAuthenticated = TRUE after token refresh');
             await fetchUserProfile();
           } else {
+            print('DEBUG AuthProvider: Token refresh FAILED, logging out...');
             // Cannot refresh, logout
             await logout();
             return;
           }
         } else {
+          print('DEBUG AuthProvider: Access token still valid, setting authenticated');
           // Access token is still valid
           state = state.copyWith(
             accessToken: accessToken,
             isAuthenticated: true,
           );
+          print('DEBUG AuthProvider: Set isAuthenticated = TRUE with existing token');
           await fetchUserProfile();
         }
+      } else {
+        print('DEBUG AuthProvider: No tokens found in storage');
       }
     } catch (e) {
+      print('DEBUG AuthProvider: _loadFromStorage exception: $e');
       // If any error occurs, try to logout silently
       await logout();
       state = state.copyWith(
@@ -83,16 +98,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
         error: 'Lỗi khi tải thông tin người dùng',
       );
     } finally {
+      print('DEBUG AuthProvider: _loadFromStorage completed');
       state = state.copyWith(isLoading: false);
     }
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<UserModel?> login(String email, String password) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final authService = ref.read(authServiceProvider);
       final result = await authService.login(email, password);
+
+      print('DEBUG AuthProvider: Login result = $result');
 
       if (result['success'] == true) {
         final user = UserModel.fromJson(result['user']);
@@ -114,13 +132,52 @@ class AuthNotifier extends StateNotifier<AuthState> {
           accessToken: accessToken,
           isAuthenticated: true,
           isLoading: false,
+          error: null,
         );
 
+        print('DEBUG AuthProvider: Login SUCCESS, returning user: ${user.fullName}');
+        return user;
+      } else {
+        state = state.copyWith(
+          isLoading: false,
+          isAuthenticated: false,
+          error: result['message'] ?? 'Đăng nhập thất bại',
+        );
+        print('DEBUG AuthProvider: Login FAILED, returning null. Error: ${result['message']}');
+        print('DEBUG AuthProvider: isAuthenticated set to FALSE');
+        return null;
+      }
+    } catch (e) {
+      print('DEBUG AuthProvider: Exception caught: $e');
+      state = state.copyWith(
+        isLoading: false,
+        isAuthenticated: false,
+        error: 'Đã có lỗi xảy ra, vui lòng thử lại.',
+      );
+      print('DEBUG AuthProvider: isAuthenticated set to FALSE (exception)');
+      return null;
+    }
+  }
+
+  Future<bool> register(Map<String, dynamic> userData, {bool isRecruiter = false}) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      final result = isRecruiter 
+          ? await authService.registerRecruiter(userData)
+          : await authService.registerCandidate(userData);
+
+      if (result['success'] == true) {
+        state = state.copyWith(
+          isLoading: false,
+          error: null,
+        );
         return true;
       } else {
         state = state.copyWith(
           isLoading: false,
-          error: result['message'] ?? 'Đăng nhập thất bại',
+          error: result['message'] ?? 'Đăng ký thất bại',
         );
         return false;
       }
@@ -133,14 +190,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<bool> register(Map<String, dynamic> userData, {bool isRecruiter = false}) async {
+  Future<bool> registerWithFiles(
+    Map<String, dynamic> userData, {
+    bool isRecruiter = false,
+    XFile? avatarFile,
+    List<XFile> companyImageFiles = const [],
+  }) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final authService = ref.read(authServiceProvider);
       final result = isRecruiter 
-          ? await authService.registerRecruiter(userData)
-          : await authService.registerCandidate(userData);
+          ? await authService.registerRecruiterWithFiles(userData, avatarFile, companyImageFiles)
+          : await authService.registerCandidateWithFiles(userData, avatarFile);
 
       if (result['success'] == true) {
         state = state.copyWith(
