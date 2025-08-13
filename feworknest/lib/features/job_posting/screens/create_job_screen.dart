@@ -1,37 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/job_posting_provider.dart';
 import '../widgets/job_form.dart';
 
-class CreateJobScreen extends ConsumerWidget {
+class CreateJobScreen extends ConsumerStatefulWidget {
   static const String routeName = '/create-job';
 
   const CreateJobScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CreateJobScreen> createState() => _CreateJobScreenState();
+}
+
+class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
+  VoidCallback? _clearForm;
+
+  @override
+  Widget build(BuildContext context) {
     final jobPostingState = ref.watch(jobPostingProvider);
     final jobPostingNotifier = ref.read(jobPostingProvider.notifier);
 
     ref.listen(jobPostingProvider, (previous, next) {
-      if (previous?.isLoading == true && next.isLoading == false) {
+      if (previous?.isCreating == true && next.isCreating == false) {
         if (next.error == null) {
-          // Success
+          // Success - show notification and clear form 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Đăng tin tuyển dụng thành công!'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
             ),
           );
-          context.pop();
+          // Clear the form
+          _clearForm?.call();
         } else {
           // Error
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Lỗi: ${next.error}'),
               backgroundColor: Colors.red,
+              duration: Duration(seconds: 4),
             ),
           );
         }
@@ -89,7 +98,10 @@ class CreateJobScreen extends ConsumerWidget {
               onCreateJob: (createJobModel) {
                 jobPostingNotifier.createJob(createJobModel);
               },
-              isLoading: jobPostingState.isLoading,
+              onClearFormCallback: (clearCallback) {
+                _clearForm = clearCallback;
+              },
+              isLoading: jobPostingState.isCreating,
             ),
 
             const SizedBox(height: 24),

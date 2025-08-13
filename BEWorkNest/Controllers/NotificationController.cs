@@ -16,32 +16,61 @@ namespace BEWorkNest.Controllers
     {
         private readonly NotificationService _notificationService;
         private readonly ApplicationDbContext _context;
+        private readonly JwtService _jwtService;
         
-        public NotificationController(NotificationService notificationService, ApplicationDbContext context)
+        public NotificationController(NotificationService notificationService, ApplicationDbContext context, JwtService jwtService)
         {
             _notificationService = notificationService;
             _context = context;
+            _jwtService = jwtService;
+        }
+
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error extracting user info from token: {ex.Message}");
+                            isAuthenticated = false;
+                        }
+                    }
+                }
+            }
+
+            return (userId, userRole, isAuthenticated);
         }
         
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> GetNotifications([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
         {
-            // Check if user is authenticated
-            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-            if (!isAuthenticated)
-            {
-                return BadRequest(new { 
-                    message = "Không có quyền truy cập. Vui lòng đăng nhập.",
-                    errorCode = "AUTH_REQUIRED"
-                });
-            }
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null)
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                return BadRequest(new { 
-                    message = "Không tìm thấy thông tin người dùng trong token",
-                    errorCode = "USER_ID_NOT_FOUND"
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
                 });
             }
             
@@ -61,10 +90,19 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpPost("mark-read/{notificationId}")]
+        [AllowAnonymous]
         public async Task<IActionResult> MarkAsRead(int notificationId)
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null) return Unauthorized();
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
             
             var success = await _notificationService.MarkNotificationAsReadAsync(notificationId, userId);
             
@@ -77,10 +115,19 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpPost("mark-all-read")]
+        [AllowAnonymous]
         public async Task<IActionResult> MarkAllAsRead()
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null) return Unauthorized();
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
             
             await _notificationService.MarkAllNotificationsAsReadAsync(userId);
             
@@ -88,10 +135,19 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpGet("unread-count")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetUnreadCount()
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null) return Unauthorized();
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
             
             var count = await _notificationService.GetUnreadNotificationCountAsync(userId);
             
@@ -99,10 +155,19 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpPost("device-token")]
+        [AllowAnonymous]
         public async Task<IActionResult> RegisterDeviceToken([FromBody] DeviceTokenDto dto)
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId == null) return Unauthorized();
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
             
             // Check if device already exists
             var existingDevice = await _context.UserDevices
@@ -140,9 +205,19 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpDelete("device-token")]
+        [AllowAnonymous]
         public async Task<IActionResult> UnregisterDeviceToken([FromBody] DeviceTokenDto dto)
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
             
             var device = await _context.UserDevices
                 .FirstOrDefaultAsync(ud => ud.UserId == userId && ud.FcmToken == dto.FcmToken);
@@ -158,9 +233,19 @@ namespace BEWorkNest.Controllers
         }
         
         [HttpGet("my-devices")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetMyDevices()
         {
-            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
             
             var devices = await _context.UserDevices
                 .Where(ud => ud.UserId == userId && ud.IsActive)

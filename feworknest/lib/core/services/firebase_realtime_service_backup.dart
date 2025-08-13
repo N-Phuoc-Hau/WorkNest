@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -327,7 +328,7 @@ class FirebaseRealtimeService {
       '${sortedIds[0]}_${sortedIds[1]}';
   }
 
-  // Create or get chat room (same logic as React Native)
+  // Create or get chat room (use backend API instead of direct Firebase)
   Future<String> createOrGetChatRoom({
     required String recruiterId,
     required String candidateId,
@@ -342,41 +343,88 @@ class FirebaseRealtimeService {
           throw Exception('Both recruiterId and candidateId are required');
         }
 
-        print('DEBUG Firebase: Creating/Getting chat room for $recruiterId and $candidateId');
+        print('DEBUG Firebase: Creating chat room via backend API');
+        print('DEBUG Firebase: Recruiter: $recruiterId, Candidate: $candidateId');
 
-        final roomId = generateChatRoomId(recruiterId, candidateId, jobId);
-        final roomRef = _database.child('chatRooms/$roomId');
-        
-        print('DEBUG Firebase: Generated roomId: $roomId');
-        print('DEBUG Firebase: Checking if room exists...');
-        
-        // Add timeout for checking room existence
-        final snapshot = await roomRef.get().timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            print('DEBUG Firebase: Timeout getting room snapshot');
-            throw Exception('Firebase timeout - unable to check room existence');
-          },
-        );
-        
-        if (!snapshot.exists) {
-          print('DEBUG Firebase: Room does not exist, creating new room...');
+        try {
+          // Use backend API to create chat room
+          final response = await _dio.post(
+            ApiConstants.createChat,
+            data: {
+              'otherUserId': candidateId, // The other user
+              'initiatorUserId': recruiterId, // Current user creating the chat
+              'jobId': jobId,
+              'recruiterInfo': recruiterInfo,
+              'candidateInfo': candidateInfo,
+              'jobInfo': jobInfo,
+            },
+          ).timeout(const Duration(seconds: 10));
+
+          final roomId = response.data['chatId'] ?? response.data['roomId'];
           
-          // Create new chat room
-          final room = {
-            'id': roomId,
-            'recruiterId': recruiterId,
-            'candidateId': candidateId,
-            'jobId': jobId,
-            'createdAt': ServerValue.timestamp,
-            'lastMessage': null,
-            'lastMessageTimestamp': null,
-            'recruiterInfo': recruiterInfo,
-            'candidateInfo': candidateInfo,
-            'jobInfo': jobInfo,
-            'participants': {
-              recruiterId: {
-                'id': recruiterId,
+          if (roomId == null) {
+            throw Exception('Backend did not return chatId');
+          }
+
+          print('DEBUG Firebase: Chat room created via backend: $roomId');
+          return roomId;
+        } on DioException catch (e) {
+          print('DEBUG Firebase: Backend create chat error: ${e.message}');
+          
+          // Fallback: Direct Firebase creation (matching backend structure)
+          print('DEBUG Firebase: Falling back to direct Firebase creation...');
+          
+          final roomId = generateChatRoomId(recruiterId, candidateId, jobId);
+          final roomRef = _database.child('chats/$roomId'); // Use 'chats' to match backend
+          
+          print('DEBUG Firebase: Generated roomId: $roomId');
+          print('DEBUG Firebase: Checking if room exists at path: chats/$roomId');
+          
+          final snapshot = await roomRef.get().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              print('DEBUG Firebase: Timeout getting room snapshot');
+              throw Exception('Firebase timeout - unable to check room existence');
+            },
+          );
+          
+          if (!snapshot.exists) {
+            print('DEBUG Firebase: Room does not exist, creating new room...');
+            
+            // Create new chat room (matching backend ChatRoom structure)
+            final room = {
+              'Id': roomId,
+              'Participants': [recruiterId, candidateId],
+              'CreatedAt': DateTime.now().toUtc().toIso8601String(),
+              'LastMessageAt': DateTime.now().toUtc().toIso8601String(),
+              // Additional metadata
+              'recruiterId': recruiterId,
+              'candidateId': candidateId,
+              'jobId': jobId,
+              'recruiterInfo': recruiterInfo,
+              'candidateInfo': candidateInfo,
+              'jobInfo': jobInfo,
+            };
+            
+            await roomRef.set(room).timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                print('DEBUG Firebase: Timeout setting room data');
+                throw Exception('Firebase timeout - unable to create room');
+              },
+            );
+            
+            print('DEBUG Firebase: Room created successfully via direct Firebase');
+          } else {
+            print('DEBUG Firebase: Room already exists');
+          }
+          
+          return roomId;
+        }
+      },
+      'createOrGetChatRoom',
+    );
+  }
                 'role': 'recruiter',
                 'lastRead': null,
               },
@@ -470,36 +518,84 @@ class FirebaseRealtimeService {
     }
   }
 
-  // Subscribe to messages (same logic as React Native)
+  // Subscribe to messages (matching backend structure: chats/{chatId}/messages)
   Stream<List<Map<String, dynamic>>> subscribeToMessages(String roomId) {
     try {
       if (roomId.isEmpty) {
         throw Exception('roomId is required');
       }
 
-      final messagesRef = _database.child('chatRooms/$roomId/messages');
+      print('DEBUG Firebase: Subscribing to messages for room: $roomId');
+      print('DEBUG Firebase: Using path: chats/$roomId/messages');
+
+      final messagesRef = _database.child('chats/$roomId/messages');
       final messagesQuery = messagesRef.orderByChild('timestamp');
 
       return messagesQuery.onValue.map((event) {
         final messages = <Map<String, dynamic>>[];
         
+        print('DEBUG Firebase: Received message event - exists: ${event.snapshot.exists}');
+        
         if (event.snapshot.exists) {
+          print('DEBUG Firebase: Processing ${event.snapshot.children.length} messages');
+          
           for (final child in event.snapshot.children) {
             final messageId = child.key!;
-            final messageData = child.value as Map<dynamic, dynamic>;
+            final messageData = child.value;
+            
+            print('DEBUG Firebase: Message $messageId: $messageData');
+            
+            // Handle both Map and String (JSON) data formats
+            Map<String, dynamic> parsedMessage;
+            if (messageData is String) {
+              try {
+                parsedMessage = Map<String, dynamic>.from(
+                  json.decode(messageData) as Map
+                );
+              } catch (e) {
+                print('DEBUG Firebase: Error parsing JSON message: $e');
+                continue;
+              }
+            } else if (messageData is Map) {
+              parsedMessage = Map<String, dynamic>.from(messageData);
+            } else {
+              print('DEBUG Firebase: Unknown message format: ${messageData.runtimeType}');
+              continue;
+            }
             
             messages.add({
               'id': messageId,
-              ...messageData,
-              'timestamp': messageData['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+              'messageId': messageId,
+              'senderId': parsedMessage['SenderId'] ?? parsedMessage['senderId'],
+              'content': parsedMessage['Content'] ?? parsedMessage['content'] ?? parsedMessage['text'],
+              'messageType': parsedMessage['MessageType'] ?? parsedMessage['messageType'] ?? 'text',
+              'timestamp': parsedMessage['Timestamp'] ?? parsedMessage['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+              'fileUrl': parsedMessage['FileUrl'] ?? parsedMessage['fileUrl'],
+              'fileName': parsedMessage['FileName'] ?? parsedMessage['fileName'],
+              // Keep original data for compatibility
+              ...parsedMessage,
             });
           }
+        } else {
+          print('DEBUG Firebase: No messages found in path: chats/$roomId/messages');
         }
         
+        // Sort messages by timestamp
+        messages.sort((a, b) {
+          final timeA = a['timestamp'] is String 
+              ? DateTime.parse(a['timestamp']).millisecondsSinceEpoch
+              : (a['timestamp'] as int? ?? 0);
+          final timeB = b['timestamp'] is String 
+              ? DateTime.parse(b['timestamp']).millisecondsSinceEpoch 
+              : (b['timestamp'] as int? ?? 0);
+          return timeA.compareTo(timeB);
+        });
+        
+        print('DEBUG Firebase: Returning ${messages.length} sorted messages');
         return messages;
       });
     } catch (e) {
-      print('Error setting up message subscription: $e');
+      print('ERROR Firebase: Error setting up message subscription: $e');
       rethrow;
     }
   }
@@ -518,45 +614,94 @@ class FirebaseRealtimeService {
     }
   }
 
-  // Get user chat rooms stream (for real-time updates)
+  // Get user chat rooms stream (matching backend structure: chats/)
   Stream<List<Map<String, dynamic>>> getUserChatRoomsStream(String userId, String userType) {
     try {
       if (userId.isEmpty || userType.isEmpty) {
         throw Exception('userId and userType are required');
       }
 
-      final userIdField = userType == 'recruiter' ? 'recruiterId' : 'candidateId';
-      final roomsRef = _database.child('chatRooms');
+      print('DEBUG Firebase: Getting chat rooms for user: $userId, type: $userType');
+      print('DEBUG Firebase: Using path: chats/');
+
+      final roomsRef = _database.child('chats');
 
       return roomsRef.onValue.map((event) {
         final chatRooms = <Map<String, dynamic>>[];
         
+        print('DEBUG Firebase: Received chat rooms event - exists: ${event.snapshot.exists}');
+        
         if (event.snapshot.exists) {
+          print('DEBUG Firebase: Processing ${event.snapshot.children.length} chat rooms');
+          
           for (final child in event.snapshot.children) {
             final roomId = child.key!;
-            final roomData = child.value as Map<dynamic, dynamic>;
+            final roomData = child.value;
             
-            // Filter rooms for the current user
-            if (roomData[userIdField] == userId) {
+            print('DEBUG Firebase: Room $roomId: $roomData');
+            
+            // Handle both Map and String (JSON) data formats
+            Map<String, dynamic> parsedRoom;
+            if (roomData is String) {
+              try {
+                parsedRoom = Map<String, dynamic>.from(
+                  json.decode(roomData) as Map
+                );
+              } catch (e) {
+                print('DEBUG Firebase: Error parsing JSON room: $e');
+                continue;
+              }
+            } else if (roomData is Map) {
+              parsedRoom = Map<String, dynamic>.from(roomData);
+            } else {
+              print('DEBUG Firebase: Unknown room format: ${roomData.runtimeType}');
+              continue;
+            }
+            
+            // Check if user is participant in this chat
+            final participants = parsedRoom['Participants'] ?? parsedRoom['participants'] ?? [];
+            if (participants is List && participants.contains(userId)) {
               chatRooms.add({
                 'id': roomId,
-                ...roomData,
+                'roomId': roomId,
+                'participants': participants,
+                'createdAt': parsedRoom['CreatedAt'] ?? parsedRoom['createdAt'],
+                'lastMessageAt': parsedRoom['LastMessageAt'] ?? parsedRoom['lastMessageAt'],
+                'lastMessageTimestamp': parsedRoom['LastMessageAt'] ?? parsedRoom['lastMessageAt'],
+                // Keep original data for compatibility
+                ...parsedRoom,
               });
             }
           }
+        } else {
+          print('DEBUG Firebase: No chat rooms found in path: chats/');
         }
         
         // Sort by last message time (most recent first)
         chatRooms.sort((a, b) {
           final timeA = a['lastMessageTimestamp'] ?? a['createdAt'] ?? 0;
           final timeB = b['lastMessageTimestamp'] ?? b['createdAt'] ?? 0;
-          return (timeB as int).compareTo(timeA as int);
+          
+          // Handle different timestamp formats
+          int getTimestamp(dynamic time) {
+            if (time is String) {
+              try {
+                return DateTime.parse(time).millisecondsSinceEpoch;
+              } catch (e) {
+                return 0;
+              }
+            }
+            return time is int ? time : 0;
+          }
+          
+          return getTimestamp(timeB).compareTo(getTimestamp(timeA));
         });
         
+        print('DEBUG Firebase: Returning ${chatRooms.length} sorted chat rooms');
         return chatRooms;
       });
     } catch (e) {
-      print('Error setting up chat rooms subscription: $e');
+      print('ERROR Firebase: Error setting up chat rooms subscription: $e');
       rethrow;
     }
   }
@@ -574,14 +719,14 @@ class FirebaseRealtimeService {
     }
   }
 
-  // Get unread message count (same logic as React Native)
+  // Get unread message count (using chats path to match backend)
   Future<int> getUnreadMessageCount(String roomId, String userId) async {
     try {
       if (roomId.isEmpty || userId.isEmpty) {
         throw Exception('roomId and userId are required');
       }
 
-      final messagesRef = _database.child('chatRooms/$roomId/messages');
+      final messagesRef = _database.child('chats/$roomId/messages');
       final snapshot = await messagesRef.get();
 
       if (!snapshot.exists) {
@@ -591,10 +736,27 @@ class FirebaseRealtimeService {
       int unreadCount = 0;
 
       for (final child in snapshot.children) {
-        final message = child.value as Map<dynamic, dynamic>;
+        final messageData = child.value;
+        
+        // Handle both Map and String (JSON) data formats
+        Map<String, dynamic> message;
+        if (messageData is String) {
+          try {
+            message = Map<String, dynamic>.from(json.decode(messageData) as Map);
+          } catch (e) {
+            continue;
+          }
+        } else if (messageData is Map) {
+          message = Map<String, dynamic>.from(messageData);
+        } else {
+          continue;
+        }
 
         // Count messages from other users that are not read
-        if (message['senderId'] != userId && message['read'] != true) {
+        final senderId = message['SenderId'] ?? message['senderId'];
+        final isRead = message['read'] == true || message['Read'] == true;
+        
+        if (senderId != userId && !isRead) {
           unreadCount++;
         }
       }
@@ -606,11 +768,11 @@ class FirebaseRealtimeService {
     }
   }
 
-  // Delete chat room (same logic as React Native)
+  // Delete chat room (using chats path to match backend)
   Future<void> deleteChatRoom(String roomId) async {
     try {
       if (roomId.isEmpty) throw Exception('roomId is required');
-      final roomRef = _database.child('chatRooms/$roomId');
+      final roomRef = _database.child('chats/$roomId');
       await roomRef.remove();
     } catch (e) {
       print('Error deleting chat room: $e');
@@ -688,4 +850,4 @@ class FirebaseRealtimeService {
     }
     return 'Lỗi kết nối mạng';
   }
-} 
+}

@@ -6,7 +6,8 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_provider.dart';
 import '../../../core/providers/recruiter_applicants_provider.dart';
 import '../../../shared/widgets/common_widgets.dart';
-import '../../chat/screens/chat_screen.dart';
+import '../../chat/screens/real_chat_screen.dart';
+import '../../chat/screens/simple_chat_screen.dart';
 
 class RecruiterApplicantsScreen extends ConsumerStatefulWidget {
   const RecruiterApplicantsScreen({super.key});
@@ -503,12 +504,15 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   }
 
   Future<void> _startChatWithApplicant(ApplicationModel applicant) async {
+    LoadingDialog.show(context, message: 'Đang tạo cuộc trò chuyện...');
+    
     try {
-      // Show loading indicator with custom message
-      LoadingDialog.show(context, message: 'Đang tạo cuộc trò chuyện...');
-
+      print('DEBUG: Starting chat with applicant: ${applicant.applicantName}');
+      
       // Get current user info
       final authState = ref.read(authProvider);
+      print('DEBUG: Auth state - user: ${authState.user?.id}');
+      
       if (authState.user == null) {
         LoadingDialog.hide(context);
         NotificationHelper.showError(
@@ -519,8 +523,9 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
       }
 
       final currentUser = authState.user!;
+      print('DEBUG: Current user - ID: ${currentUser.id}, Role: ${currentUser.role}');
       
-      // Prepare user info for chat
+      // Prepare detailed info for Firebase
       final recruiterInfo = {
         'id': currentUser.id,
         'name': '${currentUser.firstName} ${currentUser.lastName}'.trim(),
@@ -538,47 +543,107 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
       };
 
       final jobInfo = {
-        'id': applicant.jobId.toString(), // Convert int to string
+        'id': applicant.jobId.toString(),
         'title': applicant.job?.title ?? 'Không rõ',
         'company': applicant.job?.recruiter.company?.name ?? 'Không rõ',
       };
 
-      // Create or get chat room using chat provider
-      final chatNotifier = ref.read(chatProvider({
-        'userId': currentUser.id,
-        'userType': currentUser.role.toLowerCase(),
-      }).notifier);
+      print('DEBUG: Prepared detailed info for Firebase');
 
-      final roomId = await chatNotifier.createOrGetChatRoom(
-        recruiterId: currentUser.id,
-        candidateId: applicant.applicantId,
-        jobId: applicant.jobId.toString(), // Convert int to string
-        recruiterInfo: recruiterInfo,
-        candidateInfo: candidateInfo,
-        jobInfo: jobInfo,
-      );
+      try {
+        // Try Firebase first with connection test
+        print('DEBUG: Attempting Firebase chat creation...');
+        
+        // Test Firebase connection first
+        final chatService = ref.read(chatServiceProvider);
+        final isConnected = await chatService.testConnection().timeout(
+          const Duration(seconds: 3), // Giảm timeout xuống 3 giây
+          onTimeout: () {
+            print('DEBUG: Firebase connection test timeout after 3 seconds');
+            return false;
+          },
+        );
 
-      // Close loading dialog
-      LoadingDialog.hide(context);
+        if (!isConnected) {
+          print('DEBUG: Firebase not connected, falling back to simple chat immediately');
+          throw Exception('Firebase not connected - quick fallback');
+        }
 
-      // Navigate to chat screen
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChatScreen(
-            roomId: roomId,
-            otherUserInfo: candidateInfo,
-            jobInfo: jobInfo,
+        print('DEBUG: Firebase connection OK, creating chat room...');
+        
+        final chatNotifier = ref.read(chatProvider({
+          'userId': currentUser.id,
+          'userType': currentUser.role.toLowerCase(),
+        }).notifier);
+
+        final roomId = await chatNotifier.createOrGetChatRoom(
+          recruiterId: currentUser.id,
+          candidateId: applicant.applicantId,
+          jobId: applicant.jobId.toString(),
+          recruiterInfo: recruiterInfo,
+          candidateInfo: candidateInfo,
+          jobInfo: jobInfo,
+        ).timeout(
+          const Duration(seconds: 8), // Giảm timeout room creation
+          onTimeout: () {
+            print('DEBUG: Firebase room creation timeout after 8 seconds, falling back to simple chat');
+            throw Exception('Firebase room creation timeout');
+          },
+        );
+
+        print('DEBUG: Firebase chat room created successfully - Room ID: $roomId');
+
+        // Close loading dialog
+        LoadingDialog.hide(context);
+
+        // Navigate to Firebase chat screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RealChatScreen(
+              roomId: roomId,
+              otherUserInfo: candidateInfo,
+              jobInfo: jobInfo,
+            ),
           ),
-        ),
-      );
+        );
 
-      NotificationHelper.showSuccess(
-        context,
-        'Đã tạo cuộc trò chuyện với ${applicant.applicantName}',
-      );
+        NotificationHelper.showSuccess(
+          context,
+          'Đã tạo cuộc trò chuyện Firebase với ${applicant.applicantName}',
+        );
+
+      } catch (firebaseError) {
+        print('DEBUG: Firebase error: $firebaseError, falling back to simple chat');
+        
+        // Fallback to simple chat
+        final simpleRoomId = '${currentUser.id}_${applicant.applicantId}_${applicant.jobId}';
+        print('DEBUG: Using simple room ID: $simpleRoomId');
+
+        // Close loading dialog
+        LoadingDialog.hide(context);
+
+        // Navigate to simple chat screen
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SimpleChatScreen(
+              roomId: simpleRoomId,
+              otherUserInfo: candidateInfo,
+              jobInfo: jobInfo,
+            ),
+          ),
+        );
+
+        NotificationHelper.showWarning(
+          context,
+          'Đã tạo cuộc trò chuyện test với ${applicant.applicantName}',
+        );
+      }
+
     } catch (e) {
-      // Close loading dialog if still open
+      print('DEBUG: General error occurred - ${e.toString()}');
+      
       LoadingDialog.hide(context);
       
       NotificationHelper.showError(

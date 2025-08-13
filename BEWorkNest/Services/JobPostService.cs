@@ -151,6 +151,20 @@ namespace BEWorkNest.Services
         {
             try
             {
+                // Check for duplicate job within the last 5 minutes
+                var duplicateCheckTime = DateTime.UtcNow.AddMinutes(-5);
+                var existingJob = await _context.JobPosts
+                    .FirstOrDefaultAsync(j => 
+                        j.RecruiterId == recruiterId && 
+                        j.Title == createDto.Title &&
+                        j.CreatedAt > duplicateCheckTime &&
+                        j.IsActive);
+
+                if (existingJob != null)
+                {
+                    return (false, "Bạn vừa tạo một bài đăng với tiêu đề tương tự. Vui lòng đợi 5 phút hoặc sử dụng tiêu đề khác.", null);
+                }
+
                 var jobPost = new JobPost
                 {
                     RecruiterId = recruiterId,
@@ -173,11 +187,11 @@ namespace BEWorkNest.Services
                 _context.JobPosts.Add(jobPost);
                 await _context.SaveChangesAsync();
 
-                return (true, "Job post created successfully", jobPost.Id);
+                return (true, "Tạo bài đăng tuyển dụng thành công", jobPost.Id);
             }
             catch (Exception ex)
             {
-                return (false, $"Error creating job post: {ex.Message}", null);
+                return (false, $"Lỗi khi tạo bài đăng: {ex.Message}", null);
             }
         }
 
@@ -272,6 +286,7 @@ namespace BEWorkNest.Services
         {
             var query = _context.JobPosts
                 .Include(j => j.Applications)
+                .Include(j => j.Recruiter)
                 .Where(j => j.RecruiterId == recruiterId && j.IsActive);
 
             var totalCount = await query.CountAsync();
@@ -284,19 +299,41 @@ namespace BEWorkNest.Services
             var jobPostDtos = jobPosts.Select(j => new JobPostDto
             {
                 Id = j.Id,
-                Title = j.Title,
-                Specialized = j.Specialized,
-                Description = j.Description,
-                Requirements = j.Requirements,
-                Benefits = j.Benefits,
+                Title = j.Title ?? string.Empty,
+                Specialized = j.Specialized ?? string.Empty,
+                Description = j.Description ?? string.Empty,
+                Requirements = j.Requirements ?? string.Empty,
+                Benefits = j.Benefits ?? string.Empty,
                 Salary = j.Salary,
-                WorkingHours = j.WorkingHours,
-                Location = j.Location,
-                JobType = j.JobType,
-                ExperienceLevel = j.ExperienceLevel,
+                WorkingHours = j.WorkingHours ?? string.Empty,
+                Location = j.Location ?? string.Empty,
+                JobType = j.JobType ?? string.Empty,
+                ExperienceLevel = j.ExperienceLevel ?? string.Empty,
                 DeadLine = j.DeadLine,
                 CreatedAt = j.CreatedAt,
-                ApplicationCount = j.Applications.Count(a => a.IsActive)
+                ApplicationCount = j.Applications?.Count(a => a.IsActive) ?? 0,
+                Recruiter = j.Recruiter != null ? new UserDto
+                {
+                    Id = j.Recruiter.Id,
+                    Email = j.Recruiter.Email ?? string.Empty,
+                    UserName = j.Recruiter.UserName ?? string.Empty,
+                    FirstName = j.Recruiter.FirstName ?? string.Empty,
+                    LastName = j.Recruiter.LastName ?? string.Empty,
+                    Role = j.Recruiter.Role ?? string.Empty,
+                    Avatar = j.Recruiter.Avatar,
+                    IsActive = j.Recruiter.IsActive,
+                    CreatedAt = j.Recruiter.CreatedAt
+                } : new UserDto
+                {
+                    Id = recruiterId,
+                    Email = "Unknown",
+                    UserName = "Unknown",
+                    FirstName = "Unknown",
+                    LastName = "Recruiter",
+                    Role = "recruiter",
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                }
             }).ToList();
 
             return (jobPostDtos, totalCount);

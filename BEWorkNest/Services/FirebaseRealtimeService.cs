@@ -235,4 +235,4 @@ namespace BEWorkNest.Services
         public bool IsRead { get; set; } = false;
         public string? ImageUrl { get; set; }
     }
-} 
+}

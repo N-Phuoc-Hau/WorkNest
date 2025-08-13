@@ -15,11 +15,48 @@ namespace BEWorkNest.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly CloudinaryService _cloudinaryService;
+        private readonly JwtService _jwtService;
 
-        public ApplicationController(ApplicationDbContext context, CloudinaryService cloudinaryService)
+        public ApplicationController(ApplicationDbContext context, CloudinaryService cloudinaryService, JwtService jwtService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
+            _jwtService = jwtService;
+        }
+
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                            Console.WriteLine($"DEBUG: Extracted from JWT token - userId: {userId}, userRole: {userRole}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"DEBUG: Failed to extract from JWT token: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            Console.WriteLine($"DEBUG: GetUserInfoFromToken result - userId: {userId}, userRole: {userRole}, isAuthenticated: {isAuthenticated}");
+            return (userId, userRole, isAuthenticated);
         }
 
         // Test endpoint to verify routing
@@ -28,6 +65,51 @@ namespace BEWorkNest.Controllers
         public IActionResult Test()
         {
             return Ok(new { message = "ApplicationController is working!", timestamp = DateTime.UtcNow });
+        }
+
+        // Debug endpoint to check database data
+        [HttpGet("debug/data")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DebugData()
+        {
+            try
+            {
+                var totalUsers = await _context.Users.CountAsync();
+                var recruiters = await _context.Users.Where(u => u.Role == "recruiter").CountAsync();
+                var candidates = await _context.Users.Where(u => u.Role == "candidate").CountAsync();
+                var totalJobs = await _context.JobPosts.CountAsync();
+                var activeJobs = await _context.JobPosts.Where(j => j.IsActive).CountAsync();
+                var totalApplications = await _context.Applications.CountAsync();
+                var activeApplications = await _context.Applications.Where(a => a.IsActive).CountAsync();
+
+                // Get first recruiter for testing
+                var firstRecruiter = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
+                var recruiterJobsCount = firstRecruiter != null 
+                    ? await _context.JobPosts.Where(j => j.RecruiterId == firstRecruiter.Id).CountAsync()
+                    : 0;
+                var recruiterApplicationsCount = firstRecruiter != null
+                    ? await _context.Applications.Include(a => a.Job).Where(a => a.Job.RecruiterId == firstRecruiter.Id && a.IsActive).CountAsync()
+                    : 0;
+
+                return Ok(new
+                {
+                    database = "worknest_db",
+                    users = new { total = totalUsers, recruiters, candidates },
+                    jobs = new { total = totalJobs, active = activeJobs },
+                    applications = new { total = totalApplications, active = activeApplications },
+                    testRecruiter = firstRecruiter != null ? new
+                    {
+                        id = firstRecruiter.Id,
+                        email = firstRecruiter.Email,
+                        jobsCount = recruiterJobsCount,
+                        applicationsCount = recruiterApplicationsCount
+                    } : null
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message, stackTrace = ex.StackTrace });
+            }
         }
 
         [HttpPost]
@@ -320,11 +402,13 @@ namespace BEWorkNest.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            // Use the new helper method to get user info from JWT
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            // FOR TESTING: If no token, try to find any candidate user
-            if (userId == null)
+            Console.WriteLine($"DEBUG: GetMyApplications - userId: {userId}, userRole: {userRole}, isAuthenticated: {isAuthenticated}");
+
+            // FOR TESTING: If still no user found, try to find any candidate user
+            if (string.IsNullOrEmpty(userId))
             {
                 Console.WriteLine("DEBUG: No token found for my-applications, looking for any candidate user...");
                 var candidateUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "candidate");
@@ -447,15 +531,15 @@ namespace BEWorkNest.Controllers
             [FromQuery] string? status = null,
             [FromQuery] int? jobId = null)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            // Use the new helper method to get user info from JWT
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            Console.WriteLine($"DEBUG: GetMyJobApplications - userId: {userId}, userRole: {userRole}");
+            Console.WriteLine($"DEBUG: GetMyJobApplications - userId: {userId}, userRole: {userRole}, isAuthenticated: {isAuthenticated}");
 
-            // FOR TESTING: If no token, try to find any recruiter user
-            if (userId == null)
+            // FOR TESTING: If still no user found, try to find any recruiter user
+            if (string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for GetMyJobApplications, looking for any recruiter user...");
+                Console.WriteLine("DEBUG: No token or invalid token for GetMyJobApplications, looking for any recruiter user...");
                 var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
                 if (recruiterUser != null)
                 {
@@ -474,6 +558,8 @@ namespace BEWorkNest.Controllers
                 }
             }
 
+            Console.WriteLine($"DEBUG: Final userId being used: {userId}, userRole: {userRole}");
+
             // Check if user has recruiter role
             if (userRole != "recruiter")
             {
@@ -485,6 +571,51 @@ namespace BEWorkNest.Controllers
                 });
             }
 
+            // Debug: Check if the recruiter has any job posts
+            var recruiterJobCount = await _context.JobPosts
+                .Where(j => j.RecruiterId == userId && j.IsActive)
+                .CountAsync();
+            Console.WriteLine($"DEBUG: Recruiter {userId} has {recruiterJobCount} active job posts");
+
+            // Debug: Check total applications in DB
+            var totalApplicationsInDb = await _context.Applications
+                .Where(a => a.IsActive)
+                .CountAsync();
+            Console.WriteLine($"DEBUG: Total active applications in DB: {totalApplicationsInDb}");
+
+            // Debug: Check applications for recruiter's jobs
+            var recruiterApplicationCount = await _context.Applications
+                .Include(a => a.Job)
+                .Where(a => a.Job.RecruiterId == userId && a.IsActive)
+                .CountAsync();
+            Console.WriteLine($"DEBUG: Applications for recruiter {userId}'s jobs: {recruiterApplicationCount}");
+
+            // Debug: Check what JobIds exist for this recruiter
+            var recruiterJobIds = await _context.JobPosts
+                .Where(j => j.RecruiterId == userId && j.IsActive)
+                .Select(j => j.Id)
+                .ToListAsync();
+            Console.WriteLine($"DEBUG: Recruiter's job IDs: [{string.Join(", ", recruiterJobIds)}]");
+
+            // Debug: Check all applications and their JobIds
+            var allApplications = await _context.Applications
+                .Where(a => a.IsActive)
+                .Select(a => new { a.Id, a.JobId, a.ApplicantId })
+                .ToListAsync();
+            Console.WriteLine($"DEBUG: All active applications: {string.Join(", ", allApplications.Select(a => $"App#{a.Id}->Job#{a.JobId}"))}");
+
+            // Debug: Check if any applications match recruiter's jobs
+            var matchingApps = allApplications.Where(a => recruiterJobIds.Contains(a.JobId)).ToList();
+            Console.WriteLine($"DEBUG: Matching applications: {matchingApps.Count} ({string.Join(", ", matchingApps.Select(a => $"App#{a.Id}"))})");
+
+            // Debug: Check job ownership
+            var jobOwnership = await _context.JobPosts
+                .Where(j => j.IsActive)
+                .Select(j => new { j.Id, j.RecruiterId, j.Title })
+                .ToListAsync();
+            Console.WriteLine($"DEBUG: All job ownership: {string.Join(", ", jobOwnership.Select(j => $"Job#{j.Id}->Recruiter#{j.RecruiterId} ({j.Title})"))}");
+                
+
             // Build query to get all applications for jobs created by this recruiter
             var query = _context.Applications
                 .Include(a => a.Applicant)
@@ -492,6 +623,8 @@ namespace BEWorkNest.Controllers
                 .ThenInclude(j => j.Recruiter)
                 .ThenInclude(r => r.Company)
                 .Where(a => a.Job.RecruiterId == userId && a.IsActive);
+
+            Console.WriteLine($"DEBUG: Query created for GetMyJobApplications");
 
             // Filter by specific job if provided
             if (jobId.HasValue)
@@ -509,11 +642,15 @@ namespace BEWorkNest.Controllers
             }
 
             var totalCount = await query.CountAsync();
+            Console.WriteLine($"DEBUG: Total count from query: {totalCount}");
+
             var applications = await query
                 .OrderByDescending(a => a.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
+
+            Console.WriteLine($"DEBUG: Retrieved {applications.Count} applications after pagination");
 
             var applicationDtos = applications.Select(a => new ApplicationDto
             {

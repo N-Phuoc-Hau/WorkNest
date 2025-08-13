@@ -15,79 +15,80 @@ namespace BEWorkNest.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly CloudinaryService _cloudinaryService;
+        private readonly JwtService _jwtService;
 
-        public CompanyController(ApplicationDbContext context, CloudinaryService cloudinaryService)
+        public CompanyController(ApplicationDbContext context, CloudinaryService cloudinaryService, JwtService jwtService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
+            _jwtService = jwtService;
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetAllCompanies(
-            [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10,
-            [FromQuery] string? search = null)
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
         {
-            var query = _context.Companies
-                .Include(c => c.Images)
-                .Include(c => c.User)
-                .Where(c => c.IsActive);
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
 
-            if (!string.IsNullOrEmpty(search))
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
             {
-                query = query.Where(c => c.Name.Contains(search) || c.Description.Contains(search));
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error extracting user info from token: {ex.Message}");
+                            isAuthenticated = false;
+                        }
+                    }
+                }
             }
 
-            var totalCount = await query.CountAsync();
-            var companies = await query
-                .OrderByDescending(c => c.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var companyDtos = companies.Select(c => new CompanyDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                TaxCode = c.TaxCode,
-                Description = c.Description,
-                Location = c.Location,
-                IsVerified = c.IsVerified,
-                Images = c.Images.Select(i => i.ImageUrl).ToList()
-            }).ToList();
-
-            return Ok(new
-            {
-                data = companyDtos,
-                totalCount,
-                page,
-                pageSize,
-                totalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
-            });
+            return (userId, userRole, isAuthenticated);
         }
 
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetCompany(int id)
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCompanyById(int id)
         {
             var company = await _context.Companies
                 .Include(c => c.Images)
                 .Include(c => c.User)
+                .Include(c => c.User.Followers)
                 .FirstOrDefaultAsync(c => c.Id == id && c.IsActive);
 
             if (company == null)
             {
-                return NotFound();
+                return NotFound(new { 
+                    message = "Không tìm thấy công ty",
+                    errorCode = "COMPANY_NOT_FOUND"
+                });
             }
 
             var companyDto = new CompanyDto
             {
                 Id = company.Id,
+                UserId = company.UserId,
                 Name = company.Name,
                 TaxCode = company.TaxCode,
                 Description = company.Description,
                 Location = company.Location,
                 IsVerified = company.IsVerified,
-                Images = company.Images.Select(i => i.ImageUrl).ToList()
+                Images = company.Images?.Select(img => img.ImageUrl).ToList() ?? new List<string>(),
+                IsActive = company.IsActive,
+                CreatedAt = company.CreatedAt,
+                UpdatedAt = company.UpdatedAt
             };
 
             return Ok(companyDto);
@@ -99,16 +100,14 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                // Use fixed recruiter ID for testing if no authentication
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
                 // Step 2: Database User Validation
@@ -130,7 +129,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 // Step 3: Role Check
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter";
                 if (!hasRecruiterRole)
                 {
                     return BadRequest(new { 
@@ -140,6 +139,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 var company = await _context.Companies
+                    .Include(c => c.Images)
                     .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId && c.IsActive);
 
                 if (company == null)
@@ -150,28 +150,30 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                // Update fields
-                if (!string.IsNullOrEmpty(updateDto.Name))
-                    company.Name = updateDto.Name;
-                
-                if (!string.IsNullOrEmpty(updateDto.Description))
-                    company.Description = updateDto.Description;
-                
-                if (!string.IsNullOrEmpty(updateDto.Location))
-                    company.Location = updateDto.Location;
-
-                company.UpdatedAt = DateTime.UtcNow;
+                // Update company
+                if (updateDto.Name != null) company.Name = updateDto.Name;
+                if (updateDto.TaxCode != null) company.TaxCode = updateDto.TaxCode;
+                if (updateDto.Description != null) company.Description = updateDto.Description;
+                if (updateDto.Location != null) company.Location = updateDto.Location;
+                company.UpdatedAt = DateTime.Now;
 
                 await _context.SaveChangesAsync();
 
                 return Ok(new { 
                     message = "Cập nhật thông tin công ty thành công",
-                    data = new {
-                        companyId = company.Id,
-                        companyName = company.Name,
-                        updatedBy = dbUser.Email,
-                        updatedAt = DateTime.Now,
-                        isTestingMode = !isAuthenticated
+                    data = new CompanyDto
+                    {
+                        Id = company.Id,
+                        UserId = company.UserId,
+                        Name = company.Name,
+                        TaxCode = company.TaxCode,
+                        Description = company.Description,
+                        Location = company.Location,
+                        IsVerified = company.IsVerified,
+                        Images = company.Images?.Select(img => img.ImageUrl).ToList() ?? new List<string>(),
+                        IsActive = company.IsActive,
+                        CreatedAt = company.CreatedAt,
+                        UpdatedAt = company.UpdatedAt
                     }
                 });
             }
@@ -192,16 +194,14 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                // Use fixed recruiter ID for testing if no authentication
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
                 // Step 2: Database User Validation
@@ -223,7 +223,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 // Step 3: Role Check
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter";
                 if (!hasRecruiterRole)
                 {
                     return BadRequest(new { 
@@ -303,8 +303,7 @@ namespace BEWorkNest.Controllers
                         uploadedBy = dbUser.Email,
                         uploadedAt = DateTime.Now,
                         images = imageUrls,
-                        imageCount = imageUrls.Count,
-                        isTestingMode = !isAuthenticated
+                        imageCount = imageUrls.Count
                     }
                 });
             }
@@ -318,7 +317,108 @@ namespace BEWorkNest.Controllers
             }
         }
 
+        [HttpPost]
+        [AllowAnonymous]
+        public async Task<IActionResult> CreateCompany([FromBody] CreateCompanyDto createDto)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
+                }
+
+                // Step 2: Database User Validation
+                var dbUser = await _context.Users.FindAsync(userId);
+                if (dbUser == null)
+                {
+                    return BadRequest(new { 
+                        message = "Người dùng không tồn tại trong hệ thống",
+                        errorCode = "USER_NOT_FOUND"
+                    });
+                }
+
+                if (!dbUser.IsActive)
+                {
+                    return BadRequest(new { 
+                        message = "Tài khoản đã bị vô hiệu hóa",
+                        errorCode = "ACCOUNT_DISABLED"
+                    });
+                }
+
+                // Step 3: Role Check
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter";
+                if (!hasRecruiterRole)
+                {
+                    return BadRequest(new { 
+                        message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể tạo công ty.",
+                        errorCode = "INSUFFICIENT_PERMISSIONS"
+                    });
+                }
+
+                // Check if user already has a company
+                var existingCompany = await _context.Companies
+                    .FirstOrDefaultAsync(c => c.UserId == userId && c.IsActive);
+
+                if (existingCompany != null)
+                {
+                    return BadRequest(new { 
+                        message = "Bạn đã có công ty trong hệ thống",
+                        errorCode = "COMPANY_ALREADY_EXISTS"
+                    });
+                }
+
+                // Create new company
+                var company = new Company
+                {
+                    UserId = userId,
+                    Name = createDto.Name,
+                    TaxCode = createDto.TaxCode,
+                    Description = createDto.Description,
+                    Location = createDto.Location,
+                    IsActive = true,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                };
+
+                _context.Companies.Add(company);
+                await _context.SaveChangesAsync();
+
+                return Ok(new { 
+                    message = "Tạo công ty thành công",
+                    data = new CompanyDto
+                    {
+                        Id = company.Id,
+                        UserId = company.UserId,
+                        Name = company.Name,
+                        TaxCode = company.TaxCode,
+                        Description = company.Description,
+                        Location = company.Location,
+                        IsVerified = company.IsVerified,
+                        Images = new List<string>(),
+                        IsActive = company.IsActive,
+                        CreatedAt = company.CreatedAt,
+                        UpdatedAt = company.UpdatedAt
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { 
+                    message = "Lỗi hệ thống khi tạo công ty", 
+                    error = ex.Message,
+                    errorCode = "INTERNAL_SERVER_ERROR"
+                });
+            }
+        }
+
         [HttpGet("{id}/jobs")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetCompanyJobs(int id,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
@@ -328,7 +428,10 @@ namespace BEWorkNest.Controllers
 
             if (company == null)
             {
-                return NotFound();
+                return NotFound(new { 
+                    message = "Không tìm thấy công ty",
+                    errorCode = "COMPANY_NOT_FOUND"
+                });
             }
 
             var query = _context.JobPosts
@@ -372,6 +475,7 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("{id}/followers")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetCompanyFollowers(int id)
         {
             var company = await _context.Companies
@@ -382,7 +486,10 @@ namespace BEWorkNest.Controllers
 
             if (company == null)
             {
-                return NotFound();
+                return NotFound(new { 
+                    message = "Không tìm thấy công ty",
+                    errorCode = "COMPANY_NOT_FOUND"
+                });
             }
 
             var followers = company.User.Followers
@@ -399,7 +506,10 @@ namespace BEWorkNest.Controllers
                 })
                 .ToList();
 
-            return Ok(followers);
+            return Ok(new { 
+                data = followers,
+                totalCount = followers.Count
+            });
         }
     }
 }

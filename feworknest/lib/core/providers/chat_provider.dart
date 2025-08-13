@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../services/firebase_realtime_service.dart';
 
 class ChatState {
@@ -63,6 +64,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }) async {
     try {
       state = state.copyWith(isLoading: true, error: null);
+      
+      // Test Firebase connection first
+      print('DEBUG ChatProvider: Testing Firebase connection...');
+      final isConnected = await _chatService.testConnection();
+      
+      if (!isConnected) {
+        throw Exception('Firebase connection failed - cannot establish connection to database');
+      }
+      
+      print('DEBUG ChatProvider: Firebase connection OK, proceeding with room creation...');
       
       final roomId = await _chatService.createOrGetChatRoom(
         recruiterId: recruiterId,

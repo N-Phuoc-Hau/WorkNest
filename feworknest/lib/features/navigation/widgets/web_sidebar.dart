@@ -201,6 +201,11 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
             title: 'Việc làm đã lưu',
             route: '/favorites',
           ),
+          SidebarMenuItem(
+            icon: Icons.business,
+            title: 'Công ty theo dõi',
+            route: '/following-companies',
+          ),
         ]);
       }
 

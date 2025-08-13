@@ -9,6 +9,7 @@ import '../../features/applications/screens/my_applications_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
+import '../../features/candidate/screens/following_companies_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
 import '../../features/dashboard/screens/admin_dashboard_screen.dart';
@@ -171,6 +172,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => _buildWithLayout(
           context, 
           const FavoriteScreen(),
+          'candidate',
+        ),
+      ),
+      GoRoute(
+        path: '/following-companies',
+        builder: (context, state) => _buildWithLayout(
+          context, 
+          const FollowingCompaniesScreen(),
           'candidate',
         ),
       ),

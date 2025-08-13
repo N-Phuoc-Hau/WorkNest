@@ -15,11 +15,46 @@ namespace BEWorkNest.Controllers
     {
         private readonly JobPostService _jobPostService;
         private readonly ApplicationDbContext _context;
+        private readonly JwtService _jwtService;
 
-        public JobPostController(JobPostService jobPostService, ApplicationDbContext context)
+        public JobPostController(JobPostService jobPostService, ApplicationDbContext context, JwtService jwtService)
         {
             _jobPostService = jobPostService;
             _context = context;
+            _jwtService = jwtService;
+        }
+
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"DEBUG: Failed to extract from JWT token: {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            return (userId, userRole, isAuthenticated);
         }
 
         [HttpGet]
@@ -506,34 +541,15 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                // Get user info from JWT token
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                Console.WriteLine($"DEBUG: CreateJobPost - isAuthenticated: {isAuthenticated}, userId: {userId}");
-                Console.WriteLine($"DEBUG: CreateJobPost - userRole: {userRole}, customRole: {customRole}");
-
-                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    Console.WriteLine("DEBUG: No token found for CreateJobPost, looking for any recruiter user...");
-                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                    if (recruiterUser != null)
-                    {
-                        userId = recruiterUser.Id;
-                        userRole = "recruiter";
-                        Console.WriteLine($"DEBUG: Using test recruiter user for CreateJobPost: {userId}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("DEBUG: No recruiter user found in database for CreateJobPost");
-                        return BadRequest(new { 
-                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                            errorCode = "USER_ID_NOT_FOUND"
-                        });
-                    }
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
                 // Step 2: Database User Validation
@@ -545,8 +561,7 @@ namespace BEWorkNest.Controllers
                 {
                     return BadRequest(new { 
                         message = "Người dùng không tồn tại trong hệ thống",
-                        errorCode = "USER_NOT_FOUND",
-                        userId = userId
+                        errorCode = "USER_NOT_FOUND"
                     });
                 }
 
@@ -558,15 +573,13 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                // Step 3: Role Check (with testing mode)
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
-                if (!hasRecruiterRole)
+                // Step 3: Role Check
+                if (dbUser.Role != "recruiter")
                 {
                     return BadRequest(new { 
                         message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể tạo bài đăng tuyển dụng.",
                         errorCode = "INSUFFICIENT_PERMISSIONS",
-                        userRole = dbUser.Role,
-                        tokenRole = userRole ?? customRole ?? "none"
+                        userRole = dbUser.Role
                     });
                 }
 
@@ -632,33 +645,15 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                // Get user info from JWT token
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                Console.WriteLine($"DEBUG: UpdateJobPost - isAuthenticated: {isAuthenticated}, userId: {userId}");
-
-                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    Console.WriteLine("DEBUG: No token found for UpdateJobPost, looking for any recruiter user...");
-                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                    if (recruiterUser != null)
-                    {
-                        userId = recruiterUser.Id;
-                        userRole = "recruiter";
-                        Console.WriteLine($"DEBUG: Using test recruiter user for UpdateJobPost: {userId}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("DEBUG: No recruiter user found in database for UpdateJobPost");
-                        return BadRequest(new { 
-                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                            errorCode = "USER_ID_NOT_FOUND"
-                        });
-                    }
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
                 // Step 2: Database User Validation
@@ -680,8 +675,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 // Step 3: Role Check
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
-                if (!hasRecruiterRole)
+                if (dbUser.Role != "recruiter")
                 {
                     return BadRequest(new { 
                         message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể cập nhật bài đăng.",
@@ -725,33 +719,14 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                Console.WriteLine($"DEBUG: DeleteJobPost - isAuthenticated: {isAuthenticated}, userId: {userId}");
-
-                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    Console.WriteLine("DEBUG: No token found for DeleteJobPost, looking for any recruiter user...");
-                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                    if (recruiterUser != null)
-                    {
-                        userId = recruiterUser.Id;
-                        userRole = "recruiter";
-                        Console.WriteLine($"DEBUG: Using test recruiter user for DeleteJobPost: {userId}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("DEBUG: No recruiter user found in database for DeleteJobPost");
-                        return BadRequest(new { 
-                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                            errorCode = "USER_ID_NOT_FOUND"
-                        });
-                    }
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
                 // Step 2: Database User Validation
@@ -773,7 +748,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 // Step 3: Role Check
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter";
                 if (!hasRecruiterRole)
                 {
                     return BadRequest(new { 
@@ -791,8 +766,7 @@ namespace BEWorkNest.Controllers
                         data = new {
                             jobId = id,
                             deletedBy = dbUser.Email,
-                            deletedAt = DateTime.Now,
-                            isTestingMode = !isAuthenticated
+                            deletedAt = DateTime.Now
                         }
                     });
                 }
@@ -820,33 +794,14 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                Console.WriteLine($"DEBUG: GetMyJobPosts - isAuthenticated: {isAuthenticated}, userId: {userId}");
-
-                // FOR TESTING: If no token, try to find any recruiter user
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    Console.WriteLine("DEBUG: No token found for GetMyJobPosts, looking for any recruiter user...");
-                    var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                    if (recruiterUser != null)
-                    {
-                        userId = recruiterUser.Id;
-                        userRole = "recruiter";
-                        Console.WriteLine($"DEBUG: Using test recruiter user for GetMyJobPosts: {userId}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("DEBUG: No recruiter user found in database for GetMyJobPosts");
-                        return BadRequest(new { 
-                            message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                            errorCode = "USER_ID_NOT_FOUND"
-                        });
-                    }
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
                 // Step 2: Database User Validation
@@ -868,7 +823,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 // Step 3: Role Check
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
+                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter";
                 if (!hasRecruiterRole)
                 {
                     return BadRequest(new { 
@@ -889,8 +844,7 @@ namespace BEWorkNest.Controllers
                     totalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
                     userInfo = new {
                         userId = dbUser.Id,
-                        email = dbUser.Email,
-                        isTestingMode = !isAuthenticated
+                        email = dbUser.Email
                     }
                 });
             }

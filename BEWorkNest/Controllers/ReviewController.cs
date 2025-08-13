@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using BEWorkNest.Models;
 using BEWorkNest.Models.DTOs;
 using BEWorkNest.Data;
+using BEWorkNest.Services;
 
 namespace BEWorkNest.Controllers
 {
@@ -13,10 +14,46 @@ namespace BEWorkNest.Controllers
     public class ReviewController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly JwtService _jwtService;
 
-        public ReviewController(ApplicationDbContext context)
+        public ReviewController(ApplicationDbContext context, JwtService jwtService)
         {
             _context = context;
+            _jwtService = jwtService;
+        }
+
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error extracting user info from token: {ex.Message}");
+                            isAuthenticated = false;
+                        }
+                    }
+                }
+            }
+
+            return (userId, userRole, isAuthenticated);
         }
 
         [HttpPost("candidate-review")]
@@ -25,19 +62,18 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                // Get user info from JWT token
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                // Use fixed candidate ID for testing if no authentication
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "candidate-user-id-for-testing"; // Fixed candidate ID for testing
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
-                // Step 2: Database User Validation
+                // Database User Validation
                 var dbUser = await _context.Users.FindAsync(userId);
                 if (dbUser == null)
                 {
@@ -55,9 +91,7 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                // Step 3: Role Check
-                var hasCandidateRole = dbUser.Role == "candidate" || userRole == "candidate" || customRole == "candidate";
-                if (!hasCandidateRole)
+                if (dbUser.Role != "candidate")
                 {
                     return BadRequest(new { 
                         message = "Không có quyền truy cập. Chỉ ứng viên mới có thể đánh giá nhà tuyển dụng.",
@@ -65,7 +99,7 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                // Step 4: Data Validation
+                // Data Validation
                 if (createDto == null)
                 {
                     return BadRequest(new { 
@@ -104,7 +138,7 @@ namespace BEWorkNest.Controllers
                                   a.Job.RecruiterId == recruiterId && 
                                   a.Status == ApplicationStatus.Accepted);
 
-                if (!hasAcceptedApplication && isAuthenticated) // Skip this check in testing mode
+                if (!hasAcceptedApplication)
                 {
                     return BadRequest(new { 
                         message = "Bạn chỉ có thể đánh giá nhà tuyển dụng cho các công việc mà bạn đã được chấp nhận",
@@ -142,8 +176,7 @@ namespace BEWorkNest.Controllers
                         companyId = createDto.CompanyId,
                         rating = createDto.Rating,
                         reviewedBy = dbUser.Email,
-                        createdAt = DateTime.Now,
-                        isTestingMode = !isAuthenticated
+                        createdAt = DateTime.Now
                     }
                 });
             }
@@ -163,19 +196,18 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
-                var customRole = User.FindFirst("role")?.Value;
+                // Get user info from JWT token
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                // Use fixed recruiter ID for testing if no authentication
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed recruiter ID for testing
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
-                // Step 2: Database User Validation
+                // Database User Validation
                 var dbUser = await _context.Users.FindAsync(userId);
                 if (dbUser == null)
                 {
@@ -193,9 +225,7 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                // Step 3: Role Check
-                var hasRecruiterRole = dbUser.Role == "recruiter" || userRole == "recruiter" || customRole == "recruiter";
-                if (!hasRecruiterRole)
+                if (dbUser.Role != "recruiter")
                 {
                     return BadRequest(new { 
                         message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể đánh giá ứng viên.",
@@ -203,7 +233,7 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                // Step 4: Data Validation
+                // Data Validation
                 if (createDto == null)
                 {
                     return BadRequest(new { 
@@ -239,7 +269,7 @@ namespace BEWorkNest.Controllers
                                   a.Job.RecruiterId == userId && 
                                   a.Status == ApplicationStatus.Accepted);
 
-                if (!hasAcceptedApplication && isAuthenticated) // Skip this check in testing mode
+                if (!hasAcceptedApplication)
                 {
                     return BadRequest(new { 
                         message = "Bạn chỉ có thể đánh giá ứng viên cho các công việc mà bạn đã chấp nhận họ",
@@ -277,8 +307,7 @@ namespace BEWorkNest.Controllers
                         candidateId = createDto.CandidateId,
                         rating = createDto.Rating,
                         reviewedBy = dbUser.Email,
-                        createdAt = DateTime.Now,
-                        isTestingMode = !isAuthenticated
+                        createdAt = DateTime.Now
                     }
                 });
             }
@@ -418,17 +447,18 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                // Get user info from JWT token
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                // Use fixed user ID for testing if no authentication
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed user ID for testing
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
-                // Step 2: Database User Validation
+                // Database User Validation
                 var dbUser = await _context.Users.FindAsync(userId);
                 if (dbUser == null)
                 {
@@ -490,8 +520,7 @@ namespace BEWorkNest.Controllers
                     averageRating = Math.Round(averageRating, 2),
                     userInfo = new {
                         userId = dbUser.Id,
-                        email = dbUser.Email,
-                        isTestingMode = !isAuthenticated
+                        email = dbUser.Email
                     }
                 });
             }
@@ -511,17 +540,18 @@ namespace BEWorkNest.Controllers
         {
             try
             {
-                // Step 1: Authentication Check (with testing mode)
-                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                // Get user info from JWT token
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-                // Use fixed user ID for testing if no authentication
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    userId = "b902ce1d-2e36-4ac2-9332-216dbf7aeb2a"; // Fixed user ID for testing
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
                 }
 
-                // Step 2: Database User Validation
+                // Database User Validation
                 var dbUser = await _context.Users.FindAsync(userId);
                 if (dbUser == null)
                 {
@@ -561,8 +591,7 @@ namespace BEWorkNest.Controllers
                     data = new {
                         reviewId = review.Id,
                         deletedBy = dbUser.Email,
-                        deletedAt = DateTime.Now,
-                        isTestingMode = !isAuthenticated
+                        deletedAt = DateTime.Now
                     }
                 });
             }

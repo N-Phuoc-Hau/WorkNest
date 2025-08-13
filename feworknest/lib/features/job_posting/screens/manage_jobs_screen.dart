@@ -46,7 +46,7 @@ class _ManageJobsScreenState extends ConsumerState<ManageJobsScreen>
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => context.push('/create-job'),
+            onPressed: () => context.push('/recruiter/post-job'),
             tooltip: 'Tạo tin mới',
           ),
         ],
@@ -77,7 +77,7 @@ class _ManageJobsScreenState extends ConsumerState<ManageJobsScreen>
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/create-job'),
+        onPressed: () => context.push('/recruiter/post-job'),
         child: const Icon(Icons.add),
         tooltip: 'Tạo tin tuyển dụng mới',
       ),
@@ -143,7 +143,7 @@ class _ManageJobsScreenState extends ConsumerState<ManageJobsScreen>
             ),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => context.push('/create-job'),
+              onPressed: () => context.push('/recruiter/post-job'),
               child: const Text('Tạo tin tuyển dụng'),
             ),
           ],

@@ -8,6 +8,8 @@ class JobForm extends StatefulWidget {
   final Function(CreateJobModel) onCreateJob;
   final Function(UpdateJobModel)? onUpdateJob;
   final bool isLoading;
+  final VoidCallback? onSuccess;
+  final Function(VoidCallback)? onClearFormCallback;
 
   const JobForm({
     super.key,
@@ -15,6 +17,8 @@ class JobForm extends StatefulWidget {
     required this.onCreateJob,
     this.onUpdateJob,
     this.isLoading = false,
+    this.onSuccess,
+    this.onClearFormCallback,
   });
 
   @override
@@ -67,6 +71,9 @@ class _JobFormState extends State<JobForm> {
     if (widget.initialJob != null) {
       _populateForm(widget.initialJob!);
     }
+    
+    // Provide clear form callback to parent
+    widget.onClearFormCallback?.call(clearForm);
   }
 
   void _populateForm(JobModel job) {
@@ -79,6 +86,20 @@ class _JobFormState extends State<JobForm> {
     _salaryController.text = job.salary.toString();
     _workingHoursController.text = job.workingHours;
     _selectedJobType = job.jobType;
+  }
+
+  void clearForm() {
+    _titleController.clear();
+    _specializedController.clear();
+    _descriptionController.clear();
+    _requirementsController.clear();
+    _benefitsController.clear();
+    _locationController.clear();
+    _salaryController.clear();
+    _workingHoursController.clear();
+    setState(() {
+      _selectedJobType = 'Full-time';
+    });
   }
 
   @override

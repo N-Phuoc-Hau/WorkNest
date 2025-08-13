@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/providers/job_provider.dart';
+
+import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/favorite_provider.dart';
+import '../../../core/providers/job_provider.dart';
 import '../../../shared/widgets/app_text_field.dart';
 import '../widgets/job_card.dart';
 import '../widgets/job_filter_bottom_sheet.dart';
@@ -30,6 +32,12 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadJobs();
+      
+      // Load favorite list to check favorite status
+      final authState = ref.read(authProvider);
+      if (authState.isAuthenticated && authState.user?.role == 'candidate') {
+        ref.read(favoriteProvider.notifier).getMyFavorites();
+      }
     });
   }
 
@@ -264,9 +272,25 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
               final isFavorited = favoriteNotifier.isFavorited(job.id);
               
               if (isFavorited) {
-                await favoriteNotifier.removeFromFavorite(job.id);
+                final success = await favoriteNotifier.removeFromFavorite(job.id);
+                if (success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Đã xóa khỏi danh sách yêu thích'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                }
               } else {
-                await favoriteNotifier.addToFavorite(job.id);
+                final success = await favoriteNotifier.addToFavorite(job.id);
+                if (success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Đã thêm vào danh sách yêu thích'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
               }
             },
             isFavorited: ref.watch(favoriteProvider.notifier).isFavorited(job.id),

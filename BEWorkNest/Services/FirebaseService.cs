@@ -16,17 +16,32 @@ namespace BEWorkNest.Services
             
             if (FirebaseApp.DefaultInstance == null)
             {
+                // Try multiple paths for service account key
                 var serviceAccountKeyPath = configuration["Firebase:ServiceAccountKeyPath"];
                 
-                if (string.IsNullOrEmpty(serviceAccountKeyPath))
+                // Fallback paths
+                var fallbackPaths = new[]
                 {
-                    _logger.LogWarning("Firebase ServiceAccountKeyPath is not configured. Firebase service will not be available.");
-                    return;
+                    serviceAccountKeyPath,
+                    "firebase-service-account.json",
+                    "firebase-adminsdk.json",
+                    Path.Combine(Directory.GetCurrentDirectory(), "firebase-service-account.json")
+                };
+                
+                string? validPath = null;
+                foreach (var path in fallbackPaths)
+                {
+                    if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                    {
+                        validPath = path;
+                        break;
+                    }
                 }
                 
-                if (!File.Exists(serviceAccountKeyPath))
+                if (validPath == null)
                 {
-                    _logger.LogWarning($"Firebase service account key file not found at: {serviceAccountKeyPath}. Firebase service will not be available.");
+                    _logger.LogWarning("Firebase service account key file not found in any of the expected locations. Firebase service will not be available.");
+                    _logger.LogWarning($"Tried paths: {string.Join(", ", fallbackPaths.Where(p => !string.IsNullOrEmpty(p)))}");
                     return;
                 }
                 
@@ -34,9 +49,10 @@ namespace BEWorkNest.Services
                 {
                     FirebaseApp.Create(new AppOptions()
                     {
-                        Credential = GoogleCredential.FromFile(serviceAccountKeyPath)
+                        Credential = GoogleCredential.FromFile(validPath)
                     });
-                    _logger.LogInformation("Firebase app initialized successfully.");
+                    _logger.LogInformation($"Firebase app initialized successfully using: {validPath}");
+                    _logger.LogInformation("Firebase project: jobappchat");
                 }
                 catch (Exception ex)
                 {

@@ -5,11 +5,15 @@ namespace BEWorkNest.Models.DTOs
     public class CompanyDto
     {
         public int Id { get; set; }
+        public string UserId { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string TaxCode { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string Location { get; set; } = string.Empty;
         public bool IsVerified { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
         public List<string> Images { get; set; } = new List<string>();
     }
 
@@ -35,6 +39,7 @@ namespace BEWorkNest.Models.DTOs
     public class UpdateCompanyDto
     {
         public string? Name { get; set; }
+        public string? TaxCode { get; set; }
         public string? Description { get; set; }
         public string? Location { get; set; }
         public List<string>? Images { get; set; }
