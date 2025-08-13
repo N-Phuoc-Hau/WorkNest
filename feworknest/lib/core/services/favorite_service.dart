@@ -1,20 +1,81 @@
 import 'package:dio/dio.dart';
-import '../models/favorite_model.dart';
+
 import '../constants/api_constants.dart';
+import '../models/favorite_model.dart';
 import '../utils/token_storage.dart';
+import 'auth_service.dart';
 
 class FavoriteService {
   final Dio _dio;
+  final AuthService _authService = AuthService();
 
   FavoriteService({Dio? dio}) : _dio = dio ?? Dio() {
     _dio.options.baseUrl = ApiConstants.baseUrl;
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await TokenStorage.getToken();
+        final token = await TokenStorage.getAccessToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
         handler.next(options);
+      },
+      onError: (error, handler) async {
+        // Handle 401 errors by trying to refresh token
+        if (error.response?.statusCode == 401) {
+          print('FavoriteService: Got 401, attempting token refresh...');
+          
+          final refreshToken = await TokenStorage.getRefreshToken();
+          if (refreshToken != null && !await TokenStorage.isRefreshTokenExpired()) {
+            try {
+              // Try to refresh the token
+              final refreshResult = await _authService.refreshToken(refreshToken);
+              
+              if (refreshResult['success'] == true) {
+                print('FavoriteService: Token refresh successful');
+                
+                // Update stored tokens
+                await TokenStorage.updateTokens(
+                  accessToken: refreshResult['access_token'],
+                  refreshToken: refreshResult['refresh_token'],
+                  accessTokenExpiresAt: DateTime.parse(refreshResult['access_token_expires_at']),
+                  refreshTokenExpiresAt: DateTime.parse(refreshResult['refresh_token_expires_at']),
+                );
+                
+                // Retry the original request with new token
+                final newToken = refreshResult['access_token'];
+                error.requestOptions.headers['Authorization'] = 'Bearer $newToken';
+                
+                // Clone and retry the request
+                final clonedRequest = await _dio.request(
+                  error.requestOptions.path,
+                  options: Options(
+                    method: error.requestOptions.method,
+                    headers: error.requestOptions.headers,
+                  ),
+                  data: error.requestOptions.data,
+                  queryParameters: error.requestOptions.queryParameters,
+                );
+                
+                return handler.resolve(clonedRequest);
+              } else {
+                print('FavoriteService: Token refresh failed, clearing tokens');
+                // Refresh failed, clear tokens and forward the original error
+                await TokenStorage.clearAll();
+              }
+            } catch (refreshError) {
+              print('FavoriteService: Exception during token refresh: $refreshError');
+              // Refresh threw exception, clear tokens and forward original error
+              await TokenStorage.clearAll();
+            }
+          } else {
+            print('FavoriteService: No valid refresh token, clearing tokens');
+            // No valid refresh token, clear all
+            await TokenStorage.clearAll();
+          }
+        }
+        
+        // Forward the original error
+        handler.next(error);
       },
     ));
   }
@@ -49,7 +110,7 @@ class FavoriteService {
       );
 
       final data = response.data;
-      final favorites = (data['favorites'] as List)
+      final favorites = (data['data'] as List)
           .map((json) => FavoriteJobDto.fromJson(json))
           .toList();
 

@@ -2,232 +2,429 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using BEWorkNest.Services;
 using BEWorkNest.Models.DTOs;
+using System.Security.Claims;
 
 namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [AllowAnonymous]
     public class ChatController : ControllerBase
     {
+        private const string AuthRequiredMessage = "Không có quyền truy cập. Vui lòng đăng nhập.";
+        private const string AuthRequiredCode = "AUTH_REQUIRED";
+        private const string NoAccessMessage = "You don't have access to this chat room";
+        
         private readonly FirebaseRealtimeService _firebaseService;
-        private readonly FirebaseService _firebaseMessagingService;
+        private readonly CloudinaryService _cloudinaryService;
+        private readonly JwtService _jwtService;
         private readonly ILogger<ChatController> _logger;
 
         public ChatController(
             FirebaseRealtimeService firebaseService,
-            FirebaseService firebaseMessagingService,
+            CloudinaryService cloudinaryService,
+            JwtService jwtService,
             ILogger<ChatController> logger)
         {
             _firebaseService = firebaseService;
-            _firebaseMessagingService = firebaseMessagingService;
+            _cloudinaryService = cloudinaryService;
+            _jwtService = jwtService;
             _logger = logger;
         }
 
-        [HttpPost("send-message")]
-        public async Task<IActionResult> SendMessage([FromBody] SendMessageDto dto)
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
         {
-            try
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
             {
-                // Allow userId from JWT claims OR from request body
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                    ?? dto.SenderId;
-                
-                if (string.IsNullOrEmpty(userId))
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
                 {
-                    return BadRequest(new { message = "SenderId is required" });
-                }
-
-                _logger.LogInformation($"Sending message from user: {userId} to chat: {dto.ChatId}");
-
-                var message = new ChatMessage
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    SenderId = userId,
-                    Content = dto.Content,
-                    MessageType = dto.MessageType ?? "text",
-                    Timestamp = DateTime.UtcNow,
-                    FileUrl = dto.FileUrl,
-                    FileName = dto.FileName
-                };
-
-                var messageId = await _firebaseService.SendMessageAsync(dto.ChatId, message);
-                
-                // Update last message info
-                await _firebaseService.UpdateChatLastMessageAsync(dto.ChatId, DateTime.UtcNow);
-
-                // Send push notification to other participants
-                await SendNotificationToChatParticipants(dto.ChatId, userId, dto.Content);
-
-                return Ok(new { messageId, message });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending message");
-                return BadRequest(new { message = "Failed to send message", error = ex.Message });
-            }
-        }
-
-        [HttpGet("messages/{chatId}")]
-        public async Task<IActionResult> GetChatMessages(string chatId, [FromQuery] int limit = 50)
-        {
-            try
-            {
-                var messages = await _firebaseService.GetChatMessagesAsync(chatId, limit);
-                return Ok(messages);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error getting messages for chat {chatId}");
-                return BadRequest(new { message = "Failed to get messages", error = ex.Message });
-            }
-        }
-
-        [HttpPost("create-chat")]
-        public async Task<IActionResult> CreateChat([FromBody] CreateChatDto dto)
-        {
-            try
-            {
-                // Allow userId from JWT claims OR from request body
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                    ?? dto.InitiatorUserId;
-                
-                if (string.IsNullOrEmpty(userId))
-                {
-                    return BadRequest(new { message = "InitiatorUserId is required" });
-                }
-
-                _logger.LogInformation($"Creating chat between users: {userId} and {dto.OtherUserId}");
-
-                var chatId = await _firebaseService.CreateChatAsync(userId, dto.OtherUserId);
-                return Ok(new { chatId });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error creating chat");
-                return BadRequest(new { message = "Failed to create chat", error = ex.Message });
-            }
-        }
-
-        [HttpGet("user-chats")]
-        public async Task<IActionResult> GetUserChats([FromQuery] string? userId = null)
-        {
-            try
-            {
-                // Allow userId from JWT claims OR from query parameter
-                var effectiveUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value 
-                    ?? userId;
-                
-                if (string.IsNullOrEmpty(effectiveUserId))
-                {
-                    return BadRequest(new { message = "UserId is required" });
-                }
-
-                _logger.LogInformation($"Getting chats for user: {effectiveUserId}");
-
-                var chats = await _firebaseService.GetUserChatsAsync(effectiveUserId);
-                return Ok(chats);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error getting chats for user");
-                return BadRequest(new { message = "Failed to get chats", error = ex.Message });
-            }
-        }
-
-        [HttpPost("mark-as-read/{chatId}")]
-        public Task<IActionResult> MarkChatAsRead(string chatId)
-        {
-            try
-            {
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (userId == null)
-                {
-                    return Task.FromResult<IActionResult>(Unauthorized());
-                }
-
-                // Mark messages as read logic here
-                // This would update the messages in Firebase Realtime Database
-
-                return Task.FromResult<IActionResult>(Ok(new { message = "Chat marked as read" }));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error marking chat as read: {chatId}");
-                return Task.FromResult<IActionResult>(BadRequest(new { message = "Failed to mark chat as read", error = ex.Message }));
-            }
-        }
-
-        [HttpGet("test-connection")]
-        public async Task<IActionResult> TestConnection()
-        {
-            try
-            {
-                // Test basic connection
-                var result = new
-                {
-                    timestamp = DateTime.UtcNow,
-                    message = "Chat controller is working",
-                    firebaseService = _firebaseService != null ? "Initialized" : "Not initialized",
-                    messagingService = _firebaseMessagingService != null ? "Initialized" : "Not initialized"
-                };
-
-                _logger.LogInformation("Chat controller test successful");
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Chat controller test failed");
-                return BadRequest(new { message = "Test failed", error = ex.Message });
-            }
-        }
-
-        private async Task SendNotificationToChatParticipants(string chatId, string senderId, string messageContent)
-        {
-            try
-            {
-                // Get chat participants
-                var chats = await _firebaseService.GetUserChatsAsync(senderId);
-                var chat = chats.FirstOrDefault(c => c.Id == chatId);
-                
-                if (chat != null)
-                {
-                    var otherParticipants = chat.Participants.Where(p => p != senderId).ToList();
-                    
-                    foreach (var participantId in otherParticipants)
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
                     {
-                        // Get FCM token for participant (you'll need to implement this)
-                        // var fcmToken = await GetUserFcmToken(participantId);
-                        
-                        // Send push notification
-                        // await _firebaseMessagingService.SendPushNotificationAsync(
-                        //     fcmToken,
-                        //     "New Message",
-                        //     messageContent.Length > 50 ? messageContent.Substring(0, 50) + "..." : messageContent
-                        // );
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error extracting user info from token: {ex.Message}");
+                            isAuthenticated = false;
+                        }
                     }
                 }
             }
+
+            return (userId, userRole, isAuthenticated);
+        }
+
+        /// <summary>
+        /// Lấy danh sách phòng chat của user hiện tại
+        /// </summary>
+        [HttpGet("rooms")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUserChatRooms()
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
+                }
+
+                if (string.IsNullOrEmpty(userRole))
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy thông tin vai trò người dùng",
+                        errorCode = "USER_ROLE_NOT_FOUND"
+                    });
+                }
+
+                _logger.LogInformation("Getting chat rooms for user: {UserId}, role: {UserRole}", userId, userRole);
+
+                var chatRooms = await _firebaseService.GetUserChatRoomsAsync(userId, userRole!);
+                
+                return Ok(new { success = true, data = chatRooms });
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending notification to chat participants");
+                _logger.LogError(ex, "Error getting user chat rooms");
+                return StatusCode(500, new { message = "Error retrieving chat rooms", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Tạo hoặc lấy phòng chat giữa recruiter và candidate cho job cụ thể
+        /// </summary>
+        [HttpPost("rooms")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CreateOrGetChatRoom([FromBody] CreateChatRoomDto dto)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                _logger.LogInformation($"Creating/Getting chat room between recruiter: {dto.RecruiterId} and candidate: {dto.CandidateId} for job: {dto.JobId}");
+
+                var roomId = await _firebaseService.CreateOrGetChatRoomAsync(
+                    recruiterId: dto.RecruiterId,
+                    candidateId: dto.CandidateId,
+                    jobId: dto.JobId,
+                    recruiterInfo: dto.RecruiterInfo,
+                    candidateInfo: dto.CandidateInfo,
+                    jobInfo: dto.JobInfo
+                );
+
+                return Ok(new { success = true, roomId = roomId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating chat room");
+                return StatusCode(500, new { message = "Error creating chat room", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy tin nhắn từ phòng chat
+        /// </summary>
+        [HttpGet("rooms/{roomId}/messages")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetChatMessages(string roomId, [FromQuery] int page = 1, [FromQuery] int limit = 50)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                _logger.LogInformation($"Getting messages for room: {roomId}, user: {userId}");
+
+                // Verify user has access to this chat room
+                var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(roomId, userId);
+                if (!hasAccess)
+                    return StatusCode(403, new { 
+                        message = "You don't have access to this chat room",
+                        errorCode = "ACCESS_DENIED"
+                    });
+
+                var messages = await _firebaseService.GetChatMessagesAsync(roomId, page, limit);
+                
+                return Ok(new { success = true, data = messages });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting chat messages");
+                return StatusCode(500, new { message = "Error retrieving messages", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Gửi tin nhắn text
+        /// </summary>
+        [HttpPost("messages/text")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SendTextMessage([FromBody] SendTextMessageDto dto)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                if (string.IsNullOrEmpty(userRole))
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy thông tin vai trò người dùng",
+                        errorCode = "USER_ROLE_NOT_FOUND"
+                    });
+                }
+                
+                _logger.LogInformation($"Sending text message from user: {userId} to room: {dto.RoomId}");
+
+                // Verify user has access to this chat room
+                var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(dto.RoomId, userId);
+                if (!hasAccess)
+                    return StatusCode(403, new { 
+                        message = "You don't have access to this chat room",
+                        errorCode = "ACCESS_DENIED"
+                    });
+
+                var messageId = await _firebaseService.SendTextMessageAsync(
+                    roomId: dto.RoomId,
+                    senderId: userId,
+                    senderRole: userRole!,
+                    content: dto.Content
+                );
+
+                return Ok(new { success = true, messageId = messageId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending text message");
+                return StatusCode(500, new { message = "Error sending message", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Upload ảnh và gửi tin nhắn hình ảnh
+        /// </summary>
+        [HttpPost("messages/image")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SendImageMessage([FromForm] SendImageMessageDto dto)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                if (string.IsNullOrEmpty(userRole))
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy thông tin vai trò người dùng",
+                        errorCode = "USER_ROLE_NOT_FOUND"
+                    });
+                }
+
+                _logger.LogInformation($"Sending image message from user: {userId} to room: {dto.RoomId}");
+
+                // Verify user has access to this chat room
+                var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(dto.RoomId, userId);
+                if (!hasAccess)
+                    return StatusCode(403, new { message = "You don't have access to this chat room", errorCode = "ACCESS_DENIED" });
+
+                // Validate image file
+                if (dto.ImageFile == null || dto.ImageFile.Length == 0)
+                    return BadRequest("Image file is required");
+
+                var allowedTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/gif" };
+                if (!allowedTypes.Contains(dto.ImageFile.ContentType.ToLower()))
+                    return BadRequest("Only JPEG, PNG and GIF images are allowed");
+
+                if (dto.ImageFile.Length > 10 * 1024 * 1024) // 10MB limit
+                    return BadRequest("Image file size cannot exceed 10MB");
+
+                // Upload to Cloudinary
+                _logger.LogInformation("Uploading image to Cloudinary...");
+                var imageUrl = await _cloudinaryService.UploadImageAsync(dto.ImageFile, "chat_images");
+
+                // Send image message to Firebase
+                var messageId = await _firebaseService.SendImageMessageAsync(
+                    roomId: dto.RoomId,
+                    senderId: userId,
+                    senderRole: userRole!,
+                    imageUrl: imageUrl,
+                    caption: dto.Caption
+                );
+
+                return Ok(new { 
+                    success = true, 
+                    messageId = messageId,
+                    imageUrl = imageUrl
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending image message");
+                return StatusCode(500, new { message = "Error sending image", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Đánh dấu tin nhắn đã đọc
+        /// </summary>
+        [HttpPost("rooms/{roomId}/mark-read")]
+        [AllowAnonymous]
+        public async Task<IActionResult> MarkMessagesAsRead(string roomId)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                _logger.LogInformation($"Marking messages as read for room: {roomId}, user: {userId}");
+
+                // Verify user has access to this chat room
+                var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(roomId, userId);
+                if (!hasAccess)
+                    return StatusCode(403, new { message = "You don't have access to this chat room", errorCode = "ACCESS_DENIED" });
+
+                await _firebaseService.MarkMessagesAsReadAsync(roomId, userId);
+                
+                return Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error marking messages as read");
+                return StatusCode(500, new { message = "Error marking messages as read", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Xóa phòng chat
+        /// </summary>
+        [HttpDelete("rooms/{roomId}")]
+        [AllowAnonymous] // Changed to allow checking role through token
+        public async Task<IActionResult> DeleteChatRoom(string roomId)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                if (userRole?.ToLower() != "recruiter")
+                {
+                    return BadRequest(new { 
+                        message = "Chỉ nhà tuyển dụng mới có thể xóa phòng chat.",
+                        errorCode = "INSUFFICIENT_PERMISSIONS"
+                    });
+                }
+
+                _logger.LogInformation($"Deleting chat room: {roomId} by user: {userId}");
+
+                // Verify user has access to this chat room and is the recruiter
+                var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(roomId, userId);
+                if (!hasAccess)
+                    return StatusCode(403, new { message = "You don't have access to this chat room", errorCode = "ACCESS_DENIED" });
+
+                await _firebaseService.DeleteChatRoomAsync(roomId);
+                
+                return Ok(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error deleting chat room");
+                return StatusCode(500, new { message = "Error deleting chat room", error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Lấy thông tin phòng chat
+        /// </summary>
+        [HttpGet("rooms/{roomId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetChatRoomInfo(string roomId)
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không có quyền truy cập. Vui lòng đăng nhập.",
+                        errorCode = "AUTH_REQUIRED"
+                    });
+                }
+
+                _logger.LogInformation($"Getting chat room info: {roomId} for user: {userId}");
+
+                // Verify user has access to this chat room
+                var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(roomId, userId);
+                if (!hasAccess)
+                    return StatusCode(403, new { message = "You don't have access to this chat room", errorCode = "ACCESS_DENIED" });
+
+                var roomInfo = await _firebaseService.GetChatRoomInfoAsync(roomId);
+                
+                return Ok(new { success = true, data = roomInfo });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting chat room info");
+                return StatusCode(500, new { message = "Error getting chat room info", error = ex.Message });
             }
         }
     }
-
-    public class SendMessageDto
-    {
-        public string ChatId { get; set; } = string.Empty;
-        public string Content { get; set; } = string.Empty;
-        public string? MessageType { get; set; }
-        public string? FileUrl { get; set; }
-        public string? FileName { get; set; }
-        public string? SenderId { get; set; } // Optional - for when JWT is not available
-    }
-
-    public class CreateChatDto
-    {
-        public string OtherUserId { get; set; } = string.Empty;
-        public string? InitiatorUserId { get; set; } // Optional - for when JWT is not available
-    }
-} 
+}

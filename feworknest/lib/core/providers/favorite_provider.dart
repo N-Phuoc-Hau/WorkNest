@@ -1,11 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/favorite_model.dart';
 import '../services/favorite_service.dart';
+import 'auth_provider.dart';
 
 class FavoriteNotifier extends StateNotifier<FavoriteState> {
   final FavoriteService _favoriteService;
+  final Ref _ref;
 
-  FavoriteNotifier(this._favoriteService) : super(const FavoriteState());
+  FavoriteNotifier(this._favoriteService, this._ref) : super(const FavoriteState());
+
+  /// Xử lý lỗi authentication - logout user nếu token hết hạn
+  void _handleAuthError(String error) {
+    if (error.contains('AUTH_REQUIRED') || error.contains('401') || 
+        error.contains('Không có quyền truy cập') || error.contains('đăng nhập')) {
+      // Token hết hạn, logout user
+      _ref.read(authProvider.notifier).logout();
+    }
+  }
 
   Future<bool> addToFavorite(int jobId) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -13,14 +25,16 @@ class FavoriteNotifier extends StateNotifier<FavoriteState> {
     try {
       await _favoriteService.addToFavorite(jobId);
       state = state.copyWith(isLoading: false);
-      
+
       // Refresh favorites list
       await getMyFavorites();
       return true;
     } catch (e) {
+      final errorMsg = e.toString();
+      _handleAuthError(errorMsg);
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: errorMsg,
       );
       return false;
     }
@@ -31,21 +45,23 @@ class FavoriteNotifier extends StateNotifier<FavoriteState> {
 
     try {
       await _favoriteService.removeFromFavorite(jobId);
-      
+
       // Remove from local state immediately
       final updatedFavorites = state.favoriteJobs
           .where((favorite) => favorite.jobId != jobId)
           .toList();
-      
+
       state = state.copyWith(
         favoriteJobs: updatedFavorites,
         isLoading: false,
       );
       return true;
     } catch (e) {
+      final errorMsg = e.toString();
+      _handleAuthError(errorMsg);
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: errorMsg,
       );
       return false;
     }
@@ -56,35 +72,33 @@ class FavoriteNotifier extends StateNotifier<FavoriteState> {
     int pageSize = 10,
     bool loadMore = false,
   }) async {
-    if (!loadMore) {
-      state = state.copyWith(isLoading: true, error: null);
-    }
-
+    // ...
     try {
       final result = await _favoriteService.getMyFavorites(
         page: page,
         pageSize: pageSize,
       );
 
-      final newFavorites = result['favorites'] as List<FavoriteJobDto>;
-      
+      // Use 'favorites' key from service
+      final newFavorites = result['favorites'] as List<FavoriteJobDto>? ?? <FavoriteJobDto>[];
+
       if (loadMore && page > 1) {
-        // Append to existing favorites for pagination
         state = state.copyWith(
           favoriteJobs: [...state.favoriteJobs, ...newFavorites],
           isLoading: false,
         );
       } else {
-        // Replace favorites for first load
         state = state.copyWith(
           favoriteJobs: newFavorites,
           isLoading: false,
         );
       }
     } catch (e) {
+      final errorMsg = e.toString();
+      _handleAuthError(errorMsg);
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: errorMsg,
       );
     }
   }
@@ -102,7 +116,9 @@ class FavoriteNotifier extends StateNotifier<FavoriteState> {
       final stats = await _favoriteService.getFavoriteStats();
       state = state.copyWith(stats: stats);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      final errorMsg = e.toString();
+      _handleAuthError(errorMsg);
+      state = state.copyWith(error: errorMsg);
     }
   }
 
@@ -116,14 +132,17 @@ class FavoriteNotifier extends StateNotifier<FavoriteState> {
 }
 
 // Providers
-final favoriteServiceProvider = Provider<FavoriteService>((ref) => FavoriteService());
+final favoriteServiceProvider =
+    Provider<FavoriteService>((ref) => FavoriteService());
 
-final favoriteProvider = StateNotifierProvider<FavoriteNotifier, FavoriteState>((ref) {
-  return FavoriteNotifier(ref.watch(favoriteServiceProvider));
+final favoriteProvider =
+    StateNotifierProvider<FavoriteNotifier, FavoriteState>((ref) {
+  return FavoriteNotifier(ref.watch(favoriteServiceProvider), ref);
 });
 
 // Provider để check trạng thái favorite của một job cụ thể
-final jobFavoriteStatusProvider = FutureProvider.family<bool, int>((ref, jobId) async {
+final jobFavoriteStatusProvider =
+    FutureProvider.family<bool, int>((ref, jobId) async {
   final favoriteNotifier = ref.watch(favoriteProvider.notifier);
   return await favoriteNotifier.checkFavoriteStatus(jobId);
 });

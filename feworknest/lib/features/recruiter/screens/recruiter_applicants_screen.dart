@@ -3,11 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/application_model.dart';
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/providers/chat_provider.dart';
 import '../../../core/providers/recruiter_applicants_provider.dart';
 import '../../../shared/widgets/common_widgets.dart';
-import '../../chat/screens/real_chat_screen.dart';
-import '../../chat/screens/simple_chat_screen.dart';
+import '../../chat/screens/chat_detail_screen.dart';
 
 class RecruiterApplicantsScreen extends ConsumerStatefulWidget {
   const RecruiterApplicantsScreen({super.key});
@@ -525,124 +523,40 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
       final currentUser = authState.user!;
       print('DEBUG: Current user - ID: ${currentUser.id}, Role: ${currentUser.role}');
       
-      // Prepare detailed info for Firebase
-      final recruiterInfo = {
-        'id': currentUser.id,
-        'name': '${currentUser.firstName} ${currentUser.lastName}'.trim(),
-        'email': currentUser.email,
-        'avatar': currentUser.avatar,
-        'role': currentUser.role,
-      };
-
-      final candidateInfo = {
-        'id': applicant.applicantId,
-        'name': applicant.applicantName,
-        'email': applicant.applicant?.email ?? '',
-        'avatar': applicant.applicant?.avatar,
-        'role': 'candidate',
-      };
-
+      // Prepare info for chat
       final jobInfo = {
         'id': applicant.jobId.toString(),
         'title': applicant.job?.title ?? 'Không rõ',
         'company': applicant.job?.recruiter.company?.name ?? 'Không rõ',
       };
 
-      print('DEBUG: Prepared detailed info for Firebase');
+      // Create simple room ID
+      final roomId = '${currentUser.id}_${applicant.applicantId}_${applicant.jobId}';
+      print('DEBUG: Using room ID: $roomId');
 
-      try {
-        // Try Firebase first with connection test
-        print('DEBUG: Attempting Firebase chat creation...');
-        
-        // Test Firebase connection first
-        final chatService = ref.read(chatServiceProvider);
-        final isConnected = await chatService.testConnection().timeout(
-          const Duration(seconds: 3), // Giảm timeout xuống 3 giây
-          onTimeout: () {
-            print('DEBUG: Firebase connection test timeout after 3 seconds');
-            return false;
-          },
-        );
+      // Close loading dialog
+      LoadingDialog.hide(context);
 
-        if (!isConnected) {
-          print('DEBUG: Firebase not connected, falling back to simple chat immediately');
-          throw Exception('Firebase not connected - quick fallback');
-        }
-
-        print('DEBUG: Firebase connection OK, creating chat room...');
-        
-        final chatNotifier = ref.read(chatProvider({
-          'userId': currentUser.id,
-          'userType': currentUser.role.toLowerCase(),
-        }).notifier);
-
-        final roomId = await chatNotifier.createOrGetChatRoom(
-          recruiterId: currentUser.id,
-          candidateId: applicant.applicantId,
-          jobId: applicant.jobId.toString(),
-          recruiterInfo: recruiterInfo,
-          candidateInfo: candidateInfo,
-          jobInfo: jobInfo,
-        ).timeout(
-          const Duration(seconds: 8), // Giảm timeout room creation
-          onTimeout: () {
-            print('DEBUG: Firebase room creation timeout after 8 seconds, falling back to simple chat');
-            throw Exception('Firebase room creation timeout');
-          },
-        );
-
-        print('DEBUG: Firebase chat room created successfully - Room ID: $roomId');
-
-        // Close loading dialog
-        LoadingDialog.hide(context);
-
-        // Navigate to Firebase chat screen
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => RealChatScreen(
-              roomId: roomId,
-              otherUserInfo: candidateInfo,
-              jobInfo: jobInfo,
-            ),
+      // Navigate directly to ChatDetailScreen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatDetailScreen(
+            roomId: roomId,
+            otherUserName: applicant.applicantName,
+            otherUserAvatar: applicant.applicant?.avatar ?? '',
+            jobInfo: jobInfo,
           ),
-        );
+        ),
+      );
 
-        NotificationHelper.showSuccess(
-          context,
-          'Đã tạo cuộc trò chuyện Firebase với ${applicant.applicantName}',
-        );
-
-      } catch (firebaseError) {
-        print('DEBUG: Firebase error: $firebaseError, falling back to simple chat');
-        
-        // Fallback to simple chat
-        final simpleRoomId = '${currentUser.id}_${applicant.applicantId}_${applicant.jobId}';
-        print('DEBUG: Using simple room ID: $simpleRoomId');
-
-        // Close loading dialog
-        LoadingDialog.hide(context);
-
-        // Navigate to simple chat screen
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SimpleChatScreen(
-              roomId: simpleRoomId,
-              otherUserInfo: candidateInfo,
-              jobInfo: jobInfo,
-            ),
-          ),
-        );
-
-        NotificationHelper.showWarning(
-          context,
-          'Đã tạo cuộc trò chuyện test với ${applicant.applicantName}',
-        );
-      }
+      NotificationHelper.showSuccess(
+        context,
+        'Bắt đầu cuộc trò chuyện với ${applicant.applicantName}',
+      );
 
     } catch (e) {
-      print('DEBUG: General error occurred - ${e.toString()}');
+      print('DEBUG: Error occurred - ${e.toString()}');
       
       LoadingDialog.hide(context);
       

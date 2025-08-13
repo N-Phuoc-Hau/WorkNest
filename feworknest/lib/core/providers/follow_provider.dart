@@ -1,12 +1,23 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/company_model.dart';
 import '../models/follow_model.dart';
 import '../services/follow_service.dart';
+import 'auth_provider.dart';
 
 class FollowNotifier extends StateNotifier<FollowState> {
   final FollowService _followService;
+  final Ref _ref;
 
-  FollowNotifier(this._followService) : super(const FollowState());
+  FollowNotifier(this._followService, this._ref) : super(const FollowState());
+
+  void _handleAuthError(Object error) {
+    if (error is DioException && error.response?.statusCode == 401) {
+      print('FollowProvider: Authentication error detected, logging out...');
+      _ref.read(authProvider.notifier).logout();
+    }
+  }
 
   Future<bool> followCompany(CreateFollowModel createFollow) async {
     state = state.copyWith(isLoading: true, error: null);
@@ -14,11 +25,12 @@ class FollowNotifier extends StateNotifier<FollowState> {
     try {
       await _followService.followCompany(createFollow);
       state = state.copyWith(isLoading: false);
-      
+
       // Refresh following list
       await getMyFollowing();
       return true;
     } catch (e) {
+      _handleAuthError(e);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -32,18 +44,19 @@ class FollowNotifier extends StateNotifier<FollowState> {
 
     try {
       await _followService.unfollowCompany(companyId);
-      
+
       // Remove from local state immediately
       final updatedFollowing = state.following
           .where((follow) => follow.recruiter?.company?.id != companyId)
           .toList();
-      
+
       state = state.copyWith(
         following: updatedFollowing,
         isLoading: false,
       );
       return true;
     } catch (e) {
+      _handleAuthError(e);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -67,23 +80,24 @@ class FollowNotifier extends StateNotifier<FollowState> {
         pageSize: pageSize,
       );
 
-      final newFollowing = result['follows'] as List<FollowModel>;
-      final totalCount = result['totalCount'] as int;
-      final totalPages = result['totalPages'] as int;
-      
+      // Use 'companies' key from service
+      final newCompanies = result['companies'] as List<CompanyModel>? ?? <CompanyModel>[];
+      final totalCount = result['totalCount'] as int? ?? 0;
+      final totalPages = result['totalPages'] as int? ?? 1;
+
       if (loadMore && page > 1) {
-        // Append to existing following for pagination
+        // Append to existing following companies for pagination
         state = state.copyWith(
-          following: [...state.following, ...newFollowing],
+          followingCompanies: [...state.followingCompanies, ...newCompanies],
           totalCount: totalCount,
           totalPages: totalPages,
           currentPage: page,
           isLoading: false,
         );
       } else {
-        // Replace following for first load
+        // Replace following companies for first load
         state = state.copyWith(
-          following: newFollowing,
+          followingCompanies: newCompanies,
           totalCount: totalCount,
           totalPages: totalPages,
           currentPage: page,
@@ -91,6 +105,7 @@ class FollowNotifier extends StateNotifier<FollowState> {
         );
       }
     } catch (e) {
+      _handleAuthError(e);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -114,23 +129,30 @@ class FollowNotifier extends StateNotifier<FollowState> {
       );
 
       final newFollowers = result['followers'] as List<FollowModel>;
-      final totalCount = result['totalCount'] as int;
-      final totalPages = result['totalPages'] as int;
-      
+      final totalCount = result['totalCount'] as int? ?? 0;
+      final totalPages = result['totalPages'] as int? ?? 1;
+
       if (loadMore && page > 1) {
         // Append to existing followers for pagination
         state = state.copyWith(
           followers: [...state.followers, ...newFollowers],
+          totalCount: totalCount,
+          totalPages: totalPages,
+          currentPage: page,
           isLoading: false,
         );
       } else {
         // Replace followers for first load
         state = state.copyWith(
           followers: newFollowers,
+          totalCount: totalCount,
+          totalPages: totalPages,
+          currentPage: page,
           isLoading: false,
         );
       }
     } catch (e) {
+      _handleAuthError(e);
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -142,6 +164,7 @@ class FollowNotifier extends StateNotifier<FollowState> {
     try {
       return await _followService.isFollowing(companyId);
     } catch (e) {
+      _handleAuthError(e);
       return false;
     }
   }
@@ -151,7 +174,8 @@ class FollowNotifier extends StateNotifier<FollowState> {
   }
 
   bool isFollowing(int companyId) {
-    return state.following.any((follow) => follow.recruiter?.company?.id == companyId);
+    return state.following
+        .any((follow) => follow.recruiter?.company?.id == companyId);
   }
 }
 
@@ -159,6 +183,7 @@ class FollowNotifier extends StateNotifier<FollowState> {
 class FollowState {
   final List<FollowModel> following;
   final List<FollowModel> followers;
+  final List<CompanyModel> followingCompanies; // Add this for company data
   final bool isLoading;
   final String? error;
   final int currentPage;
@@ -168,6 +193,7 @@ class FollowState {
   const FollowState({
     this.following = const [],
     this.followers = const [],
+    this.followingCompanies = const [],
     this.isLoading = false,
     this.error,
     this.currentPage = 1,
@@ -178,6 +204,7 @@ class FollowState {
   FollowState copyWith({
     List<FollowModel>? following,
     List<FollowModel>? followers,
+    List<CompanyModel>? followingCompanies,
     bool? isLoading,
     String? error,
     int? currentPage,
@@ -187,6 +214,7 @@ class FollowState {
     return FollowState(
       following: following ?? this.following,
       followers: followers ?? this.followers,
+      followingCompanies: followingCompanies ?? this.followingCompanies,
       isLoading: isLoading ?? this.isLoading,
       error: error,
       currentPage: currentPage ?? this.currentPage,
@@ -199,12 +227,14 @@ class FollowState {
 // Providers
 final followServiceProvider = Provider<FollowService>((ref) => FollowService());
 
-final followProvider = StateNotifierProvider<FollowNotifier, FollowState>((ref) {
-  return FollowNotifier(ref.watch(followServiceProvider));
+final followProvider =
+    StateNotifierProvider<FollowNotifier, FollowState>((ref) {
+  return FollowNotifier(ref.watch(followServiceProvider), ref);
 });
 
 // Provider để check trạng thái follow của một company cụ thể
-final companyFollowStatusProvider = FutureProvider.family<bool, int>((ref, companyId) async {
+final companyFollowStatusProvider =
+    FutureProvider.family<bool, int>((ref, companyId) async {
   final followNotifier = ref.watch(followProvider.notifier);
   return await followNotifier.checkFollowStatus(companyId);
 });

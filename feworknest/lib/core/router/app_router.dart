@@ -10,8 +10,8 @@ import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
 import '../../features/candidate/screens/following_companies_screen.dart';
+import '../../features/chat/screens/chat_detail_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
-import '../../features/chat/screens/chat_screen.dart';
 import '../../features/dashboard/screens/admin_dashboard_screen.dart';
 import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/job_posting/screens/create_job_screen.dart';
@@ -221,7 +221,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: ':roomId',
             builder: (context, state) {
               final roomId = state.pathParameters['roomId']!;
-              return ChatScreen(roomId: roomId);
+              final otherUserName = state.uri.queryParameters['userName'] ?? 'Unknown User';
+              final otherUserAvatar = state.uri.queryParameters['userAvatar'] ?? '';
+              
+              // If we have minimal info from external navigation, use it
+              // Otherwise, ChatDetailScreen will need to fetch user info from roomId
+              return _buildWithLayout(
+                context,
+                ChatDetailScreen(
+                  roomId: roomId,
+                  otherUserName: otherUserName,
+                  otherUserAvatar: otherUserAvatar,
+                ),
+                'candidate',
+              );
             },
           ),
         ],
@@ -320,7 +333,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: ':roomId',
             builder: (context, state) {
               final roomId = state.pathParameters['roomId']!;
-              return ChatScreen(roomId: roomId);
+              final otherUserName = state.uri.queryParameters['userName'] ?? 'Unknown User';
+              final otherUserAvatar = state.uri.queryParameters['userAvatar'] ?? '';
+              
+              // If we have minimal info from external navigation, use it
+              // Otherwise, ChatDetailScreen will need to fetch user info from roomId
+              return _buildWithLayout(
+                context,
+                ChatDetailScreen(
+                  roomId: roomId,
+                  otherUserName: otherUserName,
+                  otherUserAvatar: otherUserAvatar,
+                ),
+                'recruiter',
+              );
             },
           ),
         ],

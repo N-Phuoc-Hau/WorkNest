@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/chat_provider.dart';
+import '../../../core/providers/notification_provider.dart';
 
 class WebSidebar extends ConsumerStatefulWidget {
   final bool isCollapsed;
@@ -25,6 +27,24 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
   void initState() {
     super.initState();
     _selectedRoute = GoRouter.of(context).routeInformationProvider.value.uri.path;
+    
+    // Load unread counts khi khởi tạo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authState = ref.read(authProvider);
+      if (authState.isAuthenticated) {
+        // Load chat data để có unread count
+        ref.read(chatProvider.notifier).loadChatRooms();
+        
+        // Load notification unread count nếu có userId
+        if (authState.user?.id != null) {
+          try {
+            ref.read(notificationProvider(authState.user!.id).notifier).refreshUnreadCount();
+          } catch (e) {
+            print('Error loading notification count in sidebar: $e');
+          }
+        }
+      }
+    });
   }
 
   @override
@@ -121,15 +141,37 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
   }
 
   Widget _buildNavigationMenu(bool isAuthenticated, dynamic user) {
-    final menuItems = _getMenuItems(isAuthenticated, user);
-    
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      children: menuItems.map((item) => _buildMenuItem(item)).toList(),
+    return Consumer(
+      builder: (context, ref, child) {
+        final chatState = ref.watch(chatProvider);
+        int notificationUnreadCount = 0;
+        
+        // Chỉ load notification count nếu user đã đăng nhập và có userId
+        if (isAuthenticated && user?.id != null) {
+          try {
+            final notificationState = ref.watch(notificationProvider(user.id));
+            notificationUnreadCount = notificationState.unreadCount;
+          } catch (e) {
+            print('Error loading notification count: $e');
+          }
+        }
+        
+        final menuItems = _getMenuItems(
+          isAuthenticated, 
+          user, 
+          chatState.unreadCount,
+          notificationUnreadCount,
+        );
+        
+        return ListView(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          children: menuItems.map((item) => _buildMenuItem(item)).toList(),
+        );
+      },
     );
   }
 
-  List<SidebarMenuItem> _getMenuItems(bool isAuthenticated, dynamic user) {
+  List<SidebarMenuItem> _getMenuItems(bool isAuthenticated, dynamic user, int chatUnreadCount, int notificationUnreadCount) {
     final List<SidebarMenuItem> items = [
       SidebarMenuItem(
         icon: Icons.home,
@@ -209,6 +251,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         ]);
       }
 
+      // Chỉ hiển thị tin nhắn và thông báo với số lượng thật, bỏ search
       items.addAll([
         SidebarMenuItem(
           icon: Icons.chat,
@@ -216,31 +259,13 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           route: isAuthenticated 
               ? (user?.isRecruiter == true ? '/recruiter/chat' : '/chat')
               : '/chat',
-          badge: '3',
+          badge: chatUnreadCount > 0 ? chatUnreadCount.toString() : null,
         ),
         SidebarMenuItem(
           icon: Icons.notifications,
           title: 'Thông báo',
           route: '/notifications',
-          badge: '5',
-        ),
-        SidebarMenuItem(
-          icon: Icons.search,
-          title: 'Tìm kiếm nâng cao',
-          route: '/search',
-        ),
-      ]);
-    } else {
-      items.addAll([
-        SidebarMenuItem(
-          icon: Icons.search,
-          title: 'Tìm kiếm việc làm',
-          route: '/search',
-        ),
-        SidebarMenuItem(
-          icon: Icons.info,
-          title: 'Về chúng tôi',
-          route: '/about',
+          badge: notificationUnreadCount > 0 ? notificationUnreadCount.toString() : null,
         ),
       ]);
     }

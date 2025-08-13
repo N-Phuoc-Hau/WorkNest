@@ -49,12 +49,15 @@ class ApiConstants {
   static const String deviceToken = '/api/Notification/device-token';
   static const String myDevices = '/api/Notification/my-devices';
   
-  // Chat endpoints
-  static const String sendMessage = '/api/Chat/send-message';
-  static const String getMessages = '/api/Chat/messages';
-  static const String createChat = '/api/Chat/create-chat';
-  static const String userChats = '/api/Chat/user-chats';
-  static const String markChatAsRead = '/api/Chat/mark-as-read';
+  // Chat endpoints - Updated to match new ChatController
+  static const String chatRooms = '/api/Chat/rooms';
+  static const String createChatRoom = '/api/Chat/rooms';
+  static const String getChatMessages = '/api/Chat/rooms'; // /api/Chat/rooms/{roomId}/messages
+  static const String sendTextMessage = '/api/Chat/messages/text';
+  static const String sendImageMessage = '/api/Chat/messages/image';
+  static const String markChatAsRead = '/api/Chat/rooms'; // /api/Chat/rooms/{roomId}/mark-read
+  static const String deleteChatRoom = '/api/Chat/rooms'; // /api/Chat/rooms/{roomId}
+  static const String getChatRoomInfo = '/api/Chat/rooms'; // /api/Chat/rooms/{roomId}
   
   // Company endpoints
   static const String companies = '/api/Company';
@@ -73,6 +76,7 @@ class ApiConstants {
   static const String recruiterDashboard = '/api/Dashboard/recruiter';
   static const String candidateDashboard = '/api/Dashboard/candidate';
   static const String trackEvent = '/api/Dashboard/track';
+  
   
   // Upload endpoints
   static const String uploadAvatar = '/api/Upload/avatar';

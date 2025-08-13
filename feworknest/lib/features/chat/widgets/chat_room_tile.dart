@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/chat_provider.dart';
-import '../../../core/providers/auth_provider.dart';
+
 import '../screens/chat_screen.dart';
 
 class ChatRoomTile extends ConsumerWidget {
@@ -23,7 +22,7 @@ class ChatRoomTile extends ConsumerWidget {
         ? chatRoom['candidateInfo'] 
         : chatRoom['recruiterInfo'];
     final jobInfo = chatRoom['jobInfo'];
-    final lastMessage = chatRoom['lastMessage'];
+    final lastMessage = _getLastMessageText(chatRoom['lastMessage']);
     final lastMessageTimestamp = chatRoom['lastMessageTimestamp'];
     final lastSenderId = chatRoom['lastSenderId'];
 
@@ -191,5 +190,31 @@ class ChatRoomTile extends ConsumerWidget {
     
     // This is a simplified version - in real app, you'd calculate from messages
     return 0; // TODO: Implement unread count calculation
+  }
+
+  String _getLastMessageText(dynamic lastMessageData) {
+    // Handle both string and Map cases
+    if (lastMessageData == null) return 'Chưa có tin nhắn nào';
+    
+    // If it's already a string, return it directly
+    if (lastMessageData is String) {
+      return lastMessageData.isEmpty ? 'Tin nhắn' : lastMessageData;
+    }
+    
+    // If it's a Map, parse it
+    if (lastMessageData is Map<String, dynamic>) {
+      final String type = lastMessageData['type'] ?? 'text';
+      final String content = lastMessageData['content'] ?? '';
+      
+      switch (type) {
+        case 'image':
+          return '📷 Hình ảnh';
+        case 'text':
+        default:
+          return content.isEmpty ? 'Tin nhắn' : content;
+      }
+    }
+    
+    return 'Tin nhắn';
   }
 } 

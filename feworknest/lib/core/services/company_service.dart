@@ -1,14 +1,29 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
-import '../models/company_model.dart';
-import '../models/job_model.dart';
-import '../models/follow_model.dart';
-import '../models/api_response.dart';
+
 import '../constants/api_constants.dart';
-import '../config/dio_config.dart';
+import '../models/api_response.dart';
+import '../models/company_model.dart';
+import '../models/follow_model.dart';
+import '../models/job_model.dart';
+import '../utils/token_storage.dart';
 
 class CompanyService {
-  final Dio _dio = DioConfig.dio;
+  final Dio _dio;
+
+  CompanyService({Dio? dio}) : _dio = dio ?? Dio() {
+    _dio.options.baseUrl = ApiConstants.baseUrl;
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await TokenStorage.getToken();
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+        handler.next(options);
+      },
+    ));
+  }
 
   // Get all companies
   Future<Map<String, dynamic>> getAllCompanies({

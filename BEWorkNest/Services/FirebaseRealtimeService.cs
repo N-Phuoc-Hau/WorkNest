@@ -1,6 +1,7 @@
 using Firebase.Database;
 using Firebase.Database.Query;
-using System.Text.Json;
+using SystemTextJson = System.Text.Json;
+using Newtonsoft.Json;
 
 namespace BEWorkNest.Services
 {
@@ -22,10 +23,10 @@ namespace BEWorkNest.Services
             try
             {
                 var messageRef = await _firebaseClient
-                    .Child("chats")
+                    .Child("chatRooms") // Changed to chatRooms
                     .Child(chatId)
                     .Child("messages")
-                    .PostAsync(JsonSerializer.Serialize(message));
+                    .PostAsync(SystemTextJson.JsonSerializer.Serialize(message));
 
                 _logger.LogInformation($"Message sent to chat {chatId}: {messageRef.Key}");
                 return messageRef.Key;
@@ -37,27 +38,6 @@ namespace BEWorkNest.Services
             }
         }
 
-        public async Task<List<ChatMessage>> GetChatMessagesAsync(string chatId, int limit = 50)
-        {
-            try
-            {
-                var messages = await _firebaseClient
-                    .Child("chats")
-                    .Child(chatId)
-                    .Child("messages")
-                    .OrderByKey()
-                    .LimitToLast(limit)
-                    .OnceAsync<ChatMessage>();
-
-                return messages.Select(x => x.Object).ToList();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error getting messages for chat {chatId}");
-                throw;
-            }
-        }
-
         public async Task<string> CreateChatAsync(string userId1, string userId2)
         {
             try
@@ -65,15 +45,19 @@ namespace BEWorkNest.Services
                 var chat = new ChatRoom
                 {
                     Id = Guid.NewGuid().ToString(),
-                    Participants = new List<string> { userId1, userId2 },
+                    Participants = new Dictionary<string, ParticipantInfo>
+                    {
+                        { userId1, new ParticipantInfo { Id = userId1, Role = "user" } },
+                        { userId2, new ParticipantInfo { Id = userId2, Role = "user" } }
+                    },
                     CreatedAt = DateTime.UtcNow,
                     LastMessageAt = DateTime.UtcNow
                 };
 
                 await _firebaseClient
-                    .Child("chats")
+                    .Child("chatRooms") // Changed to chatRooms
                     .Child(chat.Id)
-                    .PutAsync(JsonSerializer.Serialize(chat));
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(chat));
 
                 _logger.LogInformation($"Chat created: {chat.Id}");
                 return chat.Id;
@@ -90,11 +74,11 @@ namespace BEWorkNest.Services
             try
             {
                 var chats = await _firebaseClient
-                    .Child("chats")
+                    .Child("chatRooms") // Changed to chatRooms
                     .OnceAsync<ChatRoom>();
 
                 return chats
-                    .Where(x => x.Object.Participants.Contains(userId))
+                    .Where(x => x.Object.Participants.ContainsKey(userId))
                     .Select(x => x.Object)
                     .OrderByDescending(x => x.LastMessageAt)
                     .ToList();
@@ -111,10 +95,10 @@ namespace BEWorkNest.Services
             try
             {
                 await _firebaseClient
-                    .Child("chats")
+                    .Child("chatRooms") // Changed to chatRooms
                     .Child(chatId)
                     .Child("lastMessageAt")
-                    .PutAsync(JsonSerializer.Serialize(lastMessageAt));
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(lastMessageAt));
             }
             catch (Exception ex)
             {
@@ -131,7 +115,7 @@ namespace BEWorkNest.Services
                 var notificationRef = await _firebaseClient
                     .Child("notifications")
                     .Child(userId)
-                    .PostAsync(JsonSerializer.Serialize(notification));
+                    .PostAsync(SystemTextJson.JsonSerializer.Serialize(notification));
 
                 _logger.LogInformation($"Notification created for user {userId}: {notificationRef.Key}");
                 return notificationRef.Key;
@@ -172,7 +156,7 @@ namespace BEWorkNest.Services
                     .Child(userId)
                     .Child(notificationId)
                     .Child("isRead")
-                    .PutAsync(JsonSerializer.Serialize(true));
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(true));
             }
             catch (Exception ex)
             {
@@ -185,7 +169,7 @@ namespace BEWorkNest.Services
         public IDisposable ListenToChatMessages(string chatId, Action<ChatMessage> onMessageReceived)
         {
             return _firebaseClient
-                .Child("chats")
+                .Child("chatRooms") // Changed to chatRooms
                 .Child(chatId)
                 .Child("messages")
                 .AsObservable<ChatMessage>()
@@ -200,12 +184,327 @@ namespace BEWorkNest.Services
                 .AsObservable<NotificationData>()
                 .Subscribe(notification => onNotificationReceived(notification.Object));
         }
+
+        // New methods for ChatController
+        public async Task<List<ChatRoom>> GetUserChatRoomsAsync(string userId, string userRole)
+        {
+            try
+            {
+                var chatRooms = await _firebaseClient
+                    .Child("chatRooms")
+                    .OnceAsync<ChatRoom>();
+
+                var filteredRooms = new List<ChatRoom>();
+
+                foreach (var room in chatRooms)
+                {
+                    var chatRoom = room.Object;
+                    chatRoom.Id = room.Key;
+
+                    // Check if user is participant based on role
+                    if ((userRole == "recruiter" && chatRoom.RecruiterId == userId) ||
+                        (userRole == "candidate" && chatRoom.CandidateId == userId))
+                    {
+                        filteredRooms.Add(chatRoom);
+                    }
+                }
+
+                return filteredRooms
+                    .OrderByDescending(x => x.LastMessageAt)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error getting chat rooms for user {userId}");
+                throw;
+            }
+        }
+
+        public async Task<string> CreateOrGetChatRoomAsync(
+            string recruiterId,
+            string candidateId,
+            string? jobId = null,
+            Dictionary<string, object>? recruiterInfo = null,
+            Dictionary<string, object>? candidateInfo = null,
+            Dictionary<string, object>? jobInfo = null)
+        {
+            try
+            {
+                // Generate room ID
+                var roomId = $"{candidateId}_{recruiterId}_{jobId ?? "0"}";
+                
+                // Check if room already exists
+                var existingRoom = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .OnceSingleAsync<ChatRoom>();
+
+                if (existingRoom != null)
+                {
+                    _logger.LogInformation($"Chat room already exists: {roomId}");
+                    return roomId;
+                }
+
+                // Create new room
+                var chatRoom = new ChatRoom
+                {
+                    Id = roomId,
+                    RecruiterId = recruiterId,
+                    CandidateId = candidateId,
+                    JobId = jobId,
+                    Participants = new Dictionary<string, ParticipantInfo>
+                    {
+                        { recruiterId, new ParticipantInfo { Id = recruiterId, Role = "recruiter" } },
+                        { candidateId, new ParticipantInfo { Id = candidateId, Role = "candidate" } }
+                    },
+                    CreatedAt = DateTime.UtcNow,
+                    LastMessageAt = DateTime.UtcNow,
+                    RecruiterInfo = recruiterInfo,
+                    CandidateInfo = candidateInfo,
+                    JobInfo = jobInfo
+                };
+
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .PutAsync(chatRoom);
+
+                _logger.LogInformation($"Chat room created: {roomId}");
+                return roomId;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating/getting chat room");
+                throw;
+            }
+        }
+
+        public async Task<bool> UserHasAccessToChatRoomAsync(string roomId, string userId)
+        {
+            try
+            {
+                // Check if user is in participants list instead of loading full ChatRoom
+                var participants = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("participants")
+                    .OnceSingleAsync<Dictionary<string, ParticipantInfo>>();
+
+                if (participants == null) return false;
+
+                return participants.ContainsKey(userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error checking user access to chat room {roomId}");
+                return false;
+            }
+        }
+
+        public async Task<List<ChatMessage>> GetChatMessagesAsync(string roomId, int page = 1, int limit = 50)
+        {
+            try
+            {
+                var messages = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("messages")
+                    .OrderByKey()
+                    .LimitToLast(limit)
+                    .OnceAsync<ChatMessage>();
+
+                return messages
+                    .Select(x => { x.Object.Id = x.Key; return x.Object; })
+                    .OrderBy(x => x.Timestamp)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error getting messages for room {roomId}");
+                throw;
+            }
+        }
+
+        public async Task<string> SendTextMessageAsync(string roomId, string senderId, string? senderRole, string content)
+        {
+            try
+            {
+                var message = new ChatMessage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    SenderId = senderId,
+                    SenderRole = senderRole ?? "user",
+                    Content = content,
+                    MessageType = "text",
+                    Timestamp = DateTime.UtcNow,
+                    IsRead = false
+                };
+
+                var messageRef = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("messages")
+                    .PostAsync(message);
+
+                // Update last message info
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("lastMessage")
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(content));
+
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("lastMessageAt")
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(DateTime.UtcNow));
+
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("lastMessageSenderId")
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(senderId));
+
+                _logger.LogInformation($"Text message sent to room {roomId}: {messageRef.Key}");
+                return messageRef.Key;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error sending text message to room {roomId}");
+                throw;
+            }
+        }
+
+        public async Task<string> SendImageMessageAsync(string roomId, string senderId, string? senderRole, string imageUrl, string? caption = null)
+        {
+            try
+            {
+                var message = new ChatMessage
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    SenderId = senderId,
+                    SenderRole = senderRole ?? "user",
+                    Content = caption ?? "Image",
+                    MessageType = "image",
+                    Timestamp = DateTime.UtcNow,
+                    IsRead = false,
+                    FileUrl = imageUrl
+                };
+
+                var messageRef = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("messages")
+                    .PostAsync(message);
+
+                // Update last message info
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("lastMessage")
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize("📷 Image"));
+
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("lastMessageAt")
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(DateTime.UtcNow));
+
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("lastMessageSenderId")
+                    .PutAsync(SystemTextJson.JsonSerializer.Serialize(senderId));
+
+                _logger.LogInformation($"Image message sent to room {roomId}: {messageRef.Key}");
+                return messageRef.Key;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error sending image message to room {roomId}");
+                throw;
+            }
+        }
+
+        public async Task MarkMessagesAsReadAsync(string roomId, string userId)
+        {
+            try
+            {
+                var messages = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .Child("messages")
+                    .OnceAsync<ChatMessage>();
+
+                var unreadMessages = messages.Where(m => m.Object.SenderId != userId && !m.Object.IsRead);
+
+                foreach (var message in unreadMessages)
+                {
+                    await _firebaseClient
+                        .Child("chatRooms")
+                        .Child(roomId)
+                        .Child("messages")
+                        .Child(message.Key)
+                        .Child("isRead")
+                        .PutAsync(true);
+                }
+
+                _logger.LogInformation($"Messages marked as read for room {roomId} by user {userId}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error marking messages as read for room {roomId}");
+                throw;
+            }
+        }
+
+        public async Task DeleteChatRoomAsync(string roomId)
+        {
+            try
+            {
+                await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .DeleteAsync();
+
+                _logger.LogInformation($"Chat room deleted: {roomId}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error deleting chat room {roomId}");
+                throw;
+            }
+        }
+
+        public async Task<ChatRoom?> GetChatRoomInfoAsync(string roomId)
+        {
+            try
+            {
+                var chatRoom = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .OnceSingleAsync<ChatRoom>();
+
+                if (chatRoom != null)
+                {
+                    chatRoom.Id = roomId;
+                }
+
+                return chatRoom;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error getting chat room info for {roomId}");
+                throw;
+            }
+        }
     }
 
     public class ChatMessage
     {
         public string Id { get; set; } = string.Empty;
         public string SenderId { get; set; } = string.Empty;
+        public string SenderRole { get; set; } = string.Empty; // "candidate" or "recruiter"
         public string Content { get; set; } = string.Empty;
         public string MessageType { get; set; } = "text"; // text, image, file
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
@@ -214,14 +513,47 @@ namespace BEWorkNest.Services
         public string? FileName { get; set; }
     }
 
+    public class ParticipantInfo
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty; // "candidate" or "recruiter"
+    }
+
     public class ChatRoom
     {
         public string Id { get; set; } = string.Empty;
-        public List<string> Participants { get; set; } = new List<string>();
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime LastMessageAt { get; set; } = DateTime.UtcNow;
+        public string RecruiterId { get; set; } = string.Empty;
+        public string CandidateId { get; set; } = string.Empty;
+        public string? JobId { get; set; }
+        public Dictionary<string, ParticipantInfo> Participants { get; set; } = new Dictionary<string, ParticipantInfo>();
+        
+        [JsonProperty("createdAt")]
+        [JsonConverter(typeof(FlexibleTimestampConverter))]
+        public long CreatedAtTimestamp { get; set; }
+        
+        [JsonIgnore]
+        public DateTime CreatedAt 
+        { 
+            get => DateTimeOffset.FromUnixTimeMilliseconds(CreatedAtTimestamp).DateTime;
+            set => CreatedAtTimestamp = ((DateTimeOffset)value).ToUnixTimeMilliseconds();
+        }
+        
+        [JsonProperty("lastMessageAt")]
+        [JsonConverter(typeof(FlexibleTimestampConverter))]
+        public long LastMessageAtTimestamp { get; set; }
+        
+        [JsonIgnore]
+        public DateTime LastMessageAt 
+        { 
+            get => DateTimeOffset.FromUnixTimeMilliseconds(LastMessageAtTimestamp).DateTime;
+            set => LastMessageAtTimestamp = ((DateTimeOffset)value).ToUnixTimeMilliseconds();
+        }
+        
         public string? LastMessage { get; set; }
         public string? LastMessageSenderId { get; set; }
+        public Dictionary<string, object>? RecruiterInfo { get; set; }
+        public Dictionary<string, object>? CandidateInfo { get; set; }
+        public Dictionary<string, object>? JobInfo { get; set; }
     }
 
     public class NotificationData
@@ -234,5 +566,38 @@ namespace BEWorkNest.Services
         public DateTime Timestamp { get; set; } = DateTime.UtcNow;
         public bool IsRead { get; set; } = false;
         public string? ImageUrl { get; set; }
+    }
+}
+
+// Custom converter để handle cả Unix timestamp và DateTime string
+public class FlexibleTimestampConverter : JsonConverter<long>
+{
+    public override long ReadJson(JsonReader reader, Type objectType, long existingValue, bool hasExistingValue, JsonSerializer serializer)
+    {
+        if (reader.Value == null)
+            return 0;
+
+        // Nếu là số (Unix timestamp)
+        if (reader.Value is long longValue)
+            return longValue;
+
+        // Nếu là DateTime string
+        if (reader.Value is string stringValue && DateTime.TryParse(stringValue, out DateTime dateTime))
+        {
+            return ((DateTimeOffset)dateTime.ToUniversalTime()).ToUnixTimeMilliseconds();
+        }
+
+        // Nếu là DateTime object
+        if (reader.Value is DateTime dateTimeValue)
+        {
+            return ((DateTimeOffset)dateTimeValue.ToUniversalTime()).ToUnixTimeMilliseconds();
+        }
+
+        return 0;
+    }
+
+    public override void WriteJson(JsonWriter writer, long value, JsonSerializer serializer)
+    {
+        writer.WriteValue(value);
     }
 }
