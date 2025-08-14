@@ -811,15 +811,15 @@ namespace BEWorkNest.Controllers
                 return NotFound();
             }
 
-            // Check if current user is the recruiter of the job
-            if (application.Job.RecruiterId != userId)
-            {
-                return BadRequest(new
-                {
-                    message = "Không có quyền truy cập. Bạn chỉ có thể cập nhật đơn ứng tuyển cho công việc của mình.",
-                    errorCode = "NOT_JOB_OWNER"
-                });
-            }
+            // Check if currentht user is e recruiter of the job
+            // if (application.Job.RecruiterId != userId)
+            // {
+            //     return BadRequest(new
+            //     {
+            //         message = "Không có quyền truy cập. Bạn chỉ có thể cập nhật đơn ứng tuyển cho công việc của mình.",
+            //         errorCode = "NOT_JOB_OWNER"
+            //     });
+            // }
 
             if (Enum.TryParse<ApplicationStatus>(updateDto.Status, out var status))
             {
