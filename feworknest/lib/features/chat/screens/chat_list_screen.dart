@@ -158,7 +158,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final String lastMessageTime = chatRoom['lastMessageTime'] ?? '';
 
     // Xác định thông tin người chat (dựa vào role của user hiện tại)
-    // TODO: Lấy từ user provider thực tế
+    // TODO: Lấy từ user provider thực tê
     final bool isRecruiter = recruiterInfo.isNotEmpty && candidateInfo.isNotEmpty 
         ? true  // Mặc định là recruiter, có thể thay đổi dựa trên context
         : recruiterInfo.isNotEmpty;
@@ -181,6 +181,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 otherUserName: otherUserName,
                 otherUserAvatar: otherUserAvatar,
                 jobInfo: jobInfo,
+                recruiterInfo: recruiterInfo,
+                candidateInfo: candidateInfo,
               ),
             ),
           );
@@ -193,20 +195,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               // Avatar
               Stack(
                 children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundImage: otherUserAvatar.isNotEmpty
-                        ? NetworkImage(otherUserAvatar)
-                        : null,
-                    backgroundColor: Colors.blue.shade100,
-                    child: otherUserAvatar.isEmpty
-                        ? Icon(
-                            Icons.person,
-                            size: 30,
-                            color: Colors.blue.shade600,
-                          )
-                        : null,
-                  ),
+                  _buildAvatar(otherUserAvatar, otherUserName, radius: 28),
                   // Online status indicator
                   Positioned(
                     bottom: 2,
@@ -364,6 +353,31 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildAvatar(String avatarUrl, String name, {double radius = 28}) {
+    if (avatarUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(avatarUrl),
+        backgroundColor: Colors.grey.shade300,
+      );
+    } else {
+      // Use first letter of name as avatar
+      String initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.blue.shade100,
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: Colors.blue.shade700,
+            fontWeight: FontWeight.w600,
+            fontSize: radius * 0.6, // Scale font size with radius
+          ),
+        ),
+      );
+    }
   }
 
   String _getLastMessageText(dynamic lastMessageData) {

@@ -46,12 +46,12 @@ class FollowNotifier extends StateNotifier<FollowState> {
       await _followService.unfollowCompany(companyId);
 
       // Remove from local state immediately
-      final updatedFollowing = state.following
-          .where((follow) => follow.recruiter?.company?.id != companyId)
+      final updatedFollowingCompanies = state.followingCompanies
+          .where((company) => company.id != companyId)
           .toList();
 
       state = state.copyWith(
-        following: updatedFollowing,
+        followingCompanies: updatedFollowingCompanies,
         isLoading: false,
       );
       return true;
@@ -80,8 +80,11 @@ class FollowNotifier extends StateNotifier<FollowState> {
         pageSize: pageSize,
       );
 
-      // Use 'companies' key from service
-      final newCompanies = result['companies'] as List<CompanyModel>? ?? <CompanyModel>[];
+      // API trả về 'data' chứa list companies
+      final companiesData = result['data'] as List? ?? [];
+      final newCompanies = companiesData
+          .map((json) => CompanyModel.fromJson(json as Map<String, dynamic>))
+          .toList();
       final totalCount = result['totalCount'] as int? ?? 0;
       final totalPages = result['totalPages'] as int? ?? 1;
 
@@ -174,8 +177,8 @@ class FollowNotifier extends StateNotifier<FollowState> {
   }
 
   bool isFollowing(int companyId) {
-    return state.following
-        .any((follow) => follow.recruiter?.company?.id == companyId);
+    return state.followingCompanies
+        .any((company) => company.id == companyId);
   }
 }
 

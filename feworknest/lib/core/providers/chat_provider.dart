@@ -1,36 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-i  /// Load danh sách phòng chat
-  Future<void> loadChatRooms() async {
-    try {
-      state = state.copyWith(isLoading: true, error: null);
-      
-      final rooms = await _chatService.getUserChatRooms();
-      final unreadCount = await _chatService.getUnreadMessagesCount();
-      
-      state = state.copyWith(
-        chatRooms: rooms,
-        unreadCount: unreadCount,
-        isLoading: false,
-      );
-    } catch (e) {
-      final errorMsg = e.toString();
-      _handleAuthError(errorMsg);
-      state = state.copyWith(
-        isLoading: false,
-        error: errorMsg,
-      );
-    }
-  }
 
-  /// Cập nhật số lượng tin nhắn chưa đọc
-  Future<void> updateUnreadCount() async {
-    try {
-      final unreadCount = await _chatService.getUnreadMessagesCount();
-      state = state.copyWith(unreadCount: unreadCount);
-    } catch (e) {
-      print('Error updating unread count: $e');
-    }
-  }e_picker/image_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../services/chat_service.dart';
 import 'auth_provider.dart';
@@ -246,6 +216,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final errorMsg = e.toString();
       _handleAuthError(errorMsg);
       state = state.copyWith(error: errorMsg);
+    }
+  }
+
+  /// Cập nhật số lượng tin nhắn chưa đọc
+  Future<void> updateUnreadCount() async {
+    try {
+      final unreadCount = await _chatService.getUnreadMessagesCount();
+      state = state.copyWith(unreadCount: unreadCount);
+    } catch (e) {
+      print('Error updating unread count: $e');
     }
   }
 

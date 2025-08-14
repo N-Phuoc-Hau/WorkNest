@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/models/application_model.dart';
 import '../../../core/providers/application_provider.dart';
@@ -275,10 +276,13 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
-                      // TODO: Navigate to job detail
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Xem chi tiết: ${application.job?.title ?? "công việc"}')),
-                      );
+                      if (application.job?.id != null) {
+                        context.push('/job-detail/${application.job!.id}');
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Không tìm thấy thông tin công việc')),
+                        );
+                      }
                     },
                     child: const Text('Xem chi tiết'),
                   ),
@@ -311,8 +315,6 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
         return Colors.green;
       case ApplicationStatus.rejected:
         return Colors.red;
-      default:
-        return Colors.grey;
     }
   }
 
@@ -324,8 +326,6 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
         return 'Đã chấp nhận';
       case ApplicationStatus.rejected:
         return 'Từ chối';
-      default:
-        return 'Unknown';
     }
   }
 

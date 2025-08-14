@@ -24,7 +24,7 @@ class JobCard extends ConsumerWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: InkWell(
-        onTap: onTap ?? () => context.go('/jobs/${job.id}'),
+        onTap: onTap ?? () => context.push('/job-detail/${job.id}'),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),

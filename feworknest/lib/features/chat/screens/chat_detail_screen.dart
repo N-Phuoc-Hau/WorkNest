@@ -10,6 +10,8 @@ class ChatDetailScreen extends ConsumerStatefulWidget {
   final String otherUserName;
   final String otherUserAvatar;
   final Map<String, dynamic> jobInfo;
+  final Map<String, dynamic> recruiterInfo;
+  final Map<String, dynamic> candidateInfo;
 
   const ChatDetailScreen({
     super.key,
@@ -17,6 +19,8 @@ class ChatDetailScreen extends ConsumerStatefulWidget {
     required this.otherUserName,
     required this.otherUserAvatar,
     this.jobInfo = const {},
+    this.recruiterInfo = const {},
+    this.candidateInfo = const {},
   });
 
   @override
@@ -66,16 +70,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       elevation: 0,
       title: Row(
         children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundImage: widget.otherUserAvatar.isNotEmpty
-                ? NetworkImage(widget.otherUserAvatar)
-                : null,
-            backgroundColor: Colors.blue.shade100,
-            child: widget.otherUserAvatar.isEmpty
-                ? Icon(Icons.person, size: 20, color: Colors.blue.shade600)
-                : null,
-          ),
+          _buildAvatar(widget.otherUserAvatar, widget.otherUserName, radius: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -283,13 +278,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
         return ListView.builder(
           controller: _scrollController,
-          reverse: false, // Đổi thành false để không bị xổ ngược
+          reverse: false, // Tin nhắn hiển thị từ trên xuống dưới tự nhiên
           padding: const EdgeInsets.all(16),
           itemCount: messages.length,
           itemBuilder: (context, index) {
-            // Đảo ngược index để tin nhắn mới nhất ở dưới cùng
-            final reversedIndex = messages.length - 1 - index;
-            final message = messages[reversedIndex];
+            // Hiển thị tin nhắn theo thứ tự tự nhiên
+            final message = messages[index];
             return _buildMessageBubble(message);
           },
         );
@@ -309,6 +303,25 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     final String? currentUserId = authState.user?.id;
     final bool isMyMessage = currentUserId != null && senderId == currentUserId;
     
+    // Get sender avatar and name based on senderId
+    String senderAvatar = '';
+    String senderName = '';
+    
+    if (!isMyMessage) {
+      // Determine if sender is recruiter or candidate
+      if (widget.recruiterInfo.isNotEmpty && widget.recruiterInfo['id'] == senderId) {
+        senderAvatar = widget.recruiterInfo['avatar'] ?? '';
+        senderName = widget.recruiterInfo['name'] ?? 'Recruiter';
+      } else if (widget.candidateInfo.isNotEmpty && widget.candidateInfo['id'] == senderId) {
+        senderAvatar = widget.candidateInfo['avatar'] ?? '';
+        senderName = widget.candidateInfo['name'] ?? 'Candidate';
+      } else {
+        // Fallback to otherUserAvatar
+        senderAvatar = widget.otherUserAvatar;
+        senderName = widget.otherUserName;
+      }
+    }
+    
     return Align(
       alignment: isMyMessage ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -321,16 +334,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           children: [
             // Avatar for other user's messages (left side)
             if (!isMyMessage) ...[
-              CircleAvatar(
-                radius: 16,
-                backgroundImage: widget.otherUserAvatar.isNotEmpty
-                    ? NetworkImage(widget.otherUserAvatar)
-                    : null,
-                backgroundColor: Colors.grey.shade300,
-                child: widget.otherUserAvatar.isEmpty
-                    ? Icon(Icons.person, size: 16, color: Colors.grey.shade600)
-                    : null,
-              ),
+              _buildAvatar(senderAvatar, senderName),
               const SizedBox(width: 8),
             ],
             
@@ -389,6 +393,31 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildAvatar(String avatarUrl, String name, {double radius = 16}) {
+    if (avatarUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(avatarUrl),
+        backgroundColor: Colors.grey.shade300,
+      );
+    } else {
+      // Use first letter of name as avatar
+      String initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.blue.shade100,
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: Colors.blue.shade700,
+            fontWeight: FontWeight.w600,
+            fontSize: radius * 0.875, // Scale font size with radius
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildMessageContent(String type, String content, String? fileUrl, bool isMyMessage) {

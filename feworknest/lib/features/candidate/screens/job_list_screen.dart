@@ -6,7 +6,7 @@ import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/favorite_provider.dart';
 import '../../../core/providers/job_provider.dart';
 import '../../../shared/widgets/app_text_field.dart';
-import '../widgets/job_card.dart';
+import '../../../shared/widgets/job_card.dart';
 import '../widgets/job_filter_bottom_sheet.dart';
 
 class JobListScreen extends ConsumerStatefulWidget {
@@ -265,35 +265,8 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
             job: job,
             onTap: () {
               // Navigate to job details
-              context.push('/job-details/${job.id}');
+              context.push('/job-detail/${job.id}');
             },
-            onFavorite: () async {
-              final favoriteNotifier = ref.read(favoriteProvider.notifier);
-              final isFavorited = favoriteNotifier.isFavorited(job.id);
-              
-              if (isFavorited) {
-                final success = await favoriteNotifier.removeFromFavorite(job.id);
-                if (success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đã xóa khỏi danh sách yêu thích'),
-                      backgroundColor: Colors.orange,
-                    ),
-                  );
-                }
-              } else {
-                final success = await favoriteNotifier.addToFavorite(job.id);
-                if (success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Đã thêm vào danh sách yêu thích'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              }
-            },
-            isFavorited: ref.watch(favoriteProvider.notifier).isFavorited(job.id),
           ),
         );
       },

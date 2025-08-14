@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/follow_provider.dart';
 import '../../../core/utils/auth_guard.dart';
-import '../widgets/company_follow_card.dart';
 
 class FollowingCompaniesScreen extends ConsumerStatefulWidget {
   const FollowingCompaniesScreen({super.key});
@@ -128,11 +127,11 @@ class _FollowingCompaniesScreenState extends ConsumerState<FollowingCompaniesScr
   }
 
   Widget _buildFollowingList(FollowState followState) {
-    if (followState.isLoading && followState.following.isEmpty) {
+    if (followState.isLoading && followState.followingCompanies.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (followState.error != null && followState.following.isEmpty) {
+    if (followState.error != null && followState.followingCompanies.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -158,7 +157,7 @@ class _FollowingCompaniesScreenState extends ConsumerState<FollowingCompaniesScr
       );
     }
 
-    if (followState.following.isEmpty) {
+    if (followState.followingCompanies.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -220,9 +219,9 @@ class _FollowingCompaniesScreenState extends ConsumerState<FollowingCompaniesScr
           child: ListView.builder(
             controller: _scrollController,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: followState.following.length + (_isLoadingMore ? 1 : 0),
+            itemCount: followState.followingCompanies.length + (_isLoadingMore ? 1 : 0),
             itemBuilder: (context, index) {
-              if (index == followState.following.length) {
+              if (index == followState.followingCompanies.length) {
                 // Loading indicator at the bottom
                 return const Center(
                   child: Padding(
@@ -232,33 +231,115 @@ class _FollowingCompaniesScreenState extends ConsumerState<FollowingCompaniesScr
                 );
               }
 
-              final follow = followState.following[index];
+              final company = followState.followingCompanies[index];
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: CompanyFollowCard(
-                  follow: follow,
-                  onTap: () {
-                    // Navigate to company details if available
-                    if (follow.recruiter?.company?.id != null) {
-                      context.push('/company-details/${follow.recruiter!.company!.id}');
-                    }
-                  },
-                  onUnfollow: () async {
-                    if (follow.recruiter?.company?.id != null) {
-                      final success = await ref
-                          .read(followProvider.notifier)
-                          .unfollowCompany(follow.recruiter!.company!.id);
-                      
-                      if (success && mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Đã bỏ theo dõi ${follow.recruiter!.company!.name}'),
-                            backgroundColor: Colors.green,
+                child: Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      context.push('/company-details/${company.id}');
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          // Company logo
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: company.images.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.network(
+                                      company.images.first,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) {
+                                        return Icon(
+                                          Icons.business,
+                                          color: Theme.of(context).primaryColor,
+                                          size: 28,
+                                        );
+                                      },
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.business,
+                                    color: Theme.of(context).primaryColor,
+                                    size: 28,
+                                  ),
                           ),
-                        );
-                      }
-                    }
-                  },
+                          const SizedBox(width: 16),
+                          
+                          // Company info
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  company.name,
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  company.location,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                if (company.description.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    company.description,
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey[500],
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          
+                          // Unfollow button
+                          IconButton(
+                            onPressed: () async {
+                              final success = await ref
+                                  .read(followProvider.notifier)
+                                  .unfollowCompany(company.id);
+                              
+                              if (success && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Đã bỏ theo dõi ${company.name}'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.person_remove),
+                            color: Colors.grey[600],
+                            tooltip: 'Bỏ theo dõi',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               );
             },

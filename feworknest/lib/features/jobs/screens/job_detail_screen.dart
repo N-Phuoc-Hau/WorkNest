@@ -84,29 +84,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chi tiết công việc'),
-        actions: [
-          Consumer(
-            builder: (context, ref, child) {
-              final isFavorited = ref.watch(favoriteProvider).favoriteJobs
-                  .any((favorite) => favorite.jobId == job.id);
-              
-              return IconButton(
-                onPressed: () {
-                  if (!AuthGuard.requireAuth(context, ref, 
-                      message: 'Bạn cần đăng nhập để lưu việc làm yêu thích.')) {
-                    return;
-                  }
-                  _toggleFavorite(ref, job.id);
-                },
-                icon: Icon(
-                  isFavorited ? Icons.favorite : Icons.favorite_border,
-                  color: isFavorited ? Colors.red : null,
-                ),
-              );
-            },
-          ),
-        ],
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
       ),
+      backgroundColor: Colors.grey.shade50,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -114,8 +96,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           children: [
             // Company Info
             Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
                     Row(
@@ -170,15 +156,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                         ),
                       ],
                     ),
-                    
-                    // Follow button for candidates
+                    // Action buttons for candidates
                     const SizedBox(height: 16),
                     Consumer(
                       builder: (context, ref, child) {
                         final authState = ref.watch(authProvider);
                         final user = authState.user;
                         
-                        // Only show follow button for candidates or unauthenticated users
+                        // Only show buttons for candidates or unauthenticated users
                         if (authState.isAuthenticated && user?.role != 'candidate') {
                           return const SizedBox.shrink();
                         }
@@ -188,37 +173,71 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                         }
                         
                         final followState = ref.watch(followProvider);
-                        final isFollowing = followState.following.any(
-                          (follow) => follow.recruiter?.company?.id == job.recruiter.company!.id
+                        final isFollowing = followState.followingCompanies.any(
+                          (company) => company.id == job.recruiter.company!.id
                         );
+
+                        final favoriteState = ref.watch(favoriteProvider);
+                        final isFavorited = favoriteState.favoriteJobs
+                            .any((favorite) => favorite.jobId == job.id);
                         
-                        return SizedBox(
-                          width: double.infinity,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              if (!AuthGuard.requireAuth(context, ref, 
-                                  message: 'Bạn cần đăng nhập để theo dõi công ty.')) {
-                                return;
-                              }
-                              _toggleFollowCompany(ref, job.recruiter.company!.id);
-                            },
-                            icon: Icon(
-                              isFollowing ? Icons.person_remove : Icons.person_add,
-                            ),
-                            label: Text(
-                              isFollowing ? 'Bỏ theo dõi' : 'Theo dõi công ty',
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: isFollowing 
-                                ? Colors.grey[600] 
-                                : Theme.of(context).primaryColor,
-                              side: BorderSide(
-                                color: isFollowing 
-                                  ? Colors.grey[400]! 
-                                  : Theme.of(context).primaryColor,
+                        return Row(
+                          children: [
+                            // Follow button
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  if (!AuthGuard.requireAuth(context, ref, 
+                                      message: 'Bạn cần đăng nhập để theo dõi công ty.')) {
+                                    return;
+                                  }
+                                  _toggleFollowCompany(ref, job.recruiter.company!.id);
+                                },
+                                icon: Icon(
+                                  isFollowing ? Icons.person_remove : Icons.person_add,
+                                ),
+                                label: Text(
+                                  isFollowing ? 'Bỏ theo dõi' : 'Theo dõi',
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: isFollowing 
+                                    ? Colors.grey[600] 
+                                    : Theme.of(context).primaryColor,
+                                  side: BorderSide(
+                                    color: isFollowing 
+                                      ? Colors.grey[400]! 
+                                      : Theme.of(context).primaryColor,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 12),
+                            
+                            // Favorite button
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  if (!AuthGuard.requireAuth(context, ref, 
+                                      message: 'Bạn cần đăng nhập để lưu việc làm yêu thích.')) {
+                                    return;
+                                  }
+                                  _toggleFavorite(ref, job.id);
+                                },
+                                icon: Icon(
+                                  isFavorited ? Icons.favorite : Icons.favorite_border,
+                                  color: Colors.white,
+                                ),
+                                label: Text(
+                                  isFavorited ? 'Đã lưu' : 'Lưu việc',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isFavorited ? Colors.red : Colors.blue,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
                         );
                       },
                     ),
@@ -226,54 +245,85 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Job Title
-            Text(
-              job.title,
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
+            // Job Title Section
+            Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-            ),
-            const SizedBox(height: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.title,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-            // Job Tags
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                _buildChip(context, job.specialized, Icons.work),
-                if (job.jobType != null)
-                  _buildChip(context, job.jobType!, Icons.schedule),
-                _buildChip(
-                  context,
-                  '${job.salary.toStringAsFixed(0)} VNĐ',
-                  Icons.attach_money,
-                  color: Colors.green,
+                    // Job Tags
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildChip(context, job.specialized, Icons.work),
+                        if (job.jobType != null)
+                          _buildChip(context, job.jobType!, Icons.schedule),
+                        _buildChip(
+                          context,
+                          '${job.salary.toStringAsFixed(0)} VNĐ',
+                          Icons.attach_money,
+                          color: Colors.green,
+                        ),
+                        _buildChip(context, job.location, Icons.location_on, color: Colors.orange),
+                        _buildChip(context, job.workingHours, Icons.access_time, color: Colors.blue),
+                      ],
+                    ),
+                  ],
                 ),
-                _buildChip(context, job.location, Icons.location_on),
-                _buildChip(context, job.workingHours, Icons.access_time),
-              ],
+              ),
             ),
             const SizedBox(height: 16),
 
             // Job Description
             Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Mô tả công việc',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.description,
+                          color: Theme.of(context).primaryColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Mô tả công việc',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Text(
                       job.description,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        height: 1.5,
+                        color: Colors.black87,
+                      ),
                     ),
                   ],
                 ),
@@ -284,21 +334,39 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             // Company Description
             if (job.recruiter.company?.description != null)
               Card(
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Về công ty',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.business,
+                            color: Theme.of(context).primaryColor,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Về công ty',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).primaryColor,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Text(
                         job.recruiter.company!.description!,
-                        style: Theme.of(context).textTheme.bodyMedium,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          height: 1.5,
+                          color: Colors.black87,
+                        ),
                       ),
                     ],
                   ),
@@ -363,44 +431,82 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
             // Job Stats
             Card(
+              elevation: 1,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Column(
-                      children: [
-                        Text(
-                          '${job.applicationCount}',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).primaryColor,
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.people,
+                              color: Colors.blue.shade600,
+                              size: 24,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Ứng tuyển',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            '${job.applicationCount}',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade600,
+                            ),
+                          ),
+                          Text(
+                            'Ứng tuyển',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     Container(
                       width: 1,
-                      height: 40,
-                      color: Colors.grey[300],
+                      height: 60,
+                      color: Colors.grey[200],
                     ),
-                    Column(
-                      children: [
-                        Text(
-                          _formatDate(job.createdAt),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              Icons.calendar_today,
+                              color: Colors.green.shade600,
+                              size: 24,
+                            ),
                           ),
-                        ),
-                        Text(
-                          'Ngày đăng',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Text(
+                            _formatDate(job.createdAt),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade600,
+                            ),
+                          ),
+                          Text(
+                            'Ngày đăng',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -437,26 +543,32 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   }
 
   Widget _buildChip(BuildContext context, String label, IconData icon, {Color? color}) {
+    final chipColor = color ?? Theme.of(context).primaryColor;
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: (color ?? Theme.of(context).primaryColor).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
+        color: chipColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+          color: chipColor.withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             icon,
-            size: 16,
-            color: color ?? Theme.of(context).primaryColor,
+            size: 18,
+            color: chipColor,
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 6),
           Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: color ?? Theme.of(context).primaryColor,
-              fontWeight: FontWeight.w500,
+              color: chipColor,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -483,8 +595,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   Future<void> _toggleFollowCompany(WidgetRef ref, int companyId) async {
     final followNotifier = ref.read(followProvider.notifier);
     final followState = ref.read(followProvider);
-    final isFollowing = followState.following.any(
-      (follow) => follow.recruiter?.company?.id == companyId
+    final isFollowing = followState.followingCompanies.any(
+      (company) => company.id == companyId
     );
 
     if (isFollowing) {
@@ -498,20 +610,16 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         );
       }
     } else {
-      // Create follow request - we need the company ID
-      final jobsState = ref.read(jobProvider);
-      final job = jobsState.selectedJob;
-      if (job?.recruiter.company?.id != null) {
-        final createFollow = CreateFollowModel(companyId: job!.recruiter.company!.id);
-        final success = await followNotifier.followCompany(createFollow);
-        if (success && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã theo dõi công ty'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
+      // Create follow request
+      final createFollow = CreateFollowModel(companyId: companyId);
+      final success = await followNotifier.followCompany(createFollow);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Đã theo dõi công ty'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     }
   }
