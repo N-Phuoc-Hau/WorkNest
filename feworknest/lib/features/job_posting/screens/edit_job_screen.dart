@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/job_posting_provider.dart';
-import '../../../core/providers/job_provider.dart';
 import '../widgets/job_form.dart';
 
 class EditJobScreen extends ConsumerStatefulWidget {
@@ -21,25 +20,56 @@ class EditJobScreen extends ConsumerStatefulWidget {
 }
 
 class _EditJobScreenState extends ConsumerState<EditJobScreen> {
+  bool _isUpdating = false; // Track when we're actually updating
+  
   @override
   void initState() {
     super.initState();
     // Load job details if needed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Load my jobs to get the job data
+      ref.read(jobPostingProvider.notifier).loadMyJobs();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final jobPostingState = ref.watch(jobPostingProvider);
     final jobPostingNotifier = ref.read(jobPostingProvider.notifier);
-    // Find the current job
-    final jobState = ref.watch(jobProvider);
-    final currentJob = jobState.jobs.firstWhere(
-      (job) => job.id == int.tryParse(widget.jobId),
-      orElse: () => throw Exception('Job not found'),
-    );
+    
+    // Find the current job from myJobs
+    final jobId = int.tryParse(widget.jobId);
+    final currentJob = jobPostingState.myJobs.where(
+      (job) => job.id == jobId,
+    ).firstOrNull;
+
+    // If job not found and not loading, show error
+    if (currentJob == null) {
+      if (jobPostingState.isLoading) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      } else {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Không tìm thấy tin tuyển dụng')),
+          body: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('Không tìm thấy tin tuyển dụng này'),
+              ],
+            ),
+          ),
+        );
+      }
+    }
 
     ref.listen(jobPostingProvider, (previous, next) {
-      if (previous?.isLoading == true && next.isLoading == false) {
+      // Only listen for update operations, not initial loading
+      if (_isUpdating && previous?.isLoading == true && next.isLoading == false) {
+        _isUpdating = false; // Reset flag
         if (next.error == null) {
           // Success
           ScaffoldMessenger.of(context).showSnackBar(
@@ -160,6 +190,7 @@ class _EditJobScreenState extends ConsumerState<EditJobScreen> {
                 // This won't be called for edit
               },
               onUpdateJob: (updateJobModel) {
+                _isUpdating = true; // Set flag before updating
                 final jobId = int.tryParse(widget.jobId) ?? 0;
                 jobPostingNotifier.updateJob(jobId, updateJobModel);
               },

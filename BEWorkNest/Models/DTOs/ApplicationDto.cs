@@ -17,6 +17,7 @@ namespace BEWorkNest.Models.DTOs
     public class UpdateApplicationDto
     {
         public string? CoverLetter { get; set; }
+        public string? CvUrl { get; set; }
         public IFormFile? CvFile { get; set; } // PDF file only (optional for update)
     }
 

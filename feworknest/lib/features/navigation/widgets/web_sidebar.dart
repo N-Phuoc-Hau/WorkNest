@@ -26,19 +26,22 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
   @override
   void initState() {
     super.initState();
-    _selectedRoute = GoRouter.of(context).routeInformationProvider.value.uri.path;
-    
+    _selectedRoute =
+        GoRouter.of(context).routeInformationProvider.value.uri.path;
+
     // Load unread counts khi khởi tạo
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authState = ref.read(authProvider);
       if (authState.isAuthenticated) {
         // Load chat data để có unread count
         ref.read(chatProvider.notifier).loadChatRooms();
-        
+
         // Load notification unread count nếu có userId
         if (authState.user?.id != null) {
           try {
-            ref.read(notificationProvider(authState.user!.id).notifier).refreshUnreadCount();
+            ref
+                .read(notificationProvider(authState.user!.id).notifier)
+                .refreshUnreadCount();
           } catch (e) {
             print('Error loading notification count in sidebar: $e');
           }
@@ -68,12 +71,12 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         children: [
           // Header
           _buildSidebarHeader(),
-          
+
           // Navigation Menu
           Expanded(
             child: _buildNavigationMenu(isAuthenticated, user),
           ),
-          
+
           // Footer
           _buildSidebarFooter(isAuthenticated, user),
         ],
@@ -94,24 +97,9 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           end: Alignment.bottomRight,
         ),
       ),
-      child: widget.isCollapsed 
-        ? Center(
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.work,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-          )
-        : Row(
-            children: [
-              Container(
+      child: widget.isCollapsed
+          ? Center(
+              child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.2),
@@ -123,20 +111,35 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                   size: 24,
                 ),
               ),
-              const SizedBox(width: 12),
-              const Flexible(
-                child: Text(
-                  'WorkNest',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+            )
+          : Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  overflow: TextOverflow.ellipsis,
+                  child: const Icon(
+                    Icons.work,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 12),
+                const Flexible(
+                  child: Text(
+                    'WorkNest',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -145,7 +148,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       builder: (context, ref, child) {
         final chatState = ref.watch(chatProvider);
         int notificationUnreadCount = 0;
-        
+
         // Chỉ load notification count nếu user đã đăng nhập và có userId
         if (isAuthenticated && user?.id != null) {
           try {
@@ -155,14 +158,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
             print('Error loading notification count: $e');
           }
         }
-        
+
         final menuItems = _getMenuItems(
-          isAuthenticated, 
-          user, 
+          isAuthenticated,
+          user,
           chatState.unreadCount,
           notificationUnreadCount,
         );
-        
+
         return ListView(
           padding: const EdgeInsets.symmetric(vertical: 16),
           children: menuItems.map((item) => _buildMenuItem(item)).toList(),
@@ -171,19 +174,20 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     );
   }
 
-  List<SidebarMenuItem> _getMenuItems(bool isAuthenticated, dynamic user, int chatUnreadCount, int notificationUnreadCount) {
+  List<SidebarMenuItem> _getMenuItems(bool isAuthenticated, dynamic user,
+      int chatUnreadCount, int notificationUnreadCount) {
     final List<SidebarMenuItem> items = [
       SidebarMenuItem(
         icon: Icons.home,
         title: 'Trang chủ',
-        route: isAuthenticated 
+        route: isAuthenticated
             ? (user?.isRecruiter == true ? '/recruiter/home' : '/home')
             : '/',
       ),
       SidebarMenuItem(
         icon: Icons.work,
         title: 'Việc làm',
-        route: isAuthenticated 
+        route: isAuthenticated
             ? (user?.isRecruiter == true ? '/recruiter/jobs' : '/jobs')
             : '/jobs',
       ),
@@ -256,7 +260,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         SidebarMenuItem(
           icon: Icons.chat,
           title: 'Tin nhắn',
-          route: isAuthenticated 
+          route: isAuthenticated
               ? (user?.isRecruiter == true ? '/recruiter/chat' : '/chat')
               : '/chat',
           badge: chatUnreadCount > 0 ? chatUnreadCount.toString() : null,
@@ -265,7 +269,9 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           icon: Icons.notifications,
           title: 'Thông báo',
           route: '/notifications',
-          badge: notificationUnreadCount > 0 ? notificationUnreadCount.toString() : null,
+          badge: notificationUnreadCount > 0
+              ? notificationUnreadCount.toString()
+              : null,
         ),
       ]);
     }
@@ -275,12 +281,10 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
 
   Widget _buildMenuItem(SidebarMenuItem item) {
     final isSelected = _selectedRoute == item.route;
-    
+
     return Container(
       margin: EdgeInsets.symmetric(
-        horizontal: widget.isCollapsed ? 8 : 12, 
-        vertical: 2
-      ),
+          horizontal: widget.isCollapsed ? 8 : 12, vertical: 2),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -293,23 +297,22 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           },
           child: Container(
             padding: EdgeInsets.symmetric(
-              horizontal: widget.isCollapsed ? 8 : 16, 
-              vertical: 12
-            ),
+                horizontal: widget.isCollapsed ? 8 : 16, vertical: 12),
             decoration: BoxDecoration(
-              color: isSelected 
+              color: isSelected
                   ? Theme.of(context).primaryColor.withOpacity(0.1)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
-              border: isSelected 
-                  ? Border.all(color: Theme.of(context).primaryColor.withOpacity(0.3))
+              border: isSelected
+                  ? Border.all(
+                      color: Theme.of(context).primaryColor.withOpacity(0.3))
                   : null,
             ),
             child: widget.isCollapsed
                 ? Center(
                     child: Icon(
                       item.icon,
-                      color: isSelected 
+                      color: isSelected
                           ? Theme.of(context).primaryColor
                           : Colors.grey[600],
                       size: 20,
@@ -319,7 +322,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                     children: [
                       Icon(
                         item.icon,
-                        color: isSelected 
+                        color: isSelected
                             ? Theme.of(context).primaryColor
                             : Colors.grey[600],
                         size: 20,
@@ -329,17 +332,20 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                         child: Text(
                           item.title,
                           style: TextStyle(
-                            color: isSelected 
+                            color: isSelected
                                 ? Theme.of(context).primaryColor
                                 : Colors.grey[700],
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                             fontSize: 14,
                           ),
                         ),
                       ),
                       if (item.badge != null) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 2),
                           decoration: BoxDecoration(
                             color: Colors.red,
                             borderRadius: BorderRadius.circular(10),
@@ -383,7 +389,8 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
               const SizedBox(height: 4),
               IconButton(
                 onPressed: () => context.go('/register'),
-                icon: const Icon(Icons.person_add, color: Colors.green, size: 20),
+                icon:
+                    const Icon(Icons.person_add, color: Colors.green, size: 20),
                 tooltip: 'Đăng ký',
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(
@@ -395,7 +402,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           ),
         );
       }
-      
+
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -452,16 +459,24 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Theme.of(context).primaryColor,
-                  child: Text(
-                    user?.firstName?.substring(0, 1).toUpperCase() ?? 'U',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
+                  radius: 12,
+                  backgroundColor: user?.avatar == null
+                      ? Theme.of(context).primaryColor
+                      : null,
+                  backgroundImage:
+                      user?.avatar != null ? NetworkImage(user!.avatar!) : null,
+                  child: user?.avatar == null
+                      ? Text(
+                          (user?.firstName?.isNotEmpty == true)
+                              ? user!.firstName.substring(0, 1).toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(height: 8),
                 PopupMenuButton<String>(
@@ -503,15 +518,24 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           : Row(
               children: [
                 CircleAvatar(
-                  radius: 20,
-                  backgroundColor: Theme.of(context).primaryColor,
-                  child: Text(
-                    user?.firstName?.substring(0, 1).toUpperCase() ?? 'U',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  radius: 12,
+                  backgroundColor: user?.avatar == null
+                      ? Theme.of(context).primaryColor
+                      : null,
+                  backgroundImage:
+                      user?.avatar != null ? NetworkImage(user!.avatar!) : null,
+                  child: user?.avatar == null
+                      ? Text(
+                          (user?.firstName?.isNotEmpty == true)
+                              ? user!.firstName.substring(0, 1).toUpperCase()
+                              : 'U',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
                 ),
                 const SizedBox(width: 12),
                 Expanded(

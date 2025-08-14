@@ -175,37 +175,42 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
   Widget _buildApplicationCard(ApplicationModel application) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        application.job?.title ?? 'Không có tiêu đề',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+      child: InkWell(
+        onTap: () {
+          context.push('/application/${application.id}');
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          application.job?.title ?? 'Không có tiêu đề',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        application.job?.recruiter.company?.name ?? 'Không có tên công ty',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 14,
+                        const SizedBox(height: 4),
+                        Text(
+                          application.job?.recruiter.company?.name ?? 'Không có tên công ty',
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: 14,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _getStatusColor(application.status),
                     borderRadius: BorderRadius.circular(12),
@@ -302,6 +307,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 

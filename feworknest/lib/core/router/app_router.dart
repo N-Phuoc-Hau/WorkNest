@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/admin/screens/admin_companies_screen.dart';
 import '../../features/admin/screens/admin_jobs_screen.dart';
 import '../../features/admin/screens/admin_users_screen.dart';
+import '../../features/applications/screens/application_detail_screen.dart';
 import '../../features/applications/screens/my_applications_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
@@ -15,6 +16,7 @@ import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/dashboard/screens/admin_dashboard_screen.dart';
 import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/job_posting/screens/create_job_screen.dart';
+import '../../features/job_posting/screens/edit_job_screen.dart';
 import '../../features/job_posting/screens/manage_jobs_screen.dart';
 import '../../features/jobs/screens/job_detail_screen.dart';
 import '../../features/jobs/screens/job_list_screen.dart';
@@ -102,13 +104,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // PRIORITY 3: If not logged in and trying to access protected routes, redirect to /login
-      if (!isLoggedIn && (protectedRoutes.contains(location) || location.startsWith('/recruiter'))) {
+      if (!isLoggedIn && (protectedRoutes.contains(location) || 
+          location.startsWith('/recruiter') || 
+          location.startsWith('/edit-job'))) {
         print('DEBUG Router: Not logged in, redirecting to /login');
         return '/login';
       }
 
       // PRIORITY 4: Protect recruiter routes - only allow recruiters
-      if (location.startsWith('/recruiter') && (!isLoggedIn || user?.isRecruiter != true)) {
+      if ((location.startsWith('/recruiter') || location.startsWith('/edit-job')) && 
+          (!isLoggedIn || user?.isRecruiter != true)) {
         print('DEBUG Router: Recruiter route protection, redirecting to /login');
         return '/login';
       }
@@ -190,6 +195,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           const MyApplicationsScreen(),
           'candidate',
         ),
+      ),
+      GoRoute(
+        path: '/application/:id',
+        builder: (context, state) {
+          final applicationId = state.pathParameters['id']!;
+          return _buildWithLayout(
+            context, 
+            ApplicationDetailScreen(applicationId: applicationId),
+            'candidate',
+          );
+        },
       ),
       GoRoute(
         path: '/profile',
@@ -296,6 +312,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           const ManageJobsScreen(),
           'recruiter',
         ),
+      ),
+      GoRoute(
+        path: '/edit-job/:id',
+        builder: (context, state) {
+          final jobId = state.pathParameters['id']!;
+          return _buildWithLayout(
+            context,
+            EditJobScreen(jobId: jobId),
+            'recruiter',
+          );
+        },
       ),
       GoRoute(
         path: '/recruiter/applicants',

@@ -811,15 +811,15 @@ namespace BEWorkNest.Controllers
                 return NotFound();
             }
 
-            // Check if currentht user is e recruiter of the job
-            // if (application.Job.RecruiterId != userId)
-            // {
-            //     return BadRequest(new
-            //     {
-            //         message = "Không có quyền truy cập. Bạn chỉ có thể cập nhật đơn ứng tuyển cho công việc của mình.",
-            //         errorCode = "NOT_JOB_OWNER"
-            //     });
-            // }
+            // Check if current user is the recruiter of the job
+            if (application.Job.RecruiterId != userId)
+            {
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Bạn chỉ có thể cập nhật đơn ứng tuyển cho công việc của mình.",
+                    errorCode = "NOT_JOB_OWNER"
+                });
+            }
 
             if (Enum.TryParse<ApplicationStatus>(updateDto.Status, out var status))
             {
@@ -1006,32 +1006,17 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpPut("{id}")]
-        [AllowAnonymous]
-        public async Task<IActionResult> UpdateApplication(int id, [FromForm] UpdateApplicationDto updateDto)
+        public async Task<IActionResult> UpdateApplication(int id, [FromBody] UpdateApplicationDto updateDto)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            // FOR TESTING: If no token, try to find any candidate user
-            if (userId == null)
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for UpdateApplication, looking for any candidate user...");
-                var candidateUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "candidate");
-                if (candidateUser != null)
+                return Unauthorized(new
                 {
-                    userId = candidateUser.Id;
-                    userRole = "candidate";
-                    Console.WriteLine($"DEBUG: Using test candidate user for UpdateApplication: {userId}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No candidate user found in database for UpdateApplication");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "USER_ID_NOT_FOUND"
+                });
             }
 
             // Check if user has candidate role
@@ -1046,45 +1031,21 @@ namespace BEWorkNest.Controllers
             }
 
             var application = await _context.Applications
+                .Include(a => a.Job)
+                .ThenInclude(j => j.Recruiter)
+                .ThenInclude(r => r.Company)
+                .Include(a => a.Applicant)
                 .FirstOrDefaultAsync(a => a.Id == id && a.ApplicantId == userId && a.IsActive);
 
             if (application == null)
             {
-                return NotFound();
+                return NotFound(new { message = "Không tìm thấy đơn ứng tuyển" });
             }
 
             // Only allow update if status is Pending
             if (application.Status != ApplicationStatus.Pending)
             {
-                return BadRequest("Can only update pending applications");
-            }
-
-            // Update CV if provided
-            if (updateDto.CvFile != null)
-            {
-                try
-                {
-                    // Delete old CV if exists
-                    if (!string.IsNullOrEmpty(application.CvUrl))
-                    {
-                        var oldPublicId = _cloudinaryService.GetPublicIdFromUrl(application.CvUrl);
-                        await _cloudinaryService.DeleteFileAsync(oldPublicId);
-                    }
-
-                    // Upload new CV
-                    if (_cloudinaryService.IsPdfFile(updateDto.CvFile))
-                    {
-                        application.CvUrl = await _cloudinaryService.UploadPdfAsync(updateDto.CvFile, "cvs");
-                    }
-                    else
-                    {
-                        return BadRequest("CV file must be in PDF format");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    return BadRequest(new { message = "Failed to upload CV", error = ex.Message });
-                }
+                return BadRequest(new { message = "Chỉ có thể cập nhật đơn ứng tuyển đang chờ xem xét" });
             }
 
             // Update cover letter if provided
@@ -1093,10 +1054,68 @@ namespace BEWorkNest.Controllers
                 application.CoverLetter = updateDto.CoverLetter;
             }
 
+            // Update CV URL if provided
+            if (!string.IsNullOrEmpty(updateDto.CvUrl))
+            {
+                application.CvUrl = updateDto.CvUrl;
+            }
+
             application.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Application updated successfully" });
+            // Return updated application using same mapping as GetApplication
+            var applicationDto = new ApplicationDto
+            {
+                Id = application.Id,
+                ApplicantId = application.ApplicantId,
+                JobId = application.JobId,
+                CvUrl = application.CvUrl,
+                CoverLetter = application.CoverLetter ?? string.Empty,
+                Status = application.Status.ToString().ToLower(),
+                CreatedAt = application.CreatedAt,
+                IsActive = application.IsActive,
+                RejectionReason = application.RejectionReason,
+                AppliedAt = application.AppliedAt,
+                Job = application.Job != null ? new JobPostDto
+                {
+                    Id = application.Job.Id,
+                    Title = application.Job.Title,
+                    Description = application.Job.Description,
+                    Location = application.Job.Location,
+                    Salary = application.Job.Salary,
+                    JobType = application.Job.JobType,
+                    ExperienceLevel = application.Job.ExperienceLevel,
+                    CreatedAt = application.Job.CreatedAt,
+                    DeadLine = application.Job.DeadLine,
+                    Recruiter = application.Job.Recruiter != null ? new UserDto
+                    {
+                        Id = application.Job.Recruiter.Id,
+                        FirstName = application.Job.Recruiter.FirstName,
+                        LastName = application.Job.Recruiter.LastName,
+                        Email = application.Job.Recruiter.Email ?? string.Empty,
+                        Role = application.Job.Recruiter.Role,
+                        Avatar = application.Job.Recruiter.Avatar,
+                        Company = application.Job.Recruiter.Company != null ? new CompanyDto
+                        {
+                            Id = application.Job.Recruiter.Company.Id,
+                            Name = application.Job.Recruiter.Company.Name,
+                            Description = application.Job.Recruiter.Company.Description,
+                            Location = application.Job.Recruiter.Company.Location
+                        } : null
+                    } : new UserDto()
+                } : null,
+                Applicant = application.Applicant != null ? new UserDto
+                {
+                    Id = application.Applicant.Id,
+                    FirstName = application.Applicant.FirstName,
+                    LastName = application.Applicant.LastName,
+                    Email = application.Applicant.Email ?? string.Empty,
+                    Role = application.Applicant.Role,
+                    Avatar = application.Applicant.Avatar
+                } : null
+            };
+
+            return Ok(applicationDto);
         }
     }
 }

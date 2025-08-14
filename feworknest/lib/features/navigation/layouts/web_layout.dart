@@ -1,3 +1,4 @@
+// web_layout.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,10 +9,14 @@ import '../widgets/web_sidebar.dart';
 
 class WebLayout extends ConsumerStatefulWidget {
   final Widget child;
+  final String? title;
+  final List<Widget>? actions;
 
   const WebLayout({
     super.key,
     required this.child,
+    this.title,
+    this.actions,
   });
 
   @override
@@ -99,7 +104,7 @@ class _WebLayoutState extends ConsumerState<WebLayout> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: Colors.black.withOpacity(0.1),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -125,238 +130,164 @@ class _WebLayoutState extends ConsumerState<WebLayout> {
             
             const SizedBox(width: 16),
             
-            // Search bar
+            // Logo/Title
             Expanded(
-              child: Container(
-                height: 40,
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm việc làm, công ty...',
-                    prefixIcon: const Icon(Icons.search, size: 20),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                  ),
-                  onSubmitted: (value) {
-                    if (value.isNotEmpty) {
-                      context.go('/jobs?search=${Uri.encodeComponent(value)}');
-                    }
-                  },
+              child: Text(
+                widget.title ?? '', // Sử dụng widget.title
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
             
             const SizedBox(width: 16),
-            
+
             // Right side actions
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isAuthenticated) ...[
-                  // Notifications
-                  Stack(
+            if (widget.actions != null) Row(
+              children: widget.actions!, // Sử dụng widget.actions
+            ),
+
+            if (isAuthenticated) ...[
+              // User menu with real avatar
+              PopupMenuButton<String>(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        onPressed: () => context.go('/notifications'),
-                        icon: const Icon(Icons.notifications_outlined),
-                        tooltip: 'Thông báo',
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundColor: user?.avatar == null ? Theme.of(context).primaryColor : null,
+                        backgroundImage: user?.avatar != null
+                            ? NetworkImage(user!.avatar!)
+                            : null,
+                        child: user?.avatar == null
+                            ? Text(
+                                (user?.firstName?.isNotEmpty == true)
+                                    ? user!.firstName.substring(0, 1).toUpperCase() 
+                                    : 'U',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            : null,
                       ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 100),
+                        child: Text(
+                          user?.firstName ?? 'User',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
                           ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.keyboard_arrow_down, size: 16),
                     ],
                   ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // Messages
-                  Stack(
-                    children: [
-                      IconButton(
-                        onPressed: () => context.go('/chat'),
-                        icon: const Icon(Icons.chat_bubble_outline),
-                        tooltip: 'Tin nhắn',
-                      ),
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: const BoxConstraints(
-                            minWidth: 12,
-                            minHeight: 12,
-                          ),
-                          child: const Text(
-                            '3',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // User menu
-                  PopupMenuButton<String>(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey[300]!),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircleAvatar(
-                            radius: 12,
-                            backgroundColor: Theme.of(context).primaryColor,
-                            child: Text(
-                              user?.firstName?.substring(0, 1).toUpperCase() ?? 'U',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 100),
-                            child: Text(
-                              user?.firstName ?? 'User',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(Icons.keyboard_arrow_down, size: 16),
-                        ],
-                      ),
-                    ),
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'profile':
-                          if (user?.isRecruiter == true) {
-                            context.go('/recruiter/profile');
-                          } else {
-                            context.go('/profile');
-                          }
-                          break;
-                        case 'settings':
-                          if (user?.isRecruiter == true) {
-                            context.go('/recruiter/settings');
-                          } else {
-                            context.go('/settings');
-                          }
-                          break;
-                        case 'logout':
-                          ref.read(authProvider.notifier).logout();
-                          break;
+                ),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'profile':
+                      if (user?.isRecruiter == true) {
+                        context.go('/recruiter/profile');
+                      } else {
+                        context.go('/profile');
                       }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'profile',
-                        child: Row(
-                          children: [
-                            Icon(Icons.person_outline),
-                            SizedBox(width: 12),
-                            Text('Hồ sơ của tôi'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'settings',
-                        child: Row(
-                          children: [
-                            Icon(Icons.settings_outlined),
-                            SizedBox(width: 12),
-                            Text('Cài đặt'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      const PopupMenuItem(
-                        value: 'logout',
-                        child: Row(
-                          children: [
-                            Icon(Icons.logout, color: Colors.red),
-                            SizedBox(width: 12),
-                            Text('Đăng xuất', style: TextStyle(color: Colors.red)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  // Login and register buttons for non-authenticated users
-                  OutlinedButton(
-                    onPressed: () => context.go('/login'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Theme.of(context).primaryColor,
-                      side: BorderSide(color: Theme.of(context).primaryColor),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
+                      break;
+                    case 'settings':
+                      if (user?.isRecruiter == true) {
+                        context.go('/recruiter/settings');
+                      } else {
+                        context.go('/settings');
+                      }
+                      break;
+                    case 'logout':
+                      ref.read(authProvider.notifier).logout();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_outline),
+                        SizedBox(width: 12),
+                        Text('Hồ sơ của tôi'),
+                      ],
                     ),
-                    child: const Text('Đăng nhập'),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => context.go('/register'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 8,
-                      ),
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings_outlined),
+                        SizedBox(width: 12),
+                        Text('Cài đặt'),
+                      ],
                     ),
-                    child: const Text('Đăng ký'),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: Colors.red),
+                        SizedBox(width: 12),
+                        Text('Đăng xuất', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
                   ),
                 ],
-              ],
-            ),
+              ),
+            ] else ...[
+              // Login and register buttons for non-authenticated users
+              OutlinedButton(
+                onPressed: () => context.go('/login'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).primaryColor,
+                  side: BorderSide(color: Theme.of(context).primaryColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text('Đăng nhập'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => context.go('/register'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
+                ),
+                child: const Text('Đăng ký'),
+              ),
+            ],
           ],
         ),
       ),

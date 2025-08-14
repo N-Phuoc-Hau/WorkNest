@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/dashboard_provider.dart';
+
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/dashboard_provider.dart';
 import '../../../core/utils/responsive_utils.dart';
 import '../../navigation/layouts/web_layout.dart';
-import '../widgets/stat_card.dart';
 import '../widgets/chart_widget.dart';
+import '../widgets/stat_card.dart';
 
 class CandidateDashboardScreen extends ConsumerStatefulWidget {
   const CandidateDashboardScreen({super.key});
 
   @override
-  ConsumerState<CandidateDashboardScreen> createState() => _CandidateDashboardScreenState();
+  ConsumerState<CandidateDashboardScreen> createState() =>
+      _CandidateDashboardScreenState();
 }
 
-class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScreen> {
+class _CandidateDashboardScreenState
+    extends ConsumerState<CandidateDashboardScreen> {
   @override
   void initState() {
     super.initState();
@@ -86,7 +89,7 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
       },
       child: SingleChildScrollView(
         padding: ResponsiveUtils.getContentPadding(context),
-        child: ResponsiveUtils.isWeb(context) 
+        child: ResponsiveUtils.isWeb(context)
             ? _buildWebDashboard(data)
             : _buildMobileDashboard(data),
       ),
@@ -114,15 +117,15 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
                   // Stats Cards Grid
                   _buildStatsCards(data),
                   const SizedBox(height: 32),
-                  
+
                   // Charts Section
                   _buildChartsSection(data),
                 ],
               ),
             ),
-            
+
             const SizedBox(width: 32),
-            
+
             // Right Sidebar - Recent Applications and Quick Actions
             Expanded(
               flex: 1,
@@ -132,7 +135,7 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
                   // Recent Applications
                   _buildRecentApplications(data),
                   const SizedBox(height: 24),
-                  
+
                   // Quick Actions
                   _buildQuickActions(),
                 ],
@@ -302,7 +305,7 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
 
   Widget _buildRecentApplications(Map<String, dynamic> data) {
     final applications = data['recentApplications'] as List<dynamic>? ?? [];
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -366,7 +369,7 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
     final status = app['status'] ?? 'pending';
     final statusColor = _getStatusColor(status);
     final statusIcon = _getStatusIcon(status);
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
@@ -389,7 +392,8 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(4),
@@ -471,12 +475,13 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
           ),
         ),
         const SizedBox(height: 16),
-        
+
         // Application Status Distribution
         if (data['applicationStatusDistribution'] != null) ...[
           ChartWidget(
             title: 'Phân bố trạng thái đơn ứng tuyển',
-            data: List<Map<String, dynamic>>.from(data['applicationStatusDistribution']),
+            data: List<Map<String, dynamic>>.from(
+                data['applicationStatusDistribution']),
             chartType: ChartType.pie,
           ),
           const SizedBox(height: 16),
@@ -570,7 +575,8 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
     );
   }
 
-  Widget _buildQuickActionCard(String title, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildQuickActionCard(
+      String title, IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -603,4 +609,4 @@ class _CandidateDashboardScreenState extends ConsumerState<CandidateDashboardScr
       ),
     );
   }
-} 
+}

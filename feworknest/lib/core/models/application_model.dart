@@ -1,5 +1,5 @@
-import 'user_model.dart';
 import 'job_model.dart';
+import 'user_model.dart';
 
 enum ApplicationStatus { pending, accepted, rejected }
 
@@ -157,12 +157,14 @@ class UpdateApplicationStatusModel {
 class ApplicationsState {
   final List<ApplicationModel> applications;
   final List<ApplicationModel> myApplications;
+  final ApplicationModel? selectedApplication;
   final bool isLoading;
   final String? error;
 
   const ApplicationsState({
     this.applications = const [],
     this.myApplications = const [],
+    this.selectedApplication,
     this.isLoading = false,
     this.error,
   });
@@ -170,12 +172,14 @@ class ApplicationsState {
   ApplicationsState copyWith({
     List<ApplicationModel>? applications,
     List<ApplicationModel>? myApplications,
+    ApplicationModel? selectedApplication,
     bool? isLoading,
     String? error,
   }) {
     return ApplicationsState(
       applications: applications ?? this.applications,
       myApplications: myApplications ?? this.myApplications,
+      selectedApplication: selectedApplication ?? this.selectedApplication,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
     );

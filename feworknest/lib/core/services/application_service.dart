@@ -182,6 +182,33 @@ class ApplicationService {
     }
   }
 
+  Future<ApplicationModel> updateApplication(
+    int id, {
+    String? coverLetter,
+    String? cvUrl,
+  }) async {
+    try {
+      final Map<String, dynamic> data = {};
+      
+      if (coverLetter != null) {
+        data['coverLetter'] = coverLetter;
+      }
+      
+      if (cvUrl != null) {
+        data['cvUrl'] = cvUrl;
+      }
+
+      final response = await _dio.put(
+        '/api/Application/$id',
+        data: data,
+      );
+      
+      return ApplicationModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Future<void> updateApplicationStatus(
     int id,
     UpdateApplicationStatusModel updateStatus,

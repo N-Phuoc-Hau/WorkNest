@@ -98,6 +98,7 @@ class ApplicationNotifier extends StateNotifier<ApplicationsState> {
 
       state = state.copyWith(
         myApplications: updatedMyApplications,
+        selectedApplication: application,
         isLoading: false,
       );
     } catch (e) {
@@ -105,6 +106,44 @@ class ApplicationNotifier extends StateNotifier<ApplicationsState> {
         isLoading: false,
         error: e.toString(),
       );
+    }
+  }
+
+  /// Update application (for candidates to edit their application)
+  Future<bool> updateApplication(
+    int id, {
+    String? coverLetter,
+    String? cvUrl,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null);
+
+    try {
+      final updatedApplication = await _applicationService.updateApplication(
+        id,
+        coverLetter: coverLetter,
+        cvUrl: cvUrl,
+      );
+      
+      // Update application in the lists
+      final updatedMyApplications = state.myApplications.map((app) {
+        if (app.id == id) {
+          return updatedApplication;
+        }
+        return app;
+      }).toList();
+
+      state = state.copyWith(
+        myApplications: updatedMyApplications,
+        selectedApplication: updatedApplication,
+        isLoading: false,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: e.toString(),
+      );
+      return false;
     }
   }
 
