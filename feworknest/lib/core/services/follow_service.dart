@@ -114,11 +114,14 @@ class FollowService {
       );
 
       final data = response.data;
+      print('FollowService: API response data: $data');
       
       // The API returns company data directly, so parse as CompanyModel
       final companies = (data['data'] as List)
-          .map((json) => CompanyModel.fromJson(json))
+          .map((json) => CompanyModel.fromJson(json as Map<String, dynamic>))
           .toList();
+
+      print('FollowService: Parsed ${companies.length} companies');
 
       return {
         'companies': companies,

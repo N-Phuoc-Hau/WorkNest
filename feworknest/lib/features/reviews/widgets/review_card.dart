@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../core/models/review_model.dart';
 
 class ReviewCard extends StatelessWidget {
@@ -38,7 +39,7 @@ class ReviewCard extends StatelessWidget {
                       : null,
                   child: review.reviewer?.avatar == null
                       ? Text(
-                          (review.reviewer?.fullName ?? 'U')[0].toUpperCase(),
+                          _getInitials(review.reviewer?.firstName, review.reviewer?.lastName),
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         )
                       : null,
@@ -52,7 +53,7 @@ class ReviewCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        review.reviewer?.fullName ?? 'Ẩn danh',
+                        _getReviewerName(review.reviewer?.firstName, review.reviewer?.lastName),
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
@@ -221,5 +222,21 @@ class ReviewCard extends StatelessWidget {
     } else {
       return 'Vừa xong';
     }
+  }
+
+  String _getInitials(String? firstName, String? lastName) {
+    String initials = '';
+    if (firstName != null && firstName.isNotEmpty) {
+      initials += firstName[0].toUpperCase();
+    }
+    if (lastName != null && lastName.isNotEmpty) {
+      initials += lastName[0].toUpperCase();
+    }
+    return initials.isNotEmpty ? initials : 'U';
+  }
+
+  String _getReviewerName(String? firstName, String? lastName) {
+    final fullName = '${firstName ?? ''} ${lastName ?? ''}'.trim();
+    return fullName.isEmpty ? 'Ẩn danh' : fullName;
   }
 }

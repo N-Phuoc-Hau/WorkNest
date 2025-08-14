@@ -2,14 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/models/company_model.dart' as standalone_company;
 import '../../../core/models/follow_model.dart';
 import '../../../core/models/job_model.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/favorite_provider.dart';
 import '../../../core/providers/follow_provider.dart';
 import '../../../core/providers/job_provider.dart';
+import '../../../core/providers/review_provider.dart';
 import '../../../core/utils/application_utils.dart';
 import '../../../core/utils/auth_guard.dart';
+import '../../reviews/screens/company_reviews_screen.dart';
+import '../../reviews/widgets/review_card.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -31,12 +35,35 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       final jobIdInt = int.tryParse(widget.jobId) ?? 0;
       ref.read(jobProvider.notifier).getJobPost(jobIdInt);
       
+      // Load recent jobs for related jobs section
+      ref.read(jobProvider.notifier).getJobPosts(page: 1, pageSize: 20);
+      
       // Load following list to check follow status
       final authState = ref.read(authProvider);
       if (authState.isAuthenticated && authState.user?.role == 'candidate') {
         ref.read(followProvider.notifier).getMyFollowing();
       }
     });
+  }
+
+  void _loadCompanyReviews(int companyId) {
+    ref.read(reviewProvider.notifier).getCompanyReviews(companyId);
+  }
+
+  // Convert UserModel CompanyModel to standalone CompanyModel
+  standalone_company.CompanyModel _convertToCompanyModel(dynamic userCompany) {
+    return standalone_company.CompanyModel(
+      id: userCompany.id,
+      name: userCompany.name,
+      taxCode: userCompany.taxCode,
+      description: userCompany.description ?? '',
+      location: userCompany.location ?? '',
+      isVerified: userCompany.isVerified,
+      isActive: true, // Default value
+      images: userCompany.images,
+      createdAt: DateTime.now(), // Default value
+      updatedAt: DateTime.now(), // Default value
+    );
   }
 
   @override
@@ -375,57 +402,164 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             const SizedBox(height: 16),
 
             // Company Reviews Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Đánh giá công ty',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
+            Consumer(
+              builder: (context, ref, child) {
+                // Load reviews when company is available
+                if (job.recruiter.company != null) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _loadCompanyReviews(job.recruiter.company!.id);
+                  });
+                }
+
+                final reviewState = ref.watch(reviewProvider);
+                final reviews = reviewState.reviews.take(3).toList();
+
+                return Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              if (job.recruiter.company != null) {
-                                context.push(
-                                  '/reviews?companyId=${job.recruiter.company!.id}&companyName=${Uri.encodeComponent(job.recruiter.company!.name)}',
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.star_outline),
-                            label: const Text('Xem đánh giá'),
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Đánh giá công ty',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            if (reviewState.reviews.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '${reviewState.reviews.length} đánh giá',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).primaryColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              if (!AuthGuard.requireAuth(context, ref, 
-                                  message: 'Bạn cần đăng nhập để viết đánh giá công ty.')) {
-                                return;
-                              }
-                              if (job.recruiter.company != null) {
-                                context.push(
-                                  '/company-review/${job.recruiter.company!.id}/${Uri.encodeComponent(job.recruiter.company!.name)}',
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.rate_review),
-                            label: const Text('Viết đánh giá'),
+                        
+                        if (reviewState.isLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (reviews.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          
+                          // Display up to 3 reviews
+                          ...reviews.map((review) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: ReviewCard(review: review),
+                          )),
+                          
+                          // Show more button if there are more than 3 reviews
+                          if (reviewState.reviews.length > 3)
+                            Center(
+                              child: TextButton.icon(
+                                onPressed: () {
+                                  if (job.recruiter.company != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CompanyReviewsScreen(
+                                          company: _convertToCompanyModel(job.recruiter.company!),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.arrow_forward),
+                                label: Text('Xem thêm ${reviewState.reviews.length - 3} đánh giá'),
+                              ),
+                            ),
+                        ] else ...[
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.rate_review_outlined,
+                                  size: 48,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Chưa có đánh giá nào',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        ],
+                        
+                        const SizedBox(height: 16),
+                        
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  if (job.recruiter.company != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CompanyReviewsScreen(
+                                          company: _convertToCompanyModel(job.recruiter.company!),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.star_outline),
+                                label: const Text('Xem tất cả'),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  if (!AuthGuard.requireAuth(context, ref, 
+                                      message: 'Bạn cần đăng nhập để viết đánh giá công ty.')) {
+                                    return;
+                                  }
+                                  if (job.recruiter.company != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CompanyReviewsScreen(
+                                          company: _convertToCompanyModel(job.recruiter.company!),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.rate_review),
+                                label: const Text('Viết đánh giá'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 16),
 
@@ -512,6 +646,169 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // Related Jobs Section
+            Consumer(
+              builder: (context, ref, child) {
+                final jobsState = ref.watch(jobProvider);
+                final relatedJobs = jobsState.jobs.where((relatedJob) => 
+                  relatedJob.id != job.id &&
+                  (relatedJob.location.toLowerCase().contains(job.location.toLowerCase()) ||
+                   relatedJob.jobType == job.jobType ||
+                   relatedJob.recruiter.company?.name == job.recruiter.company?.name)
+                ).take(3).toList();
+
+                if (relatedJobs.isNotEmpty) {
+                  return Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Công việc liên quan',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          
+                          ...relatedJobs.map((relatedJob) => Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: InkWell(
+                              onTap: () {
+                                context.push('/job-detail/${relatedJob.id}');
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade200),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    // Company Logo
+                                    Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(8),
+                                        color: Colors.grey.shade100,
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: relatedJob.recruiter.company != null && relatedJob.recruiter.company!.images.isNotEmpty
+                                            ? Image.network(
+                                                relatedJob.recruiter.company!.images.first,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) => 
+                                                    Center(
+                                                      child: Text(
+                                                        (relatedJob.recruiter.company?.name ?? 'C')[0].toUpperCase(),
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 18,
+                                                        ),
+                                                      ),
+                                                    ),
+                                              )
+                                            : Center(
+                                                child: Text(
+                                                  (relatedJob.recruiter.company?.name ?? 'C')[0].toUpperCase(),
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 18,
+                                                  ),
+                                                ),
+                                              ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    
+                                    // Job Info
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            relatedJob.title,
+                                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            relatedJob.recruiter.company?.name ?? 'Không rõ công ty',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                              color: Colors.grey[600],
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.location_on_outlined,
+                                                size: 14,
+                                                color: Colors.grey[600],
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  relatedJob.location,
+                                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    
+                                    // Arrow Icon
+                                    Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 16,
+                                      color: Colors.grey[400],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )),
+                          
+                          const SizedBox(height: 8),
+                          Center(
+                            child: TextButton(
+                              onPressed: () {
+                                // Navigate to search with similar criteria
+                                context.push('/search?location=${Uri.encodeComponent(job.location)}&jobType=${Uri.encodeComponent(job.jobType ?? '')}');
+                              },
+                              child: const Text('Xem thêm công việc tương tự'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            
             const SizedBox(height: 100), // Space for floating button
           ],
         ),

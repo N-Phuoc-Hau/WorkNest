@@ -4,6 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/models/application_model.dart';
 import '../../../core/providers/application_provider.dart';
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/chat_provider.dart';
+import '../../chat/screens/chat_detail_screen.dart';
 
 class MyApplicationsScreen extends ConsumerStatefulWidget {
   const MyApplicationsScreen({super.key});
@@ -290,12 +293,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Navigate to chat with recruiter
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Mở chat với nhà tuyển dụng')),
-                      );
-                    },
+                    onPressed: () => _navigateToChat(application),
                     child: const Text('Liên hệ'),
                   ),
                 ),
@@ -331,5 +329,155 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
+  }
+
+  /// Navigate to chat with recruiter
+  Future<void> _navigateToChat(ApplicationModel application) async {
+    // Check authentication
+    final authState = ref.read(authProvider);
+    if (!authState.isAuthenticated || authState.user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Bạn cần đăng nhập để sử dụng tính năng chat'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // Check if job and recruiter info exists
+    final job = application.job;
+    if (job == null || job.recruiter.id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy thông tin nhà tuyển dụng'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show loading
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Đang tạo phòng chat...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
+    );
+
+    try {
+      final currentUser = authState.user!;
+      
+      // Create or get chat room
+      final roomId = await ref.read(chatProvider.notifier).createOrGetChatRoom(
+        recruiterId: job.recruiter.id,
+        candidateId: currentUser.id,
+        jobId: job.id.toString(),
+        recruiterInfo: {
+          'id': job.recruiter.id,
+          'name': '${job.recruiter.firstName} ${job.recruiter.lastName}',
+          'avatar': job.recruiter.avatar ?? '',
+          'role': 'recruiter',
+        },
+        candidateInfo: {
+          'id': currentUser.id,
+          'name': '${currentUser.firstName} ${currentUser.lastName}',
+          'avatar': currentUser.avatar ?? '',
+          'role': 'candidate',
+        },
+        jobInfo: {
+          'id': job.id.toString(),
+          'title': job.title,
+          'company': job.recruiter.company?.name ?? 'Unknown Company',
+        },
+      );
+
+      // Clear loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+
+      if (roomId != null) {
+        // Success notification
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Đã tạo phòng chat thành công'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Navigate to chat detail
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ChatDetailScreen(
+                roomId: roomId,
+                otherUserName: '${job.recruiter.firstName} ${job.recruiter.lastName}',
+                otherUserAvatar: job.recruiter.avatar ?? '',
+                jobInfo: {
+                  'id': job.id.toString(),
+                  'title': job.title,
+                  'company': job.recruiter.company?.name ?? 'Unknown Company',
+                },
+                recruiterInfo: {
+                  'id': job.recruiter.id,
+                  'name': '${job.recruiter.firstName} ${job.recruiter.lastName}',
+                  'avatar': job.recruiter.avatar ?? '',
+                  'role': 'recruiter',
+                },
+                candidateInfo: {
+                  'id': currentUser.id,
+                  'name': '${currentUser.firstName} ${currentUser.lastName}',
+                  'avatar': currentUser.avatar ?? '',
+                  'role': 'candidate',
+                },
+              ),
+            ),
+          );
+        }
+      } else {
+        // Failed to create room
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Không thể tạo phòng chat. Vui lòng thử lại sau.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Clear loading
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+      
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }

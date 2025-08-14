@@ -80,13 +80,14 @@ class FollowNotifier extends StateNotifier<FollowState> {
         pageSize: pageSize,
       );
 
-      // API trả về 'data' chứa list companies
-      final companiesData = result['data'] as List? ?? [];
-      final newCompanies = companiesData
-          .map((json) => CompanyModel.fromJson(json as Map<String, dynamic>))
-          .toList();
+      print('FollowProvider: getMyFollowing result: $result');
+
+      // Service đã parse CompanyModel rồi, chỉ cần lấy ra
+      final newCompanies = result['companies'] as List<CompanyModel>;
       final totalCount = result['totalCount'] as int? ?? 0;
       final totalPages = result['totalPages'] as int? ?? 1;
+
+      print('FollowProvider: Parsed ${newCompanies.length} companies, totalCount: $totalCount');
 
       if (loadMore && page > 1) {
         // Append to existing following companies for pagination

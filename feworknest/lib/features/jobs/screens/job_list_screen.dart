@@ -265,7 +265,7 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
             job: job,
             onTap: () {
               // Navigate to job details
-              context.push('/job-details/${job.id}');
+              context.push('/job-detail/${job.id}');
             },
             onFavorite: () async {
               final favoriteNotifier = ref.read(favoriteProvider.notifier);
