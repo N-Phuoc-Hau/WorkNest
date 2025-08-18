@@ -149,13 +149,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   }
 
   Widget _buildChatRoomCard(Map<String, dynamic> chatRoom) {
-    final String roomId = chatRoom['id'] ?? '';
+    final String roomId = chatRoom['id']?.toString() ?? '';
     final Map<String, dynamic> recruiterInfo = chatRoom['recruiterInfo'] ?? {};
     final Map<String, dynamic> candidateInfo = chatRoom['candidateInfo'] ?? {};
     final Map<String, dynamic> jobInfo = chatRoom['jobInfo'] ?? {};
     final dynamic lastMessageData = chatRoom['lastMessage'];
     final int unreadCount = chatRoom['unreadCount'] ?? 0;
-    final String lastMessageTime = chatRoom['lastMessageTime'] ?? '';
+    final String lastMessageTime = chatRoom['lastMessageTime']?.toString() ?? '';
 
     // Xác định thông tin người chat (dựa vào role của user hiện tại)
     // TODO: Lấy từ user provider thực tê
@@ -163,8 +163,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ? true  // Mặc định là recruiter, có thể thay đổi dựa trên context
         : recruiterInfo.isNotEmpty;
     final Map<String, dynamic> otherUserInfo = isRecruiter ? candidateInfo : recruiterInfo;
-    final String otherUserName = otherUserInfo['fullName'] ?? otherUserInfo['name'] ?? 'Người dùng';
-    final String otherUserAvatar = otherUserInfo['avatar'] ?? '';
+    final String otherUserName = (otherUserInfo['fullName'] ?? otherUserInfo['name'] ?? 'Người dùng').toString();
+    final String otherUserAvatar = (otherUserInfo['avatar'] ?? '').toString();
 
     return Card(
       margin: EdgeInsets.zero,
@@ -255,7 +255,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          jobInfo['title'] ?? 'Vị trí tuyển dụng',
+                          (jobInfo['title'] ?? 'Vị trí tuyển dụng').toString(),
                           style: TextStyle(
                             color: Colors.blue.shade700,
                             fontSize: 11,
@@ -391,8 +391,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     
     // If it's a Map, parse it
     if (lastMessageData is Map<String, dynamic>) {
-      final String type = lastMessageData['type'] ?? 'text';
-      final String content = lastMessageData['content'] ?? '';
+      final String type = (lastMessageData['type'] ?? 'text').toString();
+      final String content = (lastMessageData['content'] ?? '').toString();
       
       switch (type) {
         case 'image':
@@ -403,10 +403,13 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       }
     }
     
-    return 'Tin nhắn';
+    // Fallback: convert anything to string
+    return lastMessageData.toString().isEmpty ? 'Tin nhắn' : lastMessageData.toString();
   }
 
   String _formatTime(String timestamp) {
+    if (timestamp.isEmpty) return '';
+    
     try {
       final DateTime messageTime = DateTime.parse(timestamp);
       final DateTime now = DateTime.now();
@@ -424,6 +427,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         return '${messageTime.day}/${messageTime.month}';
       }
     } catch (e) {
+      print('Error parsing timestamp: $timestamp, error: $e');
       return '';
     }
   }

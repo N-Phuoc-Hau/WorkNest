@@ -47,6 +47,21 @@ namespace BEWorkNest
                         ValidAudience = builder.Configuration["Jwt:Audience"],
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
                     };
+                    
+                    // Configure JWT for SignalR
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = context =>
+                        {
+                            var accessToken = context.Request.Query["access_token"];
+                            var path = context.HttpContext.Request.Path;
+                            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/notificationHub"))
+                            {
+                                context.Token = accessToken;
+                            }
+                            return Task.CompletedTask;
+                        }
+                    };
                 });
 
             // Authorization policies
@@ -78,8 +93,14 @@ namespace BEWorkNest
             builder.Services.AddScoped<NotificationService>();
             builder.Services.AddScoped<AiService>();
             builder.Services.AddScoped<AnalyticsService>();
+            // New AI-related services
+            builder.Services.AddScoped<CVProcessingService>();
+            builder.Services.AddScoped<UserBehaviorService>();
             builder.Services.AddHttpClient<AiService>();
             builder.Services.AddHttpContextAccessor();
+
+            // Add SignalR
+            builder.Services.AddSignalR();
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
@@ -130,6 +151,15 @@ namespace BEWorkNest
                                .AllowAnyMethod()
                                .AllowAnyHeader();
                     });
+                    
+                options.AddPolicy("SignalRCors",
+                    builder =>
+                    {
+                        builder.WithOrigins("http://localhost:3000", "https://localhost:3000")
+                               .AllowAnyMethod()
+                               .AllowAnyHeader()
+                               .AllowCredentials();
+                    });
             });
 
             var app = builder.Build();
@@ -147,6 +177,9 @@ namespace BEWorkNest
             app.UseAuthorization();
 
             app.MapControllers();
+            
+            // Map SignalR hub
+            app.MapHub<BEWorkNest.Hubs.NotificationHub>("/notificationHub");
 
             app.Run();
         }

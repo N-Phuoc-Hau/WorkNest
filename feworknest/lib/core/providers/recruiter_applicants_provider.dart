@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/application_model.dart';
 import '../services/application_service.dart';
 
@@ -240,6 +241,27 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
     }
 
     return filtered;
+  }
+
+  // Get application by ID
+  Future<ApplicationModel?> getApplicationById(String applicationId) async {
+    try {
+      // First check if we have it in current state
+      final existingApp = state.applicants
+          .where((app) => app.id.toString() == applicationId)
+          .firstOrNull;
+      
+      if (existingApp != null) {
+        return existingApp;
+      }
+
+      // If not found in current state, fetch from API
+      final application = await _applicationService.getApplication(int.parse(applicationId));
+      return application;
+    } catch (e) {
+      print('Error getting application by ID: $e');
+      return null;
+    }
   }
 }
 

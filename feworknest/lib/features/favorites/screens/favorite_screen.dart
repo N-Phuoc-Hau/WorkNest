@@ -231,7 +231,7 @@ class FavoriteJobCard extends StatelessWidget {
           ),
         ),
         title: Text(
-          favorite.jobTitle,
+          favorite.jobTitle ?? 'Không có tiêu đề',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
@@ -239,23 +239,26 @@ class FavoriteJobCard extends StatelessWidget {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(favorite.companyName),
+            Text(favorite.companyName ?? 'Không có tên công ty'),
             const SizedBox(height: 4),
             Row(
               children: [
                 Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
                 const SizedBox(width: 4),
-                Text(
-                  favorite.location,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
+                Expanded(
+                  child: Text(
+                    favorite.location ?? 'Không có địa điểm',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Icon(Icons.attach_money, size: 14, color: Colors.green),
                 const SizedBox(width: 4),
                 Text(
-                  favorite.salary,
+                  favorite.salary ?? 'Thỏa thuận',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Colors.green,
                     fontWeight: FontWeight.w500,
@@ -302,7 +305,7 @@ class FavoriteJobCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Xóa khỏi yêu thích'),
-        content: Text('Bạn có muốn xóa "${favorite.jobTitle}" khỏi danh sách yêu thích?'),
+        content: Text('Bạn có muốn xóa "${favorite.jobTitle ?? 'công việc này'}" khỏi danh sách yêu thích?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

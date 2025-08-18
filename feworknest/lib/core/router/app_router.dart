@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/models/application_model.dart';
 import '../../features/admin/screens/admin_companies_screen.dart';
 import '../../features/admin/screens/admin_jobs_screen.dart';
 import '../../features/admin/screens/admin_users_screen.dart';
@@ -15,6 +16,7 @@ import '../../features/chat/screens/chat_detail_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/dashboard/screens/admin_dashboard_screen.dart';
 import '../../features/favorites/screens/favorite_screen.dart';
+import '../../features/interview/screens/schedule_interview_screen.dart';
 import '../../features/job_posting/screens/create_job_screen.dart';
 import '../../features/job_posting/screens/edit_job_screen.dart';
 import '../../features/job_posting/screens/manage_jobs_screen.dart';
@@ -26,6 +28,7 @@ import '../../features/navigation/layouts/web_layout.dart';
 import '../../features/notifications/screens/notification_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
+import '../../features/recruiter/pages/recruiter_application_detail_page.dart';
 import '../../features/recruiter/screens/recruiter_applicants_screen.dart';
 import '../../features/recruiter/screens/recruiter_company_screen.dart';
 import '../../features/recruiter/screens/recruiter_home_screen.dart';
@@ -347,6 +350,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           const RecruiterSettingsScreen(),
           'recruiter',
         ),
+      ),
+      GoRoute(
+        path: '/recruiter/applicant/:applicationId',
+        builder: (context, state) {
+          final applicationId = state.pathParameters['applicationId']!;
+          return _buildWithLayout(
+            context, 
+            RecruiterApplicationDetailPage(applicationId: applicationId),
+            'recruiter',
+          );
+        },
+      ),
+      GoRoute(
+        path: '/recruiter/schedule-interview/:applicationId',
+        builder: (context, state) {
+          final application = state.extra as ApplicationModel?;
+          
+          if (application == null) {
+            // If no application data passed, redirect back
+            return _buildWithLayout(
+              context,
+              const Scaffold(
+                body: Center(
+                  child: Text('Không tìm thấy thông tin ứng viên'),
+                ),
+              ),
+              'recruiter',
+            );
+          }
+          
+          return _buildWithLayout(
+            context, 
+            ScheduleInterviewScreen(application: application),
+            'recruiter',
+          );
+        },
       ),
       GoRoute(
         path: '/recruiter/chat',

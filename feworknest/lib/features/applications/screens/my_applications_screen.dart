@@ -12,7 +12,8 @@ class MyApplicationsScreen extends ConsumerStatefulWidget {
   const MyApplicationsScreen({super.key});
 
   @override
-  ConsumerState<MyApplicationsScreen> createState() => _MyApplicationsScreenState();
+  ConsumerState<MyApplicationsScreen> createState() =>
+      _MyApplicationsScreenState();
 }
 
 class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
@@ -77,8 +78,10 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                   value: _selectedFilter,
                   items: const [
                     DropdownMenuItem(value: 'all', child: Text('Tất cả')),
-                    DropdownMenuItem(value: 'pending', child: Text('Chờ xem xét')),
-                    DropdownMenuItem(value: 'accepted', child: Text('Đã chấp nhận')),
+                    DropdownMenuItem(
+                        value: 'pending', child: Text('Chờ xem xét')),
+                    DropdownMenuItem(
+                        value: 'accepted', child: Text('Đã chấp nhận')),
                     DropdownMenuItem(value: 'rejected', child: Text('Từ chối')),
                   ],
                   onChanged: (value) {
@@ -90,7 +93,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
               ],
             ),
           ),
-          
+
           // Applications List
           Expanded(
             child: applicationState.isLoading
@@ -107,7 +110,9 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                             const SizedBox(height: 16),
                             ElevatedButton(
                               onPressed: () {
-                                ref.read(applicationProvider.notifier).getMyApplications();
+                                ref
+                                    .read(applicationProvider.notifier)
+                                    .getMyApplications();
                               },
                               child: const Text('Thử lại'),
                             ),
@@ -138,9 +143,12 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                             ),
                           )
                         : ListView.builder(
-                            itemCount: _getFilteredApplications(applicationState.myApplications).length,
+                            itemCount: _getFilteredApplications(
+                                    applicationState.myApplications)
+                                .length,
                             itemBuilder: (context, index) {
-                              final application = _getFilteredApplications(applicationState.myApplications)[index];
+                              final application = _getFilteredApplications(
+                                  applicationState.myApplications)[index];
                               return _buildApplicationCard(application);
                             },
                           ),
@@ -150,11 +158,12 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
     );
   }
 
-  List<ApplicationModel> _getFilteredApplications(List<ApplicationModel> applications) {
+  List<ApplicationModel> _getFilteredApplications(
+      List<ApplicationModel> applications) {
     if (_selectedFilter == 'all') {
       return applications;
     }
-    
+
     final status = _getStatusFromFilter(_selectedFilter);
     return applications.where((app) => app.status == status).toList();
   }
@@ -200,7 +209,8 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          application.job?.recruiter.company?.name ?? 'Không có tên công ty',
+                          application.job?.recruiter.company?.name ??
+                              'Không có tên công ty',
                           style: TextStyle(
                             color: Colors.grey[600],
                             fontSize: 14,
@@ -210,104 +220,103 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(application.status),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _getStatusText(application.status),
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-            
-            const SizedBox(height: 12),
-            
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'Ứng tuyển: ${application.appliedAt != null ? _formatDate(application.appliedAt!) : _formatDate(application.createdAt)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (application.cvUrl != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(Icons.attachment, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    'CV đính kèm',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(application.status),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _getStatusText(application.status),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
                   ),
                 ],
-              ],
-            ),
-            
-            if (application.status == ApplicationStatus.rejected && application.rejectionReason != null) ...[
+              ),
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red[200]!),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Lý do từ chối:',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red[700],
-                      ),
+              Row(
+                children: [
+                  Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Ứng tuyển: ${application.appliedAt != null ? _formatDate(application.appliedAt!) : _formatDate(application.createdAt)}',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                  ),
+                  if (application.cvUrl != null) ...[
+                    const SizedBox(width: 8),
+                    Icon(Icons.attachment, size: 16, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
                     Text(
-                      application.rejectionReason!,
-                      style: TextStyle(color: Colors.red[600]),
+                      'CV đính kèm',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
                     ),
                   ],
-                ),
+                ],
               ),
-            ],
-            
-            const SizedBox(height: 12),
-            
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      if (application.job?.id != null) {
-                        context.push('/job-detail/${application.job!.id}');
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Không tìm thấy thông tin công việc')),
-                        );
-                      }
-                    },
-                    child: const Text('Xem chi tiết'),
+              if (application.status == ApplicationStatus.rejected &&
+                  application.rejectionReason != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red[200]!),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _navigateToChat(application),
-                    child: const Text('Liên hệ'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Lý do từ chối:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red[700],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        application.rejectionReason!,
+                        style: TextStyle(color: Colors.red[600]),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
-          ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (application.job?.id != null) {
+                          context.push('/job-detail/${application.job!.id}');
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Không tìm thấy thông tin công việc')),
+                          );
+                        }
+                      },
+                      child: const Text('Xem chi tiết'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => _navigateToChat(application),
+                      child: const Text('Liên hệ'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -319,6 +328,12 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
         return Colors.green;
       case ApplicationStatus.rejected:
         return Colors.red;
+      case ApplicationStatus.interviewing:
+        return Colors.blue;
+      case ApplicationStatus.hired: // Ví dụ cho một giá trị mới
+        return Colors.purple;
+      case ApplicationStatus.cancelled: // Ví dụ cho một giá trị mới
+        return Colors.grey;
     }
   }
 
@@ -330,6 +345,12 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
         return 'Đã chấp nhận';
       case ApplicationStatus.rejected:
         return 'Từ chối';
+      case ApplicationStatus.interviewing:
+        return 'Đang phỏng vấn';
+      case ApplicationStatus.hired:
+        return 'Đã được nhận';
+      case ApplicationStatus.cancelled:
+        return 'Đã hủy';
     }
   }
 
@@ -386,7 +407,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
 
     try {
       final currentUser = authState.user!;
-      
+
       // Create or get chat room
       final roomId = await ref.read(chatProvider.notifier).createOrGetChatRoom(
         recruiterId: job.recruiter.id,
@@ -435,7 +456,8 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
             MaterialPageRoute(
               builder: (context) => ChatDetailScreen(
                 roomId: roomId,
-                otherUserName: '${job.recruiter.firstName} ${job.recruiter.lastName}',
+                otherUserName:
+                    '${job.recruiter.firstName} ${job.recruiter.lastName}',
                 otherUserAvatar: job.recruiter.avatar ?? '',
                 jobInfo: {
                   'id': job.id.toString(),
@@ -444,7 +466,8 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
                 },
                 recruiterInfo: {
                   'id': job.recruiter.id,
-                  'name': '${job.recruiter.firstName} ${job.recruiter.lastName}',
+                  'name':
+                      '${job.recruiter.firstName} ${job.recruiter.lastName}',
                   'avatar': job.recruiter.avatar ?? '',
                   'role': 'recruiter',
                 },
@@ -474,7 +497,7 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
       }
-      
+
       // Show error
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

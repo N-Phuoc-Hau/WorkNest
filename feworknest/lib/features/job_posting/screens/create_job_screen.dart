@@ -34,15 +34,23 @@ class _CreateJobScreenState extends ConsumerState<CreateJobScreen> {
           );
           // Clear the form
           _clearForm?.call();
+          // Clear any previous error
+          ref.read(jobPostingProvider.notifier).clearError();
         } else {
-          // Error
+          // Error - show error message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Lỗi: ${next.error}'),
               backgroundColor: Colors.red,
-              duration: Duration(seconds: 4),
+              duration: const Duration(seconds: 4),
             ),
           );
+          // Clear error after showing to prevent persistent error state
+          Future.delayed(const Duration(seconds: 4), () {
+            if (mounted) {
+              ref.read(jobPostingProvider.notifier).clearError();
+            }
+          });
         }
       }
     });

@@ -292,11 +292,11 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> message) {
-    final String senderId = message['senderId'] ?? '';
-    final String content = message['content'] ?? '';
-    final String type = message['messageType'] ?? message['type'] ?? 'text';
-    final String timestamp = message['timestamp'] ?? '';
-    final String? imageUrl = message['fileUrl'];
+    final String senderId = (message['senderId'] ?? '').toString();
+    final String content = (message['content'] ?? '').toString();
+    final String type = (message['messageType'] ?? message['type'] ?? 'text').toString();
+    final String timestamp = (message['timestamp'] ?? '').toString();
+    final String? imageUrl = message['fileUrl']?.toString();
     
     // Get current user ID from auth provider
     final authState = ref.watch(authProvider);
@@ -309,12 +309,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     
     if (!isMyMessage) {
       // Determine if sender is recruiter or candidate
-      if (widget.recruiterInfo.isNotEmpty && widget.recruiterInfo['id'] == senderId) {
-        senderAvatar = widget.recruiterInfo['avatar'] ?? '';
-        senderName = widget.recruiterInfo['name'] ?? 'Recruiter';
-      } else if (widget.candidateInfo.isNotEmpty && widget.candidateInfo['id'] == senderId) {
-        senderAvatar = widget.candidateInfo['avatar'] ?? '';
-        senderName = widget.candidateInfo['name'] ?? 'Candidate';
+      if (widget.recruiterInfo.isNotEmpty && widget.recruiterInfo['id']?.toString() == senderId) {
+        senderAvatar = (widget.recruiterInfo['avatar'] ?? '').toString();
+        senderName = (widget.recruiterInfo['name'] ?? 'Recruiter').toString();
+      } else if (widget.candidateInfo.isNotEmpty && widget.candidateInfo['id']?.toString() == senderId) {
+        senderAvatar = (widget.candidateInfo['avatar'] ?? '').toString();
+        senderName = (widget.candidateInfo['name'] ?? 'Candidate').toString();
       } else {
         // Fallback to otherUserAvatar
         senderAvatar = widget.otherUserAvatar;

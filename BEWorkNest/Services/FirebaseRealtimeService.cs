@@ -230,8 +230,10 @@ namespace BEWorkNest.Services
         {
             try
             {
-                // Generate room ID
-                var roomId = $"{candidateId}_{recruiterId}_{jobId ?? "0"}";
+                // Generate room ID with recruiterId first for consistency
+                var roomId = $"{recruiterId}_{candidateId}_{jobId ?? "0"}";
+                
+                _logger.LogInformation($"Creating/Getting chat room: {roomId} (recruiter: {recruiterId}, candidate: {candidateId}, job: {jobId})");
                 
                 // Check if room already exists
                 var existingRoom = await _firebaseClient
@@ -259,10 +261,12 @@ namespace BEWorkNest.Services
                     },
                     CreatedAt = DateTime.UtcNow,
                     LastMessageAt = DateTime.UtcNow,
-                    RecruiterInfo = recruiterInfo,
-                    CandidateInfo = candidateInfo,
-                    JobInfo = jobInfo
+                    RecruiterInfo = recruiterInfo?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.ToString() ?? string.Empty),
+                    CandidateInfo = candidateInfo?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.ToString() ?? string.Empty),
+                    JobInfo = jobInfo?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value?.ToString() ?? string.Empty)
                 };
+
+                _logger.LogInformation($"Creating new chat room with participants: {string.Join(", ", chatRoom.Participants.Keys)}");
 
                 await _firebaseClient
                     .Child("chatRooms")
@@ -283,16 +287,35 @@ namespace BEWorkNest.Services
         {
             try
             {
-                // Check if user is in participants list instead of loading full ChatRoom
+                _logger.LogInformation($"Checking access for user {userId} to room {roomId}");
+                
+                var actualRoomId = await ResolveActualRoomIdAsync(roomId);
+                if (actualRoomId == null)
+                {
+                    _logger.LogWarning($"Room not found: {roomId}");
+                    return false;
+                }
+
+                _logger.LogInformation($"Resolved room ID: {actualRoomId} (requested: {roomId})");
+
                 var participants = await _firebaseClient
                     .Child("chatRooms")
-                    .Child(roomId)
+                    .Child(actualRoomId)
                     .Child("participants")
                     .OnceSingleAsync<Dictionary<string, ParticipantInfo>>();
 
-                if (participants == null) return false;
+                if (participants == null)
+                {
+                    _logger.LogWarning($"No participants found for room {actualRoomId}");
+                    return false;
+                }
 
-                return participants.ContainsKey(userId);
+                _logger.LogInformation($"Room {actualRoomId} participants: {string.Join(", ", participants.Keys)}");
+                
+                var hasAccess = participants.ContainsKey(userId);
+                _logger.LogInformation($"User {userId} has access to room {actualRoomId}: {hasAccess}");
+                
+                return hasAccess;
             }
             catch (Exception ex)
             {
@@ -301,13 +324,55 @@ namespace BEWorkNest.Services
             }
         }
 
+        private async Task<string?> ResolveActualRoomIdAsync(string roomId)
+        {
+            try
+            {
+                // Check if original room ID exists
+                var room = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .OnceSingleAsync<object>();
+
+                if (room != null) return roomId;
+
+                // Try alternative format
+                var parts = roomId.Split('_');
+                if (parts.Length == 3)
+                {
+                    var altRoomId = $"{parts[1]}_{parts[0]}_{parts[2]}";
+                    room = await _firebaseClient
+                        .Child("chatRooms")
+                        .Child(altRoomId)
+                        .OnceSingleAsync<object>();
+
+                    if (room != null) return altRoomId;
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<List<ChatMessage>> GetChatMessagesAsync(string roomId, int page = 1, int limit = 50)
         {
             try
             {
+                var actualRoomId = await ResolveActualRoomIdAsync(roomId);
+                if (actualRoomId == null)
+                {
+                    _logger.LogWarning($"Room not found: {roomId}");
+                    return new List<ChatMessage>();
+                }
+
+                _logger.LogInformation($"Getting messages from room: {actualRoomId} (requested: {roomId})");
+
                 var messages = await _firebaseClient
                     .Child("chatRooms")
-                    .Child(roomId)
+                    .Child(actualRoomId)
                     .Child("messages")
                     .OrderByKey()
                     .LimitToLast(limit)
@@ -430,9 +495,18 @@ namespace BEWorkNest.Services
         {
             try
             {
+                var actualRoomId = await ResolveActualRoomIdAsync(roomId);
+                if (actualRoomId == null)
+                {
+                    _logger.LogWarning($"Room not found for marking as read: {roomId}");
+                    return;
+                }
+
+                _logger.LogInformation($"Marking messages as read in room: {actualRoomId} (requested: {roomId}) by user {userId}");
+
                 var messages = await _firebaseClient
                     .Child("chatRooms")
-                    .Child(roomId)
+                    .Child(actualRoomId)
                     .Child("messages")
                     .OnceAsync<ChatMessage>();
 
@@ -442,14 +516,14 @@ namespace BEWorkNest.Services
                 {
                     await _firebaseClient
                         .Child("chatRooms")
-                        .Child(roomId)
+                        .Child(actualRoomId)
                         .Child("messages")
                         .Child(message.Key)
                         .Child("isRead")
                         .PutAsync(true);
                 }
 
-                _logger.LogInformation($"Messages marked as read for room {roomId} by user {userId}");
+                _logger.LogInformation($"Messages marked as read for room {actualRoomId} by user {userId}");
             }
             catch (Exception ex)
             {
@@ -551,9 +625,9 @@ namespace BEWorkNest.Services
         
         public string? LastMessage { get; set; }
         public string? LastMessageSenderId { get; set; }
-        public Dictionary<string, object>? RecruiterInfo { get; set; }
-        public Dictionary<string, object>? CandidateInfo { get; set; }
-        public Dictionary<string, object>? JobInfo { get; set; }
+        public Dictionary<string, string>? RecruiterInfo { get; set; }
+        public Dictionary<string, string>? CandidateInfo { get; set; }
+        public Dictionary<string, string>? JobInfo { get; set; }
     }
 
     public class NotificationData

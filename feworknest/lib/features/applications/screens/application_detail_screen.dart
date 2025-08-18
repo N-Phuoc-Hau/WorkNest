@@ -19,10 +19,12 @@ class ApplicationDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<ApplicationDetailScreen> createState() => _ApplicationDetailScreenState();
+  ConsumerState<ApplicationDetailScreen> createState() =>
+      _ApplicationDetailScreenState();
 }
 
-class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScreen> {
+class _ApplicationDetailScreenState
+    extends ConsumerState<ApplicationDetailScreen> {
   @override
   void initState() {
     super.initState();
@@ -114,6 +116,16 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                       ],
                     ),
                   ),
+                  const PopupMenuItem(
+                    value: 'schedule_interview',
+                    child: Row(
+                      children: [
+                        Icon(Icons.schedule, color: Colors.blue, size: 20),
+                        SizedBox(width: 8),
+                        Text('Lên lịch phỏng vấn'),
+                      ],
+                    ),
+                  ),
                 ],
                 const PopupMenuItem(
                   value: 'chat',
@@ -150,7 +162,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                       width: 60,
                       height: 60,
                       decoration: BoxDecoration(
-                        color: _getStatusColor(application.status).withOpacity(0.1),
+                        color: _getStatusColor(application.status)
+                            .withOpacity(0.1),
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Icon(
@@ -166,17 +179,23 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                         children: [
                           Text(
                             'Trạng thái ứng tuyển',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: Colors.grey[600],
+                                ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             _getStatusText(application.status),
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: _getStatusColor(application.status),
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _getStatusColor(application.status),
+                                ),
                           ),
                         ],
                       ),
@@ -201,8 +220,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                     Text(
                       'Thông tin công việc',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                     const SizedBox(height: 16),
                     ListTile(
@@ -215,7 +234,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                         ),
                       ),
                       subtitle: Text(
-                        application.job?.recruiter.company?.name ?? 'Không có tên công ty',
+                        application.job?.recruiter.company?.name ??
+                            'Không có tên công ty',
                         style: TextStyle(
                           color: Colors.grey[600],
                           fontSize: 14,
@@ -234,7 +254,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.location_on, size: 20, color: Colors.grey[600]),
+                          Icon(Icons.location_on,
+                              size: 20, color: Colors.grey[600]),
                           const SizedBox(width: 8),
                           Text(
                             application.job!.location,
@@ -247,7 +268,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.attach_money, size: 20, color: Colors.grey[600]),
+                          Icon(Icons.attach_money,
+                              size: 20, color: Colors.grey[600]),
                           const SizedBox(width: 8),
                           Text(
                             '${application.job!.salary.toStringAsFixed(0)} VND',
@@ -279,22 +301,38 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                     Text(
                       'Chi tiết ứng tuyển',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                            fontWeight: FontWeight.bold,
+                          ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Applied Date
                     _buildInfoRow(
                       'Ngày ứng tuyển',
-                      application.appliedAt != null 
-                          ? _formatDate(application.appliedAt!)
-                          : _formatDate(application.createdAt),
+                      _formatDate(application.appliedAt),
                       Icons.calendar_today,
                     ),
-                    
+
                     const SizedBox(height: 12),
-                    
+
+                    // Applicant Info (for recruiter view)
+                    if (isRecruiter) ...[
+                      _buildInfoRow(
+                        'Ứng viên',
+                        application.applicant?.firstName != null && application.applicant?.lastName != null
+                            ? '${application.applicant!.firstName} ${application.applicant!.lastName}'
+                            : application.applicantName,
+                        Icons.person,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInfoRow(
+                        'Email',
+                        application.applicant?.email ?? application.applicantEmail,
+                        Icons.email,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     // CV File
                     if (application.cvUrl != null)
                       _buildInfoRow(
@@ -303,16 +341,18 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                         Icons.description,
                         onTap: () => _openCV(application.cvUrl!),
                       ),
-                    
+
                     const SizedBox(height: 12),
-                    
+
                     // Cover Letter
-                    if (application.coverLetter != null && application.coverLetter!.isNotEmpty) ...[
+                    if (application.coverLetter != null &&
+                        application.coverLetter!.isNotEmpty) ...[
                       Text(
                         'Thư giới thiệu',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
                       ),
                       const SizedBox(height: 8),
                       Container(
@@ -336,7 +376,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
             const SizedBox(height: 16),
 
             // Rejection Reason (if rejected)
-            if (application.status == ApplicationStatus.rejected && application.rejectionReason != null) ...[
+            if (application.status == ApplicationStatus.rejected &&
+                application.rejectionReason != null) ...[
               Card(
                 elevation: 1,
                 shape: RoundedRectangleBorder(
@@ -353,10 +394,13 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                           const SizedBox(width: 8),
                           Text(
                             'Lý do từ chối',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.red[700],
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.red[700],
+                                ),
                           ),
                         ],
                       ),
@@ -388,10 +432,12 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                   child: OutlinedButton.icon(
                     onPressed: () => _navigateToChat(application),
                     icon: const Icon(Icons.chat),
-                    label: Text(isCandidate ? 'Liên hệ HR' : 'Liên hệ ứng viên'),
+                    label:
+                        Text(isCandidate ? 'Liên hệ HR' : 'Liên hệ ứng viên'),
                   ),
                 ),
-                if (isCandidate && application.status == ApplicationStatus.pending) ...[
+                if (isCandidate &&
+                    application.status == ApplicationStatus.pending) ...[
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton.icon(
@@ -410,7 +456,8 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
     );
   }
 
-  Widget _buildInfoRow(String label, String value, IconData icon, {VoidCallback? onTap}) {
+  Widget _buildInfoRow(String label, String value, IconData icon,
+      {VoidCallback? onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -451,6 +498,12 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
         return Colors.green;
       case ApplicationStatus.rejected:
         return Colors.red;
+      case ApplicationStatus.interviewing:
+        return Colors.blue;
+      case ApplicationStatus.hired: // Ví dụ cho một giá trị mới
+        return Colors.purple;
+      case ApplicationStatus.cancelled: // Ví dụ cho một giá trị mới
+        return Colors.grey;
     }
   }
 
@@ -462,6 +515,12 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
         return 'Đã chấp nhận';
       case ApplicationStatus.rejected:
         return 'Từ chối';
+      case ApplicationStatus.interviewing:
+        return 'Đang phỏng vấn';
+      case ApplicationStatus.hired:
+        return 'Đã được nhận';
+      case ApplicationStatus.cancelled:
+        return 'Đã hủy';
     }
   }
 
@@ -473,6 +532,12 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
         return Icons.check_circle;
       case ApplicationStatus.rejected:
         return Icons.cancel;
+      case ApplicationStatus.interviewing:
+        return Icons.person_search; // Thêm icon cho trường hợp này
+      case ApplicationStatus.hired:
+        return Icons.waving_hand; // Thêm icon cho trường hợp này
+      case ApplicationStatus.cancelled:
+        return Icons.close; // Thêm icon cho trường hợp này
     }
   }
 
@@ -515,6 +580,14 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
     );
   }
 
+  void _scheduleInterview(ApplicationModel application) {
+    // Navigate to schedule interview screen
+    context.push(
+      '/recruiter/schedule-interview/${application.id}',
+      extra: application,
+    );
+  }
+
   void _handleRecruiterAction(String action, ApplicationModel application) {
     switch (action) {
       case 'accept':
@@ -526,15 +599,20 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
       case 'chat':
         _navigateToChat(application);
         break;
+      case 'schedule_interview':
+        _scheduleInterview(application);
+        break;
     }
   }
 
-  Future<void> _updateStatus(ApplicationModel application, ApplicationStatus status) async {
+  Future<void> _updateStatus(
+      ApplicationModel application, ApplicationStatus status) async {
     try {
-      final success = await ref.read(applicationProvider.notifier).updateApplicationStatus(
-        application.id,
-        UpdateApplicationStatusModel(status: status.name),
-      );
+      final success =
+          await ref.read(applicationProvider.notifier).updateApplicationStatus(
+                application.id,
+                UpdateApplicationStatusModel(status: status.name),
+              );
 
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -544,7 +622,9 @@ class _ApplicationDetailScreenState extends ConsumerState<ApplicationDetailScree
                   ? 'Đã chấp nhận ứng viên'
                   : 'Đã từ chối ứng viên',
             ),
-            backgroundColor: status == ApplicationStatus.accepted ? Colors.green : Colors.orange,
+            backgroundColor: status == ApplicationStatus.accepted
+                ? Colors.green
+                : Colors.orange,
           ),
         );
         // Refresh data

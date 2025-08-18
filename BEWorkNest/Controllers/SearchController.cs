@@ -16,15 +16,54 @@ namespace BEWorkNest.Controllers
         private readonly ApplicationDbContext _context;
         private readonly AiService _aiService;
         private readonly ILogger<SearchController> _logger;
+        private readonly UserBehaviorService _userBehaviorService;
+        private readonly JwtService _jwtService;
 
         public SearchController(
             ApplicationDbContext context,
             AiService aiService,
-            ILogger<SearchController> logger)
+            ILogger<SearchController> logger,
+            UserBehaviorService userBehaviorService,
+            JwtService jwtService)
         {
             _context = context;
             _aiService = aiService;
             _logger = logger;
+            _userBehaviorService = userBehaviorService;
+            _jwtService = jwtService;
+        }
+
+        // Helper method to get user info from JWT token
+        private (string? userId, string? userRole, bool isAuthenticated) GetUserInfoFromToken()
+        {
+            var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var userRole = User.FindFirst("role")?.Value;
+
+            // If not found from claims, try to extract from Authorization header
+            if (string.IsNullOrEmpty(userId) && Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = Request.Headers["Authorization"].FirstOrDefault();
+                if (authHeader != null && authHeader.StartsWith("Bearer "))
+                {
+                    var token = authHeader.Substring("Bearer ".Length).Trim();
+                    if (!string.IsNullOrEmpty(token))
+                    {
+                        try
+                        {
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to extract user info from JWT token");
+                        }
+                    }
+                }
+            }
+
+            return (userId, userRole, isAuthenticated);
         }
 
         [HttpGet("suggestions")]
@@ -38,7 +77,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 var suggestions = await _aiService.GetSearchSuggestionsAsync(query, userRole);
-                
+
                 return Ok(new { suggestions });
             }
             catch (Exception ex)
@@ -59,7 +98,7 @@ namespace BEWorkNest.Controllers
                 }
 
                 var filters = await _aiService.GetSearchFiltersAsync(query, userRole);
-                
+
                 return Ok(new { filters });
             }
             catch (Exception ex)
@@ -82,7 +121,7 @@ namespace BEWorkNest.Controllers
                 // Apply filters
                 if (!string.IsNullOrWhiteSpace(searchDto.Keyword))
                 {
-                    query = query.Where(j => 
+                    query = query.Where(j =>
                         j.Title.Contains(searchDto.Keyword) ||
                         j.Description.Contains(searchDto.Keyword) ||
                         j.Requirements.Contains(searchDto.Keyword));
@@ -142,7 +181,7 @@ namespace BEWorkNest.Controllers
                             Id = j.Recruiter.Id,
                             FirstName = j.Recruiter.FirstName,
                             LastName = j.Recruiter.LastName,
-                            Email = j.Recruiter.Email,
+                            Email = j.Recruiter.Email ?? "",
                             Role = j.Recruiter.Role,
                             Company = j.Recruiter.Company != null ? new CompanyDto
                             {
@@ -153,6 +192,22 @@ namespace BEWorkNest.Controllers
                         }
                     })
                     .ToListAsync();
+
+                // Track search behavior if user is authenticated
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                if (isAuthenticated && !string.IsNullOrEmpty(userId) && !string.IsNullOrWhiteSpace(searchDto.Keyword))
+                {
+                    var filters = System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        location = searchDto.Location,
+                        jobType = searchDto.JobType,
+                        minSalary = searchDto.MinSalary,
+                        maxSalary = searchDto.MaxSalary,
+                        experienceLevel = searchDto.ExperienceLevel
+                    });
+
+                    _ = Task.Run(() => _userBehaviorService.TrackSearchAsync(userId, searchDto.Keyword, filters));
+                }
 
                 return Ok(new
                 {
@@ -171,16 +226,22 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("job-recommendations")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetJobRecommendations()
         {
             try
             {
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (userId == null)
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    return Unauthorized();
+                    return Unauthorized(new
+                    {
+                        message = "Không tìm thấy thông tin người dùng trong token",
+                        errorCode = "AUTHENTICATION_REQUIRED"
+                    });
                 }
+
 
                 var user = await _context.Users
                     .Include(u => u.Company)
@@ -191,19 +252,23 @@ namespace BEWorkNest.Controllers
                     return NotFound(new { message = "User not found" });
                 }
 
-                // Build user profile for AI
-                var userProfile = new Dictionary<string, object>
-                {
-                    ["id"] = user.Id,
-                    ["firstName"] = user.FirstName,
-                    ["lastName"] = user.LastName,
-                    ["role"] = user.Role,
-                    ["company"] = user.Company?.Name ?? "",
-                    ["location"] = user.Company?.Location ?? ""
-                };
+                // Get user profile for AI
+                var userProfile = await _userBehaviorService.GetUserProfileForAIAsync(userId);
 
-                var recommendations = await _aiService.GetJobRecommendationsAsync(userId, user.Role, userProfile);
-                
+                // Get user behavior history for personalized recommendations
+                var searchHistory = await _userBehaviorService.GetUserSearchHistoryAsync(userId, 50);
+                var applicationHistory = await _userBehaviorService.GetUserApplicationHistoryAsync(userId, 30);
+
+                // Get personalized recommendations from AI
+                var recommendations = await _aiService.GetPersonalizedJobRecommendationsAsync(
+                    userId, userProfile, searchHistory, applicationHistory);
+
+                // Log recommendations for future improvement
+                foreach (var recommendation in recommendations)
+                {
+                    _ = Task.Run(() => LogJobRecommendationAsync(userId, recommendation));
+                }
+
                 return Ok(new { recommendations });
             }
             catch (Exception ex)
@@ -214,9 +279,31 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("candidate-recommendations/{jobId}")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetCandidateRecommendations(string jobId)
         {
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
+            }
+
+            // Check if user has recruiter role
+            if (userRole != "recruiter")
+            {
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Chỉ nhà tuyển dụng mới có thể xem gợi ý ứng viên.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? "unknown"
+                });
+            }
+
             try
             {
                 if (!int.TryParse(jobId, out int jobIdInt))
@@ -234,6 +321,9 @@ namespace BEWorkNest.Controllers
                     return NotFound(new { message = "Job not found" });
                 }
 
+                // Get candidate profiles for matching
+                var candidateProfiles = await _userBehaviorService.GetCandidateProfilesForMatchingAsync(100);
+
                 // Build job details for AI
                 var jobDetails = new Dictionary<string, object>
                 {
@@ -249,9 +339,10 @@ namespace BEWorkNest.Controllers
                     ["recruiter"] = $"{job.Recruiter.FirstName} {job.Recruiter.LastName}"
                 };
 
-                var recommendations = await _aiService.GetCandidateRecommendationsAsync(jobId, jobDetails);
-                
-                return Ok(new { recommendations });
+                // Get candidate matches from AI
+                var candidateMatches = await _aiService.GetCandidateMatchesForJobAsync(jobDetails, candidateProfiles);
+
+                return Ok(new { recommendations = candidateMatches });
             }
             catch (Exception ex)
             {
@@ -261,48 +352,93 @@ namespace BEWorkNest.Controllers
         }
 
         [HttpGet("search-history")]
-        [Authorize]
-        public Task<IActionResult> GetSearchHistory()
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSearchHistory()
         {
             try
             {
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (userId == null)
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    return Task.FromResult<IActionResult>(Unauthorized());
+                    return Unauthorized(new
+                    {
+                        message = "Không tìm thấy thông tin người dùng trong token",
+                        errorCode = "AUTHENTICATION_REQUIRED"
+                    });
                 }
 
-                // TODO: Implement search history tracking
-                // For now, return empty list
-                return Task.FromResult<IActionResult>(Ok(new { searchHistory = new List<object>() }));
+
+                var searchHistory = await _userBehaviorService.GetUserSearchHistoryAsync(userId, 100);
+
+                return Ok(new { searchHistory });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting search history");
-                return Task.FromResult<IActionResult>(StatusCode(500, new { message = "Internal server error" }));
+                return StatusCode(500, new { message = "Internal server error" });
             }
         }
 
         [HttpPost("save-search")]
-        [Authorize]
-        public Task<IActionResult> SaveSearch([FromBody] SaveSearchDto saveSearchDto)
+        [AllowAnonymous]
+        public async Task<IActionResult> SaveSearch([FromBody] SaveSearchDto saveSearchDto)
         {
             try
             {
-                var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                if (userId == null)
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
-                    return Task.FromResult<IActionResult>(Unauthorized());
+                    return Unauthorized(new
+                    {
+                        message = "Không tìm thấy thông tin người dùng trong token",
+                        errorCode = "AUTHENTICATION_REQUIRED"
+                    });
                 }
 
-                // TODO: Implement save search functionality
-                // For now, just return success
-                return Task.FromResult<IActionResult>(Ok(new { message = "Search saved successfully" }));
+
+                // Save search as favorite with additional tracking
+                var filters = System.Text.Json.JsonSerializer.Serialize(saveSearchDto.SearchCriteria);
+                await _userBehaviorService.TrackSearchAsync(userId, saveSearchDto.SearchCriteria.Keyword ?? "", filters);
+
+                return Ok(new { message = "Search saved successfully" });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error saving search");
-                return Task.FromResult<IActionResult>(StatusCode(500, new { message = "Internal server error" }));
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+
+        // Helper method to log job recommendations for analytics
+        private async Task LogJobRecommendationAsync(string userId, JobRecommendation recommendation)
+        {
+            try
+            {
+                // Find the job in database (if it exists)
+                var job = await _context.JobPosts
+                    .FirstOrDefaultAsync(j => j.Title == recommendation.Title &&
+                                              j.Location == recommendation.Location);
+
+                if (job != null)
+                {
+                    var recommendationLog = new JobRecommendationLog
+                    {
+                        UserId = userId,
+                        JobId = job.Id,
+                        RecommendationScore = recommendation.MatchPercentage,
+                        RecommendationReason = recommendation.Reason,
+                        RecommendedAt = DateTime.UtcNow
+                    };
+
+                    _context.JobRecommendationLogs.Add(recommendationLog);
+                    await _context.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error logging job recommendation for user {UserId}", userId);
             }
         }
     }
@@ -326,4 +462,4 @@ namespace BEWorkNest.Controllers
         public string Name { get; set; } = string.Empty;
         public SearchJobDto SearchCriteria { get; set; } = new SearchJobDto();
     }
-} 
+}

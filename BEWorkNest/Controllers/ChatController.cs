@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using BEWorkNest.Services;
 using BEWorkNest.Models.DTOs;
+using BEWorkNest.Data;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace BEWorkNest.Controllers
@@ -17,17 +19,23 @@ namespace BEWorkNest.Controllers
         private readonly FirebaseRealtimeService _firebaseService;
         private readonly CloudinaryService _cloudinaryService;
         private readonly JwtService _jwtService;
+        private readonly NotificationService _notificationService;
+        private readonly ApplicationDbContext _context;
         private readonly ILogger<ChatController> _logger;
 
         public ChatController(
             FirebaseRealtimeService firebaseService,
             CloudinaryService cloudinaryService,
             JwtService jwtService,
+            NotificationService notificationService,
+            ApplicationDbContext context,
             ILogger<ChatController> logger)
         {
             _firebaseService = firebaseService;
             _cloudinaryService = cloudinaryService;
             _jwtService = jwtService;
+            _notificationService = notificationService;
+            _context = context;
             _logger = logger;
         }
 
@@ -126,13 +134,42 @@ namespace BEWorkNest.Controllers
 
                 _logger.LogInformation($"Creating/Getting chat room between recruiter: {dto.RecruiterId} and candidate: {dto.CandidateId} for job: {dto.JobId}");
 
+                // Convert Dictionary<string, object> to Dictionary<string, string> to avoid serialization issues
+                Dictionary<string, string>? recruiterInfo = null;
+                Dictionary<string, string>? candidateInfo = null;
+                Dictionary<string, string>? jobInfo = null;
+
+                if (dto.RecruiterInfo != null)
+                {
+                    recruiterInfo = dto.RecruiterInfo.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.ToString() ?? string.Empty
+                    );
+                }
+
+                if (dto.CandidateInfo != null)
+                {
+                    candidateInfo = dto.CandidateInfo.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.ToString() ?? string.Empty
+                    );
+                }
+
+                if (dto.JobInfo != null)
+                {
+                    jobInfo = dto.JobInfo.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => kvp.Value?.ToString() ?? string.Empty
+                    );
+                }
+
                 var roomId = await _firebaseService.CreateOrGetChatRoomAsync(
                     recruiterId: dto.RecruiterId,
                     candidateId: dto.CandidateId,
                     jobId: dto.JobId,
-                    recruiterInfo: dto.RecruiterInfo,
-                    candidateInfo: dto.CandidateInfo,
-                    jobInfo: dto.JobInfo
+                    recruiterInfo: recruiterInfo?.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value),
+                    candidateInfo: candidateInfo?.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value),
+                    jobInfo: jobInfo?.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value)
                 );
 
                 return Ok(new { success = true, roomId = roomId });
@@ -163,15 +200,18 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                _logger.LogInformation($"Getting messages for room: {roomId}, user: {userId}");
+                _logger.LogInformation($"Getting messages for room: {roomId}, user: {userId}, role: {userRole}");
 
                 // Verify user has access to this chat room
                 var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(roomId, userId);
                 if (!hasAccess)
+                {
+                    _logger.LogWarning($"Access denied for user {userId} to room {roomId}");
                     return StatusCode(403, new { 
                         message = "You don't have access to this chat room",
                         errorCode = "ACCESS_DENIED"
                     });
+                }
 
                 var messages = await _firebaseService.GetChatMessagesAsync(roomId, page, limit);
                 
@@ -227,6 +267,35 @@ namespace BEWorkNest.Controllers
                     senderRole: userRole!,
                     content: dto.Content
                 );
+
+                // Send notification to the other user in the chat room
+                try
+                {
+                    var roomInfo = await _firebaseService.GetChatRoomInfoAsync(dto.RoomId);
+                    if (roomInfo != null)
+                    {
+                        // Determine the recipient (the other user in the chat room)
+                        var recipientId = roomInfo.CandidateId == userId ? roomInfo.RecruiterId : roomInfo.CandidateId;
+                        
+                        // Get sender name from database
+                        var sender = await _context.Users.FindAsync(userId);
+                        var senderName = sender != null ? $"{sender.FirstName} {sender.LastName}".Trim() : "Unknown User";
+                        
+                        // Send chat notification
+                        await _notificationService.SendChatNotificationAsync(
+                            fromUserId: userId,
+                            toUserId: recipientId,
+                            fromUserName: senderName,
+                            roomId: dto.RoomId,
+                            message: dto.Content
+                        );
+                    }
+                }
+                catch (Exception notificationEx)
+                {
+                    _logger.LogError(notificationEx, "Failed to send chat notification for message {MessageId}", messageId);
+                    // Don't fail the message sending if notification fails
+                }
 
                 return Ok(new { success = true, messageId = messageId });
             }
@@ -327,12 +396,15 @@ namespace BEWorkNest.Controllers
                     });
                 }
 
-                _logger.LogInformation($"Marking messages as read for room: {roomId}, user: {userId}");
+                _logger.LogInformation($"Marking messages as read for room: {roomId}, user: {userId}, role: {userRole}");
 
                 // Verify user has access to this chat room
                 var hasAccess = await _firebaseService.UserHasAccessToChatRoomAsync(roomId, userId);
                 if (!hasAccess)
+                {
+                    _logger.LogWarning($"Access denied for user {userId} when marking messages as read in room {roomId}");
                     return StatusCode(403, new { message = "You don't have access to this chat room", errorCode = "ACCESS_DENIED" });
+                }
 
                 await _firebaseService.MarkMessagesAsReadAsync(roomId, userId);
                 

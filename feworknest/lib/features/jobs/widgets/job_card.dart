@@ -1,23 +1,29 @@
 import 'package:flutter/material.dart';
-import '../../../core/models/job_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class JobCard extends StatelessWidget {
+import '../../../core/models/job_model.dart';
+import '../../../core/providers/favorite_provider.dart';
+
+class JobCard extends ConsumerWidget {
   final JobModel job;
   final VoidCallback? onTap;
   final VoidCallback? onFavorite;
-  final bool isFavorited;
 
   const JobCard({
     super.key,
     required this.job,
     this.onTap,
     this.onFavorite,
-    this.isFavorited = false,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    
+    // Watch favorite state to auto-refresh UI
+    final favoriteState = ref.watch(favoriteProvider);
+    final isFavorited = favoriteState.favoriteJobs
+        .any((favorite) => favorite.jobId == job.id);
     
     return Card(
       elevation: 2,

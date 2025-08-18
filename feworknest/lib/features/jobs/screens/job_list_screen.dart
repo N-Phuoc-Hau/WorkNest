@@ -269,7 +269,9 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
             },
             onFavorite: () async {
               final favoriteNotifier = ref.read(favoriteProvider.notifier);
-              final isFavorited = favoriteNotifier.isFavorited(job.id);
+              final favoriteState = ref.read(favoriteProvider);
+              final isFavorited = favoriteState.favoriteJobs
+                  .any((favorite) => favorite.jobId == job.id);
               
               if (isFavorited) {
                 final success = await favoriteNotifier.removeFromFavorite(job.id);
@@ -293,7 +295,6 @@ class _JobListScreenState extends ConsumerState<JobListScreen> {
                 }
               }
             },
-            isFavorited: ref.watch(favoriteProvider.notifier).isFavorited(job.id),
           ),
         );
       },

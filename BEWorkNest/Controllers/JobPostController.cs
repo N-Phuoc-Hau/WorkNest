@@ -16,12 +16,14 @@ namespace BEWorkNest.Controllers
         private readonly JobPostService _jobPostService;
         private readonly ApplicationDbContext _context;
         private readonly JwtService _jwtService;
+        private readonly NotificationService _notificationService;
 
-        public JobPostController(JobPostService jobPostService, ApplicationDbContext context, JwtService jwtService)
+        public JobPostController(JobPostService jobPostService, ApplicationDbContext context, JwtService jwtService, NotificationService notificationService)
         {
             _jobPostService = jobPostService;
             _context = context;
             _jwtService = jwtService;
+            _notificationService = notificationService;
         }
 
         // Helper method to get user info from JWT token
@@ -611,6 +613,22 @@ namespace BEWorkNest.Controllers
 
                 if (success)
                 {
+                    // Send notification to followers after job is created successfully
+                    try
+                    {
+                        var jobPost = await _context.JobPosts.FindAsync(jobId);
+                        if (jobPost != null)
+                        {
+                            await _notificationService.SendJobPostedNotificationAsync(jobPost, dbUser);
+                        }
+                    }
+                    catch (Exception notificationEx)
+                    {
+                        // Log error but don't fail the job creation
+                        // Consider using ILogger here for proper logging
+                        Console.WriteLine($"Failed to send job notification: {notificationEx.Message}");
+                    }
+
                     return Ok(new { 
                         message = "Tạo bài đăng tuyển dụng thành công", 
                         jobId,

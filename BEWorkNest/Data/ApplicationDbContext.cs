@@ -22,6 +22,14 @@ namespace BEWorkNest.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<Analytics> Analytics { get; set; }
         public DbSet<UserProfile> UserProfiles { get; set; }
+        public DbSet<Interview> Interviews { get; set; }
+
+        // User behavior tracking
+        public DbSet<SearchHistory> SearchHistories { get; set; }
+        public DbSet<JobViewHistory> JobViewHistories { get; set; }
+        public DbSet<ApplicationHistory> ApplicationHistories { get; set; }
+        public DbSet<CVAnalysisResult> CVAnalysisResults { get; set; }
+        public DbSet<JobRecommendationLog> JobRecommendationLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

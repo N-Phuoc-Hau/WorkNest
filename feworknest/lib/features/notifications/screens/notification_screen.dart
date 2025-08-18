@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/notification_provider.dart';
+
 import '../../../core/providers/auth_provider.dart';
-import '../widgets/notification_tile.dart';
+import '../../../core/providers/notification_provider.dart';
+import '../../../core/services/signalr_notification_service.dart';
 
 class NotificationScreen extends ConsumerWidget {
   const NotificationScreen({super.key});
@@ -28,6 +29,12 @@ class NotificationScreen extends ConsumerWidget {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Test Notification Button (for development)
+          IconButton(
+            onPressed: () => _showTestNotificationDialog(context),
+            icon: const Icon(Icons.bug_report),
+            tooltip: 'Test Notifications',
+          ),
           if (notificationState.unreadCount > 0)
             TextButton(
               onPressed: () {
@@ -118,23 +125,135 @@ class NotificationScreen extends ConsumerWidget {
                         itemCount: notificationState.notifications.length,
                         itemBuilder: (context, index) {
                           final notification = notificationState.notifications[index];
-                          return NotificationTile(
-                            notification: notification,
-                            onTap: () {
-                              _handleNotificationTap(context, notification);
-                            },
-                            onMarkAsRead: () {
-                              ref.read(notificationProvider(user.user?.id ?? '').notifier)
-                                  .markAsRead(notification['id']);
-                            },
-                            onDelete: () {
-                              _showDeleteConfirmation(context, ref, user.user?.id ?? '', notification['id']);
-                            },
-                          );
+                          return _buildNotificationTile(context, ref, notification, user.user?.id ?? '');
                         },
                       ),
                     ),
     );
+  }
+
+  Widget _buildNotificationTile(BuildContext context, WidgetRef ref, Map<String, dynamic> notification, String userId) {
+    final isRead = notification['isRead'] ?? false;
+    final title = notification['title'] ?? 'Thông báo';
+    final body = notification['body'] ?? '';
+    final timestamp = notification['timestamp'];
+    final type = notification['type'] ?? 'system';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      elevation: isRead ? 1 : 3,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: _getNotificationColor(type),
+          child: Icon(
+            _getNotificationIcon(type),
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+            color: isRead ? Colors.grey[700] : Colors.black87,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (body.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+            if (timestamp != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _formatTimestamp(timestamp),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[500],
+                ),
+              ),
+            ],
+          ],
+        ),
+        trailing: PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'mark_read' && !isRead) {
+              ref.read(notificationProvider(userId).notifier)
+                  .markAsRead(notification['id']);
+            } else if (value == 'delete') {
+              _showDeleteConfirmation(context, ref, userId, notification['id']);
+            }
+          },
+          itemBuilder: (context) => [
+            if (!isRead)
+              const PopupMenuItem(
+                value: 'mark_read',
+                child: Row(
+                  children: [
+                    Icon(Icons.mark_email_read),
+                    SizedBox(width: 8),
+                    Text('Đánh dấu đã đọc'),
+                  ],
+                ),
+              ),
+            const PopupMenuItem(
+              value: 'delete',
+              child: Row(
+                children: [
+                  Icon(Icons.delete, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Xóa thông báo'),
+                ],
+              ),
+            ),
+          ],
+        ),
+        onTap: () {
+          _handleNotificationTap(context, notification);
+          if (!isRead) {
+            ref.read(notificationProvider(userId).notifier)
+                .markAsRead(notification['id']);
+          }
+        },
+      ),
+    );
+  }
+
+  Color _getNotificationColor(String type) {
+    switch (type) {
+      case 'chat':
+        return Colors.blue;
+      case 'job_application':
+        return Colors.green;
+      case 'interview':
+        return Colors.orange;
+      case 'system':
+      default:
+        return Colors.purple;
+    }
+  }
+
+  IconData _getNotificationIcon(String type) {
+    switch (type) {
+      case 'chat':
+        return Icons.chat;
+      case 'job_application':
+        return Icons.work;
+      case 'interview':
+        return Icons.event;
+      case 'system':
+      default:
+        return Icons.notifications;
+    }
   }
 
   void _handleNotificationTap(BuildContext context, Map<String, dynamic> notification) {
@@ -239,6 +358,82 @@ class NotificationScreen extends ConsumerWidget {
       return '${difference.inMinutes} phút trước';
     } else {
       return 'Vừa xong';
+    }
+  }
+
+  void _showTestNotificationDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Test Notifications'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Chọn loại thông báo để test:'),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _testLocalNotification('Chat Message', 'You have a new message from John Doe', context);
+              },
+              icon: const Icon(Icons.chat),
+              label: const Text('Chat Notification'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _testLocalNotification('New Job Posted', 'A new "Flutter Developer" position has been posted', context);
+              },
+              icon: const Icon(Icons.work),
+              label: const Text('Job Notification'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _testLocalNotification('Interview Scheduled', 'Your interview has been scheduled for tomorrow at 2:00 PM', context);
+              },
+              icon: const Icon(Icons.event),
+              label: const Text('Interview Notification'),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _testLocalNotification(String title, String body, BuildContext context) async {
+    try {
+      // Import SignalRNotificationService at the top
+      final signalRService = SignalRNotificationService();
+      await signalRService.showLocalNotification(
+        title: title,
+        body: body,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Test notification sent: $title'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 } 

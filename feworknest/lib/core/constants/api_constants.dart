@@ -78,6 +78,12 @@ class ApiConstants {
   static const String trackEvent = '/api/Dashboard/track';
   
   
+  // Interview endpoints
+  static const String scheduleInterview = '/api/Interview/schedule';
+  static const String myInterviews = '/api/Interview/my-interviews';
+  static const String updateInterviewStatus = '/api/Interview'; // /api/Interview/{id}/status
+  static const String getInterview = '/api/Interview'; // /api/Interview/{id}
+  
   // Upload endpoints
   static const String uploadAvatar = '/api/Upload/avatar';
   static const String uploadImage = '/api/Upload/image';

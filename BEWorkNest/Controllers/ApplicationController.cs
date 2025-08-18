@@ -10,18 +10,30 @@ namespace BEWorkNest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize]
+    [AllowAnonymous]
     public class ApplicationController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
         private readonly CloudinaryService _cloudinaryService;
         private readonly JwtService _jwtService;
+        private readonly CVProcessingService _cvProcessingService;
+        private readonly AiService _aiService;
+        private readonly UserBehaviorService _userBehaviorService;
 
-        public ApplicationController(ApplicationDbContext context, CloudinaryService cloudinaryService, JwtService jwtService)
+        public ApplicationController(
+            ApplicationDbContext context, 
+            CloudinaryService cloudinaryService, 
+            JwtService jwtService,
+            CVProcessingService cvProcessingService,
+            AiService aiService,
+            UserBehaviorService userBehaviorService)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
             _jwtService = jwtService;
+            _cvProcessingService = cvProcessingService;
+            _aiService = aiService;
+            _userBehaviorService = userBehaviorService;
         }
 
         // Helper method to get user info from JWT token
@@ -116,69 +128,26 @@ namespace BEWorkNest.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> CreateApplication([FromForm] CreateApplicationDto createDto)
         {
-            string? userId = null;
-            string? userRole = null;
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            try
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                // Debug logging
-                Console.WriteLine($"DEBUG: CreateApplication called with JobId: {createDto.JobId}");
-                Console.WriteLine($"DEBUG: User.Identity.IsAuthenticated: {User.Identity?.IsAuthenticated}");
-                Console.WriteLine($"DEBUG: User claims count: {User.Claims.Count()}");
-
-                foreach (var claim in User.Claims)
+                return Unauthorized(new
                 {
-                    Console.WriteLine($"DEBUG: Claim {claim.Type}: {claim.Value}");
-                }
-
-                // Get real user ID from token
-                userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                userRole = User.FindFirst("role")?.Value;
-
-                Console.WriteLine($"DEBUG: UserId from token: {userId}");
-                Console.WriteLine($"DEBUG: UserRole from token: {userRole}");
-
-                // FOR TESTING: If no token, try to find any candidate user
-                if (userId == null)
-                {
-                    Console.WriteLine("DEBUG: No token found, looking for any candidate user...");
-                    var candidateUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "candidate");
-                    if (candidateUser != null)
-                    {
-                        userId = candidateUser.Id;
-                        userRole = "candidate";
-                        Console.WriteLine($"DEBUG: Using test candidate user: {userId}");
-                    }
-                    else
-                    {
-                        Console.WriteLine("DEBUG: No candidate user found in database");
-                        return BadRequest(new
-                        {
-                            message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
-                            errorCode = "USER_ID_NOT_FOUND"
-                        });
-                    }
-                }
-
-                // Check if user has candidate role
-                if (userRole != "candidate")
-                {
-                    Console.WriteLine($"DEBUG: User role '{userRole}' is not candidate - returning error");
-                    return BadRequest(new
-                    {
-                        message = "Không có quyền truy cập. Chỉ ứng viên mới có thể nộp đơn ứng tuyển.",
-                        errorCode = "INSUFFICIENT_PERMISSIONS",
-                        userRole = userRole ?? "unknown"
-                    });
-                }
-
-                Console.WriteLine("DEBUG: Authentication and authorization passed");
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
-            catch (Exception ex)
+
+            // Check if user has candidate role
+            if (userRole != "candidate")
             {
-                Console.WriteLine($"DEBUG: Exception in CreateApplication: {ex.Message}");
-                Console.WriteLine($"DEBUG: Exception stack trace: {ex.StackTrace}");
-                return BadRequest(new { message = "Internal error", error = ex.Message });
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể nộp đơn ứng tuyển.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? "unknown"
+                });
             }
 
             // Check if job post exists
@@ -229,6 +198,19 @@ namespace BEWorkNest.Controllers
 
             _context.Applications.Add(application);
             await _context.SaveChangesAsync();
+
+            // Track application behavior
+            await _userBehaviorService.TrackApplicationAsync(userId, createDto.JobId, jobPost.Title, "pending");
+
+            // Analyze CV if provided and perform matching
+            if (createDto.CvFile != null && !string.IsNullOrEmpty(cvUrl))
+            {
+                _ = Task.Run(async () => await AnalyzeCVForApplicationAsync(application.Id, createDto.CvFile, jobPost));
+            }
+            else if (!string.IsNullOrEmpty(cvUrl))
+            {
+                _ = Task.Run(async () => await AnalyzeCVFromUrlAsync(application.Id, cvUrl, jobPost));
+            }
 
             // Return complete application data for Flutter
             var savedApplication = await _context.Applications
@@ -300,29 +282,15 @@ namespace BEWorkNest.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetApplication(int id)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            // FOR TESTING: If no token, try to find any user
-            if (userId == null)
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for GetApplication, looking for any user...");
-                var anyUser = await _context.Users.FirstOrDefaultAsync();
-                if (anyUser != null)
+                return Unauthorized(new
                 {
-                    userId = anyUser.Id;
-                    userRole = anyUser.Role;
-                    Console.WriteLine($"DEBUG: Using test user for GetApplication: {userId} with role {userRole}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No user found in database for GetApplication");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
 
             var application = await _context.Applications
@@ -348,52 +316,80 @@ namespace BEWorkNest.Controllers
                 return Forbid("You can only view applications for your jobs");
             }
 
-            var applicationDto = new ApplicationDto
+            // Return application data that matches Flutter model structure
+            return Ok(new
             {
-                Id = application.Id,
-                CvUrl = application.CvUrl,
-                CoverLetter = application.CoverLetter,
-                Status = application.Status.ToString(),
-                CreatedAt = application.CreatedAt,
-                Applicant = new UserDto
+                id = application.Id,
+                applicantId = application.ApplicantId,
+                jobId = application.JobId,
+                cvUrl = application.CvUrl,
+                coverLetter = application.CoverLetter,
+                status = application.Status.ToString(),
+                createdAt = application.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                isActive = application.IsActive,
+                appliedAt = application.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                
+                // Applicant data in the format Flutter expects
+                applicant = new
                 {
-                    Id = application.Applicant.Id,
-                    Email = application.Applicant.Email!,
-                    FirstName = application.Applicant.FirstName,
-                    LastName = application.Applicant.LastName,
-                    Role = application.Applicant.Role,
-                    Avatar = application.Applicant.Avatar,
-                    CreatedAt = application.Applicant.CreatedAt
+                    id = application.Applicant.Id,
+                    userName = application.Applicant.UserName,
+                    email = application.Applicant.Email,
+                    firstName = application.Applicant.FirstName,
+                    lastName = application.Applicant.LastName,
+                    fullName = $"{application.Applicant.FirstName} {application.Applicant.LastName}".Trim(),
+                    avatar = application.Applicant.Avatar,
+                    role = application.Applicant.Role,
+                    createdAt = application.Applicant.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
                 },
-                Job = new JobPostDto
+                
+                // Legacy fields for backward compatibility
+                applicantName = $"{application.Applicant.FirstName} {application.Applicant.LastName}".Trim(),
+                applicantEmail = application.Applicant.Email,
+                avatarUrl = application.Applicant.Avatar,
+                
+                // Job data in the format Flutter expects
+                job = new
                 {
-                    Id = application.Job.Id,
-                    Title = application.Job.Title,
-                    Specialized = application.Job.Specialized,
-                    Description = application.Job.Description,
-                    Requirements = application.Job.Requirements,
-                    Benefits = application.Job.Benefits,
-                    Salary = application.Job.Salary,
-                    WorkingHours = application.Job.WorkingHours,
-                    Location = application.Job.Location,
-                    JobType = application.Job.JobType,
-                    ExperienceLevel = application.Job.ExperienceLevel,
-                    DeadLine = application.Job.DeadLine,
-                    CreatedAt = application.Job.CreatedAt,
-                    Recruiter = new UserDto
+                    id = application.Job.Id,
+                    title = application.Job.Title,
+                    description = application.Job.Description,
+                    requirements = application.Job.Requirements,
+                    benefits = application.Job.Benefits,
+                    salary = application.Job.Salary,
+                    workingHours = application.Job.WorkingHours,
+                    location = application.Job.Location,
+                    specialized = application.Job.Specialized,
+                    jobType = application.Job.JobType,
+                    experienceLevel = application.Job.ExperienceLevel,
+                    deadLine = application.Job.DeadLine.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    isActive = application.Job.IsActive,
+                    createdAt = application.Job.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    recruiter = new
                     {
-                        Id = application.Job.Recruiter.Id,
-                        Email = application.Job.Recruiter.Email!,
-                        FirstName = application.Job.Recruiter.FirstName,
-                        LastName = application.Job.Recruiter.LastName,
-                        Role = application.Job.Recruiter.Role,
-                        Avatar = application.Job.Recruiter.Avatar,
-                        CreatedAt = application.Job.Recruiter.CreatedAt
+                        id = application.Job.Recruiter.Id,
+                        userName = application.Job.Recruiter.UserName,
+                        email = application.Job.Recruiter.Email,
+                        firstName = application.Job.Recruiter.FirstName,
+                        lastName = application.Job.Recruiter.LastName,
+                        fullName = $"{application.Job.Recruiter.FirstName} {application.Job.Recruiter.LastName}".Trim(),
+                        avatar = application.Job.Recruiter.Avatar,
+                        role = application.Job.Recruiter.Role,
+                        createdAt = application.Job.Recruiter.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                        company = application.Job.Recruiter.Company != null ? new
+                        {
+                            id = application.Job.Recruiter.Company.Id,
+                            name = application.Job.Recruiter.Company.Name,
+                            description = application.Job.Recruiter.Company.Description,
+                            isVerified = application.Job.Recruiter.Company.IsVerified
+                        } : null
                     }
-                }
-            };
-
-            return Ok(applicationDto);
+                },
+                
+                // Legacy fields for backward compatibility
+                jobTitle = application.Job.Title,
+                jobId_Legacy = application.Job.Id
+            });
         }
 
         [HttpGet("my-applications")]
@@ -405,28 +401,13 @@ namespace BEWorkNest.Controllers
             // Use the new helper method to get user info from JWT
             var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            Console.WriteLine($"DEBUG: GetMyApplications - userId: {userId}, userRole: {userRole}, isAuthenticated: {isAuthenticated}");
-
-            // FOR TESTING: If still no user found, try to find any candidate user
-            if (string.IsNullOrEmpty(userId))
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for my-applications, looking for any candidate user...");
-                var candidateUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "candidate");
-                if (candidateUser != null)
+                return Unauthorized(new
                 {
-                    userId = candidateUser.Id;
-                    userRole = "candidate";
-                    Console.WriteLine($"DEBUG: Using test candidate user for my-applications: {userId}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No candidate user found in database for my-applications");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
 
             // Check if user has candidate role
@@ -534,31 +515,14 @@ namespace BEWorkNest.Controllers
             // Use the new helper method to get user info from JWT
             var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            Console.WriteLine($"DEBUG: GetMyJobApplications - userId: {userId}, userRole: {userRole}, isAuthenticated: {isAuthenticated}");
-
-            // FOR TESTING: If still no user found, try to find any recruiter user
-            if (string.IsNullOrEmpty(userId))
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token or invalid token for GetMyJobApplications, looking for any recruiter user...");
-                var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                if (recruiterUser != null)
+                return Unauthorized(new
                 {
-                    userId = recruiterUser.Id;
-                    userRole = "recruiter";
-                    Console.WriteLine($"DEBUG: Using test recruiter user for GetMyJobApplications: {userId}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No recruiter user found in database for GetMyJobApplications");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
-
-            Console.WriteLine($"DEBUG: Final userId being used: {userId}, userRole: {userRole}");
 
             // Check if user has recruiter role
             if (userRole != "recruiter")
@@ -571,51 +535,6 @@ namespace BEWorkNest.Controllers
                 });
             }
 
-            // Debug: Check if the recruiter has any job posts
-            var recruiterJobCount = await _context.JobPosts
-                .Where(j => j.RecruiterId == userId && j.IsActive)
-                .CountAsync();
-            Console.WriteLine($"DEBUG: Recruiter {userId} has {recruiterJobCount} active job posts");
-
-            // Debug: Check total applications in DB
-            var totalApplicationsInDb = await _context.Applications
-                .Where(a => a.IsActive)
-                .CountAsync();
-            Console.WriteLine($"DEBUG: Total active applications in DB: {totalApplicationsInDb}");
-
-            // Debug: Check applications for recruiter's jobs
-            var recruiterApplicationCount = await _context.Applications
-                .Include(a => a.Job)
-                .Where(a => a.Job.RecruiterId == userId && a.IsActive)
-                .CountAsync();
-            Console.WriteLine($"DEBUG: Applications for recruiter {userId}'s jobs: {recruiterApplicationCount}");
-
-            // Debug: Check what JobIds exist for this recruiter
-            var recruiterJobIds = await _context.JobPosts
-                .Where(j => j.RecruiterId == userId && j.IsActive)
-                .Select(j => j.Id)
-                .ToListAsync();
-            Console.WriteLine($"DEBUG: Recruiter's job IDs: [{string.Join(", ", recruiterJobIds)}]");
-
-            // Debug: Check all applications and their JobIds
-            var allApplications = await _context.Applications
-                .Where(a => a.IsActive)
-                .Select(a => new { a.Id, a.JobId, a.ApplicantId })
-                .ToListAsync();
-            Console.WriteLine($"DEBUG: All active applications: {string.Join(", ", allApplications.Select(a => $"App#{a.Id}->Job#{a.JobId}"))}");
-
-            // Debug: Check if any applications match recruiter's jobs
-            var matchingApps = allApplications.Where(a => recruiterJobIds.Contains(a.JobId)).ToList();
-            Console.WriteLine($"DEBUG: Matching applications: {matchingApps.Count} ({string.Join(", ", matchingApps.Select(a => $"App#{a.Id}"))})");
-
-            // Debug: Check job ownership
-            var jobOwnership = await _context.JobPosts
-                .Where(j => j.IsActive)
-                .Select(j => new { j.Id, j.RecruiterId, j.Title })
-                .ToListAsync();
-            Console.WriteLine($"DEBUG: All job ownership: {string.Join(", ", jobOwnership.Select(j => $"Job#{j.Id}->Recruiter#{j.RecruiterId} ({j.Title})"))}");
-                
-
             // Build query to get all applications for jobs created by this recruiter
             var query = _context.Applications
                 .Include(a => a.Applicant)
@@ -623,8 +542,6 @@ namespace BEWorkNest.Controllers
                 .ThenInclude(j => j.Recruiter)
                 .ThenInclude(r => r.Company)
                 .Where(a => a.Job.RecruiterId == userId && a.IsActive);
-
-            Console.WriteLine($"DEBUG: Query created for GetMyJobApplications");
 
             // Filter by specific job if provided
             if (jobId.HasValue)
@@ -642,15 +559,12 @@ namespace BEWorkNest.Controllers
             }
 
             var totalCount = await query.CountAsync();
-            Console.WriteLine($"DEBUG: Total count from query: {totalCount}");
 
             var applications = await query
                 .OrderByDescending(a => a.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();
-
-            Console.WriteLine($"DEBUG: Retrieved {applications.Count} applications after pagination");
 
             var applicationDtos = applications.Select(a => new ApplicationDto
             {
@@ -766,29 +680,15 @@ namespace BEWorkNest.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> UpdateApplicationStatus(int id, [FromBody] UpdateApplicationStatusDto updateDto)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            // FOR TESTING: If no token, try to find any recruiter user
-            if (userId == null)
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for UpdateApplicationStatus, looking for any recruiter user...");
-                var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                if (recruiterUser != null)
+                return Unauthorized(new
                 {
-                    userId = recruiterUser.Id;
-                    userRole = "recruiter";
-                    Console.WriteLine($"DEBUG: Using test recruiter user for UpdateApplicationStatus: {userId}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No recruiter user found in database for UpdateApplicationStatus");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
 
             // Check if user has recruiter role
@@ -840,29 +740,15 @@ namespace BEWorkNest.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            // FOR TESTING: If no token, try to find any recruiter user
-            if (userId == null)
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for GetJobApplications, looking for any recruiter user...");
-                var recruiterUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "recruiter");
-                if (recruiterUser != null)
+                return Unauthorized(new
                 {
-                    userId = recruiterUser.Id;
-                    userRole = "recruiter";
-                    Console.WriteLine($"DEBUG: Using test recruiter user for GetJobApplications: {userId}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No recruiter user found in database for GetJobApplications");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user recruiter nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
 
             // Check if user has recruiter role
@@ -939,29 +825,15 @@ namespace BEWorkNest.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> DeleteApplication(int id)
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            var userRole = User.FindFirst("role")?.Value;
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            // FOR TESTING: If no token, try to find any candidate user
-            if (userId == null)
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
             {
-                Console.WriteLine("DEBUG: No token found for DeleteApplication, looking for any candidate user...");
-                var candidateUser = await _context.Users.FirstOrDefaultAsync(u => u.Role == "candidate");
-                if (candidateUser != null)
+                return Unauthorized(new
                 {
-                    userId = candidateUser.Id;
-                    userRole = "candidate";
-                    Console.WriteLine($"DEBUG: Using test candidate user for DeleteApplication: {userId}");
-                }
-                else
-                {
-                    Console.WriteLine("DEBUG: No candidate user found in database for DeleteApplication");
-                    return BadRequest(new
-                    {
-                        message = "Không tìm thấy thông tin người dùng trong token và không có user candidate nào trong DB",
-                        errorCode = "USER_ID_NOT_FOUND"
-                    });
-                }
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
             }
 
             // Check if user has candidate role
@@ -1116,6 +988,162 @@ namespace BEWorkNest.Controllers
             };
 
             return Ok(applicationDto);
+        }
+
+        // CV Analysis Methods
+        private async Task AnalyzeCVForApplicationAsync(int applicationId, IFormFile cvFile, JobPost jobPost)
+        {
+            try
+            {
+                // Extract text from CV
+                var cvText = await _cvProcessingService.ExtractTextFromCVAsync(cvFile);
+                var cleanedText = _cvProcessingService.CleanExtractedText(cvText);
+
+                // Prepare job details for AI analysis
+                var jobDetails = new Dictionary<string, object>
+                {
+                    ["id"] = jobPost.Id,
+                    ["title"] = jobPost.Title,
+                    ["description"] = jobPost.Description,
+                    ["requirements"] = jobPost.Requirements,
+                    ["location"] = jobPost.Location,
+                    ["salary"] = jobPost.Salary,
+                    ["jobType"] = jobPost.JobType,
+                    ["experienceLevel"] = jobPost.ExperienceLevel
+                };
+
+                // Analyze CV with AI
+                var analysisResult = await _aiService.AnalyzeCVForJobAsync(cleanedText, jobDetails);
+
+                // Save analysis result to database
+                await SaveCVAnalysisResultAsync(applicationId, jobPost.Id, analysisResult);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the application process
+                Console.WriteLine($"CV Analysis failed for application {applicationId}: {ex.Message}");
+            }
+        }
+
+        private async Task AnalyzeCVFromUrlAsync(int applicationId, string cvUrl, JobPost jobPost)
+        {
+            try
+            {
+                // Extract text from CV URL
+                var cvText = await _cvProcessingService.ExtractTextFromUrlAsync(cvUrl);
+                var cleanedText = _cvProcessingService.CleanExtractedText(cvText);
+
+                // Prepare job details for AI analysis
+                var jobDetails = new Dictionary<string, object>
+                {
+                    ["id"] = jobPost.Id,
+                    ["title"] = jobPost.Title,
+                    ["description"] = jobPost.Description,
+                    ["requirements"] = jobPost.Requirements,
+                    ["location"] = jobPost.Location,
+                    ["salary"] = jobPost.Salary,
+                    ["jobType"] = jobPost.JobType,
+                    ["experienceLevel"] = jobPost.ExperienceLevel
+                };
+
+                // Analyze CV with AI
+                var analysisResult = await _aiService.AnalyzeCVForJobAsync(cleanedText, jobDetails);
+
+                // Save analysis result to database
+                await SaveCVAnalysisResultAsync(applicationId, jobPost.Id, analysisResult);
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't fail the application process
+                Console.WriteLine($"CV Analysis from URL failed for application {applicationId}: {ex.Message}");
+            }
+        }
+
+        private async Task SaveCVAnalysisResultAsync(int applicationId, int jobId, Services.CVAnalysisResult analysisResult)
+        {
+            try
+            {
+                var application = await _context.Applications.FindAsync(applicationId);
+                if (application == null) return;
+
+                var dbAnalysisResult = new Models.CVAnalysisResult
+                {
+                    ApplicationId = applicationId,
+                    JobId = jobId,
+                    CandidateId = application.ApplicantId,
+                    MatchScore = analysisResult.MatchScore,
+                    ExtractedSkills = System.Text.Json.JsonSerializer.Serialize(analysisResult.CandidateInfo.Skills),
+                    Strengths = System.Text.Json.JsonSerializer.Serialize(analysisResult.Strengths),
+                    Weaknesses = System.Text.Json.JsonSerializer.Serialize(analysisResult.Weaknesses),
+                    ImprovementSuggestions = System.Text.Json.JsonSerializer.Serialize(analysisResult.ImprovementSuggestions),
+                    DetailedAnalysis = analysisResult.DetailedAnalysis,
+                    AnalyzedAt = DateTime.UtcNow
+                };
+
+                _context.CVAnalysisResults.Add(dbAnalysisResult);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to save CV analysis result: {ex.Message}");
+            }
+        }
+
+        // Get CV Analysis Result for a specific application
+        [HttpGet("{id}/cv-analysis")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetCVAnalysis(int id)
+        {
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (application == null)
+            {
+                return NotFound("Application not found");
+            }
+
+            // Check permissions
+            if (userRole == "candidate" && application.ApplicantId != userId)
+            {
+                return Forbid("You can only view your own application analysis");
+            }
+            
+            if (userRole == "recruiter" && application.Job.RecruiterId != userId)
+            {
+                return Forbid("You can only view analysis for your job applications");
+            }
+
+            var analysisResult = await _context.CVAnalysisResults
+                .FirstOrDefaultAsync(c => c.ApplicationId == id);
+
+            if (analysisResult == null)
+            {
+                return Ok(new { message = "CV analysis not available yet. Please check back later." });
+            }
+
+            return Ok(new
+            {
+                applicationId = analysisResult.ApplicationId,
+                matchScore = analysisResult.MatchScore,
+                extractedSkills = System.Text.Json.JsonSerializer.Deserialize<List<string>>(analysisResult.ExtractedSkills ?? "[]"),
+                strengths = System.Text.Json.JsonSerializer.Deserialize<List<string>>(analysisResult.Strengths ?? "[]"),
+                weaknesses = System.Text.Json.JsonSerializer.Deserialize<List<string>>(analysisResult.Weaknesses ?? "[]"),
+                improvementSuggestions = System.Text.Json.JsonSerializer.Deserialize<List<string>>(analysisResult.ImprovementSuggestions ?? "[]"),
+                detailedAnalysis = analysisResult.DetailedAnalysis,
+                analyzedAt = analysisResult.AnalyzedAt
+            });
         }
     }
 }
