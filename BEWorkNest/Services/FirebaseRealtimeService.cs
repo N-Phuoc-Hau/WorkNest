@@ -268,10 +268,26 @@ namespace BEWorkNest.Services
 
                 _logger.LogInformation($"Creating new chat room with participants: {string.Join(", ", chatRoom.Participants.Keys)}");
 
+                // Use PutAsync with proper JSON serialization
                 await _firebaseClient
                     .Child("chatRooms")
                     .Child(roomId)
                     .PutAsync(chatRoom);
+
+                // Verify the room was created properly
+                var verifyRoom = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(roomId)
+                    .OnceSingleAsync<ChatRoom>();
+
+                if (verifyRoom != null)
+                {
+                    _logger.LogInformation($"Room {roomId} created successfully. Participants: {(verifyRoom.Participants != null ? string.Join(", ", verifyRoom.Participants.Keys) : "NULL")}");
+                }
+                else
+                {
+                    _logger.LogError($"Failed to verify room creation for {roomId}");
+                }
 
                 _logger.LogInformation($"Chat room created: {roomId}");
                 return roomId;
@@ -298,6 +314,26 @@ namespace BEWorkNest.Services
 
                 _logger.LogInformation($"Resolved room ID: {actualRoomId} (requested: {roomId})");
 
+                // First get the room info to check if user is recruiter or candidate
+                var roomInfo = await _firebaseClient
+                    .Child("chatRooms")
+                    .Child(actualRoomId)
+                    .OnceSingleAsync<ChatRoom>();
+
+                if (roomInfo == null)
+                {
+                    _logger.LogWarning($"Room {actualRoomId} does not exist");
+                    return false;
+                }
+
+                // Check if user is the recruiter or candidate of this room
+                if (roomInfo.RecruiterId == userId || roomInfo.CandidateId == userId)
+                {
+                    _logger.LogInformation($"User {userId} has access to room {actualRoomId} as room owner (recruiter: {roomInfo.RecruiterId}, candidate: {roomInfo.CandidateId})");
+                    return true;
+                }
+
+                // Fallback: check participants
                 var participants = await _firebaseClient
                     .Child("chatRooms")
                     .Child(actualRoomId)
@@ -306,14 +342,14 @@ namespace BEWorkNest.Services
 
                 if (participants == null)
                 {
-                    _logger.LogWarning($"No participants found for room {actualRoomId}");
+                    _logger.LogWarning($"No participants found for room {actualRoomId}, but user is not room owner");
                     return false;
                 }
 
                 _logger.LogInformation($"Room {actualRoomId} participants: {string.Join(", ", participants.Keys)}");
                 
                 var hasAccess = participants.ContainsKey(userId);
-                _logger.LogInformation($"User {userId} has access to room {actualRoomId}: {hasAccess}");
+                _logger.LogInformation($"User {userId} has access to room {actualRoomId} via participants: {hasAccess}");
                 
                 return hasAccess;
             }

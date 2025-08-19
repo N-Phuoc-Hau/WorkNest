@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/models/notification_model.dart';
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/providers/notification_provider.dart';
 import '../../../core/services/signalr_notification_service.dart';
+import '../providers/notification_list_provider.dart';
 
 class NotificationScreen extends ConsumerWidget {
   const NotificationScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(authProvider);
+    final authState = ref.watch(authProvider);
     
-    if (user == null) {
+    if (!authState.isAuthenticated || authState.user == null) {
       return const Scaffold(
         body: Center(
           child: Text('Vui lòng đăng nhập để xem thông báo'),
@@ -20,7 +21,7 @@ class NotificationScreen extends ConsumerWidget {
       );
     }
 
-    final notificationState = ref.watch(notificationProvider(user.user?.id ?? ''));
+    final notificationState = ref.watch(notificationListProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -38,7 +39,7 @@ class NotificationScreen extends ConsumerWidget {
           if (notificationState.unreadCount > 0)
             TextButton(
               onPressed: () {
-                ref.read(notificationProvider(user.user?.id ?? '').notifier).markAllAsRead();
+                ref.read(notificationListProvider.notifier).markAllAsRead();
               },
               child: const Text(
                 'Đánh dấu tất cả',
@@ -79,7 +80,7 @@ class NotificationScreen extends ConsumerWidget {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          ref.read(notificationProvider(user.user?.id ?? '').notifier).clearError();
+                          ref.read(notificationListProvider.notifier).clearError();
                         },
                         child: const Text('Thử lại'),
                       ),
@@ -118,26 +119,26 @@ class NotificationScreen extends ConsumerWidget {
                     )
                   : RefreshIndicator(
                       onRefresh: () async {
-                        ref.read(notificationProvider(user.user?.id ?? '').notifier).refreshUnreadCount();
+                        ref.read(notificationListProvider.notifier).refresh();
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.all(8),
                         itemCount: notificationState.notifications.length,
                         itemBuilder: (context, index) {
                           final notification = notificationState.notifications[index];
-                          return _buildNotificationTile(context, ref, notification, user.user?.id ?? '');
+                          return _buildNotificationTile(context, ref, notification);
                         },
                       ),
                     ),
     );
   }
 
-  Widget _buildNotificationTile(BuildContext context, WidgetRef ref, Map<String, dynamic> notification, String userId) {
-    final isRead = notification['isRead'] ?? false;
-    final title = notification['title'] ?? 'Thông báo';
-    final body = notification['body'] ?? '';
-    final timestamp = notification['timestamp'];
-    final type = notification['type'] ?? 'system';
+  Widget _buildNotificationTile(BuildContext context, WidgetRef ref, NotificationModel notification) {
+    final isRead = notification.isRead;
+    final title = notification.title;
+    final body = notification.message;
+    final timestamp = notification.createdAt;
+    final type = notification.type ?? 'system';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -172,7 +173,6 @@ class NotificationScreen extends ConsumerWidget {
                 ),
               ),
             ],
-            if (timestamp != null) ...[
               const SizedBox(height: 4),
               Text(
                 _formatTimestamp(timestamp),
@@ -181,16 +181,15 @@ class NotificationScreen extends ConsumerWidget {
                   color: Colors.grey[500],
                 ),
               ),
-            ],
           ],
         ),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
             if (value == 'mark_read' && !isRead) {
-              ref.read(notificationProvider(userId).notifier)
-                  .markAsRead(notification['id']);
+              ref.read(notificationListProvider.notifier)
+                  .markAsRead(notification.id);
             } else if (value == 'delete') {
-              _showDeleteConfirmation(context, ref, userId, notification['id']);
+              _showDeleteConfirmation(context, ref, notification.id);
             }
           },
           itemBuilder: (context) => [
@@ -220,8 +219,8 @@ class NotificationScreen extends ConsumerWidget {
         onTap: () {
           _handleNotificationTap(context, notification);
           if (!isRead) {
-            ref.read(notificationProvider(userId).notifier)
-                .markAsRead(notification['id']);
+            ref.read(notificationListProvider.notifier)
+                .markAsRead(notification.id);
           }
         },
       ),
@@ -256,9 +255,9 @@ class NotificationScreen extends ConsumerWidget {
     }
   }
 
-  void _handleNotificationTap(BuildContext context, Map<String, dynamic> notification) {
-    final type = notification['type'];
-    final data = notification['data'];
+  void _handleNotificationTap(BuildContext context, NotificationModel notification) {
+    final type = notification.type;
+    final data = notification.data;
     
     switch (type) {
       case 'chat':
@@ -284,19 +283,19 @@ class NotificationScreen extends ConsumerWidget {
     }
   }
 
-  void _showNotificationDetails(BuildContext context, Map<String, dynamic> notification) {
+  void _showNotificationDetails(BuildContext context, NotificationModel notification) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(notification['title'] ?? 'Thông báo'),
+        title: Text(notification.title),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(notification['body'] ?? ''),
+            Text(notification.message),
             const SizedBox(height: 16),
             Text(
-              'Thời gian: ${_formatTimestamp(notification['timestamp'])}',
+              'Thời gian: ${_formatTimestamp(notification.createdAt)}',
               style: TextStyle(
                 fontSize: 12,
                 color: Colors.grey[600],
@@ -314,7 +313,7 @@ class NotificationScreen extends ConsumerWidget {
     );
   }
 
-  void _showDeleteConfirmation(BuildContext context, WidgetRef ref, String userId, String notificationId) {
+  void _showDeleteConfirmation(BuildContext context, WidgetRef ref, int notificationId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -328,7 +327,7 @@ class NotificationScreen extends ConsumerWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ref.read(notificationProvider(userId).notifier).deleteNotification(notificationId);
+              ref.read(notificationListProvider.notifier).deleteNotification(notificationId);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Đã xóa thông báo'),
@@ -343,13 +342,10 @@ class NotificationScreen extends ConsumerWidget {
     );
   }
 
-  String _formatTimestamp(dynamic timestamp) {
-    if (timestamp == null) return '';
-    
-    final messageTime = DateTime.fromMillisecondsSinceEpoch(timestamp);
+  String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
-    final difference = now.difference(messageTime);
-    
+    final difference = now.difference(timestamp);
+
     if (difference.inDays > 0) {
       return '${difference.inDays} ngày trước';
     } else if (difference.inHours > 0) {
@@ -359,9 +355,7 @@ class NotificationScreen extends ConsumerWidget {
     } else {
       return 'Vừa xong';
     }
-  }
-
-  void _showTestNotificationDialog(BuildContext context) {
+  }  void _showTestNotificationDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

@@ -24,8 +24,9 @@ class NotificationService {
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => NotificationModel.fromJson(json)).toList();
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+        final List<dynamic> notifications = responseData['notifications'] ?? [];
+        return notifications.map((json) => NotificationModel.fromJson(json)).toList();
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['message'] ?? 'Lỗi khi tải thông báo');
@@ -51,7 +52,7 @@ class NotificationService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['count'] as int;
+        return data['unreadCount'] as int;
       } else {
         return 0;
       }

@@ -35,6 +35,8 @@ class _RecruiterApplicationDetailPageState extends ConsumerState<RecruiterApplic
         _error = null;
       });
 
+      print('DEBUG RecruiterApplicationDetailPage: Loading application ID: ${widget.applicationId}');
+
       // Try to get from current loaded applicants first
       final applicantsState = ref.read(recruiterApplicantsProvider);
       final existingApplication = applicantsState.applicants
@@ -42,6 +44,7 @@ class _RecruiterApplicationDetailPageState extends ConsumerState<RecruiterApplic
           .firstOrNull;
 
       if (existingApplication != null) {
+        print('DEBUG RecruiterApplicationDetailPage: Found application in state: ${existingApplication.applicantName}');
         setState(() {
           _application = existingApplication;
           _isLoading = false;
@@ -49,9 +52,12 @@ class _RecruiterApplicationDetailPageState extends ConsumerState<RecruiterApplic
         return;
       }
 
+      print('DEBUG RecruiterApplicationDetailPage: Application not found in state, fetching from API');
+
       // If not found, load from API
       final applicationId = int.tryParse(widget.applicationId);
       if (applicationId == null) {
+        print('DEBUG RecruiterApplicationDetailPage: Invalid application ID');
         setState(() {
           _error = 'ID ứng viên không hợp lệ';
           _isLoading = false;
@@ -63,17 +69,22 @@ class _RecruiterApplicationDetailPageState extends ConsumerState<RecruiterApplic
           .getApplicationById(widget.applicationId);
       
       if (application != null) {
+        print('DEBUG RecruiterApplicationDetailPage: Application loaded from API: ${application.applicantName}');
+        print('DEBUG RecruiterApplicationDetailPage: Email: ${application.applicantEmail}');
+        print('DEBUG RecruiterApplicationDetailPage: Avatar: ${application.avatarUrl}');
         setState(() {
           _application = application;
           _isLoading = false;
         });
       } else {
+        print('DEBUG RecruiterApplicationDetailPage: Application not found');
         setState(() {
           _error = 'Không tìm thấy thông tin ứng viên';
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('DEBUG RecruiterApplicationDetailPage: Error loading application: $e');
       setState(() {
         _error = 'Lỗi khi tải thông tin ứng viên: $e';
         _isLoading = false;

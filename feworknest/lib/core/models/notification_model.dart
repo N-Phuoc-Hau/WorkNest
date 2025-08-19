@@ -1,31 +1,37 @@
 class NotificationModel {
   final int id;
-  final String userId;
+  final String? userId;
   final String title;
   final String message;
   final String? type;
+  final String? relatedEntityId;
+  final String? actionUrl;
   final Map<String, dynamic>? data;
   final bool isRead;
   final DateTime createdAt;
 
   const NotificationModel({
     required this.id,
-    required this.userId,
     required this.title,
     required this.message,
     required this.isRead,
     required this.createdAt,
+    this.userId,
     this.type,
+    this.relatedEntityId,
+    this.actionUrl,
     this.data,
   });
 
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
       id: json['id'] as int,
-      userId: json['userId'] as String,
+      userId: json['userId'] as String?,
       title: json['title'] as String,
       message: json['message'] as String,
       type: json['type'] as String?,
+      relatedEntityId: json['relatedEntityId'] as String?,
+      actionUrl: json['actionUrl'] as String?,
       data: json['data'] as Map<String, dynamic>?,
       isRead: json['isRead'] as bool,
       createdAt: DateTime.parse(json['createdAt'] as String),
@@ -39,6 +45,8 @@ class NotificationModel {
       'title': title,
       'message': message,
       'type': type,
+      'relatedEntityId': relatedEntityId,
+      'actionUrl': actionUrl,
       'data': data,
       'isRead': isRead,
       'createdAt': createdAt.toIso8601String(),
@@ -51,6 +59,8 @@ class NotificationModel {
     String? title,
     String? message,
     String? type,
+    String? relatedEntityId,
+    String? actionUrl,
     Map<String, dynamic>? data,
     bool? isRead,
     DateTime? createdAt,
@@ -61,6 +71,8 @@ class NotificationModel {
       title: title ?? this.title,
       message: message ?? this.message,
       type: type ?? this.type,
+      relatedEntityId: relatedEntityId ?? this.relatedEntityId,
+      actionUrl: actionUrl ?? this.actionUrl,
       data: data ?? this.data,
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,

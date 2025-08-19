@@ -47,7 +47,7 @@ namespace BEWorkNest
                         ValidAudience = builder.Configuration["Jwt:Audience"],
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
                     };
-                    
+
                     // Configure JWT for SignalR
                     options.Events = new JwtBearerEvents
                     {
@@ -106,12 +106,12 @@ namespace BEWorkNest
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
-                c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo 
-                { 
-                    Title = "WorkNest API", 
-                    Version = "v1" 
+                c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+                {
+                    Title = "WorkNest API",
+                    Version = "v1"
                 });
-                
+
                 // Add JWT Authentication to Swagger
                 c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
                 {
@@ -151,7 +151,7 @@ namespace BEWorkNest
                                .AllowAnyMethod()
                                .AllowAnyHeader();
                     });
-                    
+
                 options.AddPolicy("SignalRCors",
                     builder =>
                     {
@@ -164,20 +164,52 @@ namespace BEWorkNest
 
             var app = builder.Build();
 
+            // Add request logging middleware
+            app.Use(async (context, next) =>
+            {
+                Console.WriteLine($"Request: {context.Request.Method} {context.Request.Path}");
+                await next();
+                Console.WriteLine($"Response: {context.Response.StatusCode}");
+            });
+
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseDeveloperExceptionPage();
+            }
+            else
+            {
+                app.UseExceptionHandler("/Error");
+                app.UseHsts();
             }
 
-            app.UseHttpsRedirection();
+            // Always enable Swagger for API documentation
+            app.UseSwagger();
+            app.UseSwaggerUI(c =>
+            {
+                c.SwaggerEndpoint("/swagger/v1/swagger.json", "WorkNest API v1");
+                c.RoutePrefix = "swagger"; // Swagger will be available at /swagger
+            });
+
+            // Add static files support (optional, won't fail if wwwroot doesn't exist)
+            if (Directory.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot")))
+            {
+                app.UseStaticFiles();
+            }
+            
+            // Add routing
+            app.UseRouting();
+
             app.UseCors("AllowAll");
             app.UseAuthentication();
             app.UseAuthorization();
 
+            // Add health check endpoint
+            app.MapGet("/", () => "WorkNest API is running!");
+            app.MapGet("/health", () => new { status = "healthy", timestamp = DateTime.Now });
+
             app.MapControllers();
-            
+
             // Map SignalR hub
             app.MapHub<BEWorkNest.Hubs.NotificationHub>("/notificationHub");
 

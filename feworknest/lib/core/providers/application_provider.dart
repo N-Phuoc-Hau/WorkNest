@@ -88,6 +88,14 @@ class ApplicationNotifier extends StateNotifier<ApplicationsState> {
     try {
       final application = await _applicationService.getApplication(id);
       
+      if (application == null) {
+        state = state.copyWith(
+          isLoading: false,
+          error: 'Không tìm thấy đơn ứng tuyển',
+        );
+        return;
+      }
+      
       // Update the application in the list if it exists
       final updatedMyApplications = state.myApplications.map((app) {
         if (app.id == id) {

@@ -25,6 +25,9 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
   @override
   void initState() {
     super.initState();
+    print('DEBUG ApplicationDetailPage: Initializing with application: ${widget.application.applicantName}');
+    print('DEBUG ApplicationDetailPage: Email: ${widget.application.applicantEmail}');
+    print('DEBUG ApplicationDetailPage: Avatar: ${widget.application.avatarUrl}');
     // Load CV analysis when page opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(cvAnalysisProvider.notifier).getCVAnalysis(widget.application.id);
@@ -34,6 +37,8 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
   @override
   Widget build(BuildContext context) {
     final analysisState = ref.watch(cvAnalysisProvider);
+    
+    print('DEBUG ApplicationDetailPage: Building UI with applicant: ${widget.application.applicantName}');
     
     return Scaffold(
       backgroundColor: Colors.grey[50],

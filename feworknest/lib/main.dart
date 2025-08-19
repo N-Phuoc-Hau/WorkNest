@@ -13,22 +13,34 @@ void main() async {
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    // 🔧 Khởi tạo Firebase
-    await FirebaseWebConfig.initializeFirebase();
+    try {
+      // 🔧 Khởi tạo Firebase
+      await FirebaseWebConfig.initializeFirebase();
 
-    // 🔔 Khởi tạo dịch vụ thông báo
-    final notificationService = NotificationService();
-    await notificationService.initialize();
+      // 🔔 Khởi tạo dịch vụ thông báo
+      final notificationService = NotificationService();
+      await notificationService.initialize();
 
-    // 🔄 Khởi tạo SignalR service
-    final signalRService = SignalRNotificationService();
-    await signalRService.initialize();
+      // 🔄 Khởi tạo SignalR service
+      final signalRService = SignalRNotificationService();
+      await signalRService.initialize();
 
-    runApp(
-      const ProviderScope(
-        child: WorkNestApp(),
-      ),
-    );
+      runApp(
+        const ProviderScope(
+          child: WorkNestApp(),
+        ),
+      );
+    } catch (e, stackTrace) {
+      print('💥 App initialization failed: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Chạy ứng dụng với chế độ offline/fallback
+      runApp(
+        const ProviderScope(
+          child: WorkNestApp(),
+        ),
+      );
+    };
   }, (error, stack) {
     debugPrint('💥 Uncaught error: $error');
     debugPrint('$stack');

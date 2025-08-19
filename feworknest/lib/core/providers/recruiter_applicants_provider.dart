@@ -252,11 +252,16 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
           .firstOrNull;
       
       if (existingApp != null) {
+        print('DEBUG Provider: Found in state - Name: "${existingApp.applicantName}", Email: "${existingApp.applicantEmail}"');
         return existingApp;
       }
 
+      print('DEBUG Provider: Not found in state, fetching from API');
       // If not found in current state, fetch from API
       final application = await _applicationService.getApplication(int.parse(applicationId));
+      if (application != null) {
+        print('DEBUG Provider: Loaded from API - Name: "${application.applicantName}", Email: "${application.applicantEmail}"');
+      }
       return application;
     } catch (e) {
       print('Error getting application by ID: $e');

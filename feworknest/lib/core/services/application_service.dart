@@ -143,11 +143,23 @@ class ApplicationService {
     }
   }
 
-  Future<ApplicationModel> getApplication(int id) async {
+  Future<ApplicationModel?> getApplication(int id) async {
     try {
+      print('DEBUG ApplicationService: Fetching application ID: $id');
       final response = await _dio.get('/api/Application/$id');
+      print('DEBUG ApplicationService: Response data keys: ${response.data?.keys}');
+      if (response.data != null) {
+        print('DEBUG ApplicationService: applicantName: "${response.data['applicantName']}"');
+        print('DEBUG ApplicationService: applicantEmail: "${response.data['applicantEmail']}"');
+        print('DEBUG ApplicationService: avatarUrl: "${response.data['avatarUrl']}"');
+      }
       return ApplicationModel.fromJson(response.data);
     } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        print('DEBUG ApplicationService: Application not found (404)');
+        return null; // Application not found
+      }
+      print('DEBUG ApplicationService: Error fetching application: $e');
       throw _handleError(e);
     }
   }
