@@ -38,21 +38,21 @@ class _RecruiterApplicationDetailPageState extends ConsumerState<RecruiterApplic
       print('DEBUG RecruiterApplicationDetailPage: Loading application ID: ${widget.applicationId}');
 
       // Try to get from current loaded applicants first
-      final applicantsState = ref.read(recruiterApplicantsProvider);
-      final existingApplication = applicantsState.applicants
-          .where((app) => app.id.toString() == widget.applicationId)
-          .firstOrNull;
+      // final applicantsState = ref.read(recruiterApplicantsProvider);
+      // final existingApplication = applicantsState.applicants
+      //     .where((app) => app.id.toString() == widget.applicationId)
+      //     .firstOrNull;
 
-      if (existingApplication != null) {
-        print('DEBUG RecruiterApplicationDetailPage: Found application in state: ${existingApplication.applicantName}');
-        setState(() {
-          _application = existingApplication;
-          _isLoading = false;
-        });
-        return;
-      }
+      // if (existingApplication != null) {
+      //   print('DEBUG RecruiterApplicationDetailPage: Found application in state: ${existingApplication.applicantName}');
+      //   setState(() {
+      //     _application = existingApplication;
+      //     _isLoading = false;
+      //   });
+      //   return;
+      // }
 
-      print('DEBUG RecruiterApplicationDetailPage: Application not found in state, fetching from API');
+      // print('DEBUG RecruiterApplicationDetailPage: Application not found in state, fetching from API');
 
       // If not found, load from API
       final applicationId = int.tryParse(widget.applicationId);

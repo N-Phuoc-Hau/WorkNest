@@ -13,7 +13,6 @@ import '../../favorites/screens/favorite_screen.dart';
 import '../../jobs/screens/job_list_screen.dart';
 import '../../notifications/screens/notification_screen.dart';
 import '../../profile/screens/profile_screen.dart';
-import '../widgets/notification_badge.dart';
 
 class MainNavigationScreen extends ConsumerStatefulWidget {
   const MainNavigationScreen({super.key});
@@ -44,63 +43,12 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
         ? _getAuthenticatedTabs()
         : _getPublicTabs();
     
-    // Check if device is mobile or tablet
-    final screenWidth = MediaQuery.of(context).size.width;
-    final isMobile = screenWidth < 600;
-    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,  
         children: tabs.map((tab) => tab.screen).toList(),
       ),
-      bottomNavigationBar: isMobile ? _buildBottomNavigation(context, tabs, isAuthenticated) : null,
-      drawer: !isMobile ? _buildDrawerNavigation(context, tabs, isAuthenticated) : null,
-    );
-  }
-  
-  Widget _buildBottomNavigation(BuildContext context, List<NavigationTab> tabs, bool isAuthenticated) {
-    // Limit tabs to 5 for mobile bottom navigation
-    final displayTabs = tabs.length > 5 ? tabs.sublist(0, 5) : tabs;
-    
-    return BottomNavigationBar(
-      currentIndex: _currentIndex < displayTabs.length ? _currentIndex : 0,
-      onTap: (index) {
-        // Check if user needs authentication for this tab
-        if (!isAuthenticated && displayTabs[index].requiresAuth) {
-          _showLoginDialog(context);
-          return;
-        }
-        setState(() {
-          _currentIndex = index;
-        });
-      },
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: Theme.of(context).primaryColor,
-      unselectedItemColor: Colors.grey,
-      selectedFontSize: 12,
-      unselectedFontSize: 12,
-      items: displayTabs.asMap().entries.map((entry) {
-        final tab = entry.value;
-        
-        // Add notification badge for notification tab
-        if (tab.label == 'Thông báo') {
-          return BottomNavigationBarItem(
-            icon: NotificationBadge(
-              child: Icon(tab.icon),
-            ),
-            activeIcon: NotificationBadge(
-              child: Icon(tab.activeIcon),
-            ),
-            label: tab.label,
-          );
-        }
-        
-        return BottomNavigationBarItem(
-          icon: Icon(tab.icon),
-          activeIcon: Icon(tab.activeIcon),
-          label: tab.label,
-        );
-      }).toList(),
+      drawer: _buildDrawerNavigation(context, tabs, isAuthenticated),
     );
   }
   

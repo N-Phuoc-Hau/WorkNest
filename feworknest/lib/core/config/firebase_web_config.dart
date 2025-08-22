@@ -33,7 +33,18 @@ class FirebaseWebConfig {
           ),
         );
       } else {
-        await Firebase.initializeApp();
+        // For Android/iOS, use default options from google-services.json/GoogleService-Info.plist
+        await Firebase.initializeApp(
+          options: const FirebaseOptions(
+            apiKey: "AIzaSyCIMcF2niWutcfWzw1OlGm7EWZA3U4e5F0",
+            authDomain: "jobappchat.firebaseapp.com",
+            projectId: "jobappchat",
+            storageBucket: "jobappchat.firebasestorage.app",
+            messagingSenderId: "501808058071",
+            appId: "1:501808058071:android:7091b099f4484ac2caea92",
+            databaseURL: "https://jobappchat-default-rtdb.asia-southeast1.firebasedatabase.app",
+          ),
+        );
       }
       
       print('DEBUG Firebase: ✅ Firebase initialized successfully');

@@ -6,4 +6,11 @@ namespace BEWorkNest.Models
         Accepted,
         Rejected
     }
+
+    public enum RecruitmentDecision
+    {
+        Pending,
+        Accepted,
+        Rejected
+    }
 }

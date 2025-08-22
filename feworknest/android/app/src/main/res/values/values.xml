@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Firebase Configuration -->
+    <string name="google_app_id">1:501808058071:android:7091b099f4484ac2caea92</string>
+    <string name="google_api_key">AIzaSyCIMcF2niWutcfWzw1OlGm7EWZA3U4e5F0</string>
+    <string name="firebase_database_url">https://jobappchat-default-rtdb.asia-southeast1.firebasedatabase.app</string>
+    <string name="google_storage_bucket">jobappchat.firebasestorage.app</string>
+    <string name="project_id">jobappchat</string>
+    <string name="gcm_defaultSenderId">501808058071</string>
+    
+    <!-- App Configuration -->
+    <string name="default_web_client_id">501808058071-7091b099f4484ac2caea92.apps.googleusercontent.com</string>
+</resources>

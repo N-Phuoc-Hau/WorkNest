@@ -188,7 +188,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         icon: Icons.work,
         title: 'Việc làm',
         route: isAuthenticated
-            ? (user?.isRecruiter == true ? '/recruiter/jobs' : '/jobs')
+            ? (user?.isRecruiter == true ? '/jobs' : '/jobs')
             : '/jobs',
       ),
     ];

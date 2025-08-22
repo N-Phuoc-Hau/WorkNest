@@ -24,6 +24,7 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print('DEBUG RecruiterApplicantsScreen: initState - calling loadJobApplicants with _selectedJobId: $_selectedJobId');
       ref.read(recruiterApplicantsProvider.notifier).loadJobApplicants(_selectedJobId);
     });
   }
@@ -38,6 +39,13 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   Widget build(BuildContext context) {
     final applicantsState = ref.watch(recruiterApplicantsProvider);
 
+    // Debug logging
+    print('DEBUG RecruiterApplicantsScreen: Building UI with state:');
+    print('  - isLoading: ${applicantsState.isLoading}');
+    print('  - error: ${applicantsState.error}');
+    print('  - applicants count: ${applicantsState.applicants.length}');
+    print('  - totalCount: ${applicantsState.totalCount}');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Hồ sơ ứng viên'),
@@ -45,6 +53,7 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
+              print('DEBUG RecruiterApplicantsScreen: refresh button - calling loadJobApplicants with _selectedJobId: $_selectedJobId');
               ref.read(recruiterApplicantsProvider.notifier).loadJobApplicants(_selectedJobId);
             },
           ),
@@ -173,9 +182,16 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
                               style: const TextStyle(color: Colors.red),
                               textAlign: TextAlign.center,
                             ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'DEBUG: Error occurred after parsing ${applicantsState.applicants.length} items',
+                              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              textAlign: TextAlign.center,
+                            ),
                             const SizedBox(height: 16),
                             ElevatedButton(
                               onPressed: () {
+                                print('DEBUG RecruiterApplicantsScreen: Retry button pressed');
                                 ref.read(recruiterApplicantsProvider.notifier).loadJobApplicants(_selectedJobId);
                               },
                               child: const Text('Thử lại'),

@@ -207,7 +207,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             context, 
             ApplicationDetailScreen(applicationId: applicationId),
             'candidate',
-            showBottomNav: false, // Disable bottom nav for detail page
           );
         },
       ),
@@ -225,7 +224,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               context, 
               const EditProfileScreen(),
               'candidate',
-              showBottomNav: false, // Disable bottom nav for edit page
             ),
           ),
         ],
@@ -278,14 +276,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/job-detail/:id',
         builder: (context, state) {
           final jobId = state.pathParameters['id']!;
-          return JobDetailScreen(jobId: jobId); // No bottom nav for standalone job detail
+          return JobDetailScreen(jobId: jobId);
         },
       ),
       GoRoute(
         path: '/company/:id',
         builder: (context, state) {
           final companyId = state.pathParameters['id']!;
-          return CompanyScreen(companyId: companyId); // No bottom nav for standalone company detail
+          return CompanyScreen(companyId: companyId);
         },
       ),
 
@@ -308,7 +306,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           context, 
           const CreateJobScreen(),
           'recruiter',
-          showBottomNav: false, // Disable bottom nav for create page
         ),
       ),
       GoRoute(
@@ -327,7 +324,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             context,
             EditJobScreen(jobId: jobId),
             'recruiter',
-            showBottomNav: false, // Disable bottom nav for edit page
           );
         },
       ),
@@ -363,7 +359,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             context, 
             RecruiterApplicationDetailPage(applicationId: applicationId),
             'recruiter',
-            showBottomNav: false, // Disable bottom nav for detail page
           );
         },
       ),
@@ -472,7 +467,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Shared notification route
       GoRoute(
         path: '/notifications',
-        builder: (context, state) => const NotificationScreen(),
+        builder: (context, state) => _buildWithLayout(
+          context,
+          const NotificationScreen(), 
+          'candidate',
+        ),
       ),
       
       // Help and Reviews routes
@@ -500,57 +499,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           'candidate',
         ),
       ),
-      GoRoute(
-        path: '/following-companies',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const FollowingCompaniesScreen(),
-          'candidate',
-        ),
-      ),
-      
-      // Recruiter additional routes
-      GoRoute(
-        path: '/recruiter/analytics',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const Scaffold(
-            body: Center(
-              child: Text('Trang Phân tích & Báo cáo - Đang phát triển'),
-            ),
-          ),
-          'recruiter',
-        ),
-      ),
-      GoRoute(
-        path: '/recruiter/reviews',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const Scaffold(
-            body: Center(
-              child: Text('Trang Quản lý đánh giá - Đang phát triển'),
-            ),
-          ),
-          'recruiter',
-        ),
-      ),
-      GoRoute(
-        path: '/recruiter/support',
-        builder: (context, state) => _buildWithLayout(
-          context, 
-          const Scaffold(
-            body: Center(
-              child: Text('Trang Hỗ trợ doanh nghiệp - Đang phát triển'),
-            ),
-          ),
-          'recruiter',
-        ),
-      ),
     ],
   );
 });
 
-Widget _buildWithLayout(BuildContext context, Widget child, String userType, {bool showBottomNav = true}) {
+Widget _buildWithLayout(BuildContext context, Widget child, String userType) {
   return LayoutBuilder(
     builder: (context, constraints) {
       if (constraints.maxWidth > 1024) {
@@ -558,11 +511,9 @@ Widget _buildWithLayout(BuildContext context, Widget child, String userType, {bo
         return WebLayout(child: child);
       } else {
         // Mobile layout
-        return MobileLayout(
-          child: child,
-          showBottomNav: showBottomNav,
-        );
+        return MobileLayout(child: child);
       }
     },
   );
 }
+

@@ -37,7 +37,7 @@ class RecruiterApplicantsState {
     return RecruiterApplicantsState(
       applicants: applicants ?? this.applicants,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      error: error, // Don't use ?? this.error because null is a valid value
       currentPage: currentPage ?? this.currentPage,
       totalPages: totalPages ?? this.totalPages,
       totalCount: totalCount ?? this.totalCount,
@@ -65,6 +65,13 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
     }
 
     try {
+      print('DEBUG RecruiterApplicantsProvider: Loading job applicants with params:');
+      print('  - jobId: $jobId');
+      print('  - page: $page');
+      print('  - pageSize: $pageSize');
+      print('  - status: $status');
+      print('  - loadMore: $loadMore');
+
       final result = await _applicationService.getMyJobApplications(
         page: page,
         pageSize: pageSize,
@@ -72,37 +79,58 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
         jobId: jobId,
       );
 
+      print('DEBUG RecruiterApplicantsProvider: API call successful');
+      print('  - Result keys: ${result.keys.toList()}');
+
       final newApplicants = result['applications'] as List<ApplicationModel>;
       final totalCount = result['totalCount'] as int;
       final totalPages = result['totalPages'] as int;
 
+      print('DEBUG RecruiterApplicantsProvider: Parsed data:');
+      print('  - newApplicants count: ${newApplicants.length}');
+      print('  - totalCount: $totalCount');
+      print('  - totalPages: $totalPages');
+
       if (loadMore && page > 1) {
         // Append to existing applicants for pagination
+        print('DEBUG RecruiterApplicantsProvider: Setting state with loadMore=true');
         state = state.copyWith(
           applicants: [...state.applicants, ...newApplicants],
           currentPage: page,
           totalPages: totalPages,
           totalCount: totalCount,
           isLoading: false,
+          error: null, // Clear error on success
           searchQuery: search,
           statusFilter: status,
         );
+        print('DEBUG RecruiterApplicantsProvider: State updated successfully with ${state.applicants.length} total applicants');
       } else {
         // Replace applicants for first load
+        print('DEBUG RecruiterApplicantsProvider: Setting state with loadMore=false');
         state = state.copyWith(
           applicants: newApplicants,
           currentPage: page,
           totalPages: totalPages,
           totalCount: totalCount,
           isLoading: false,
+          error: null, // Clear error on success
           searchQuery: search,
           statusFilter: status,
         );
+        print('DEBUG RecruiterApplicantsProvider: State updated successfully with ${state.applicants.length} applicants');
+        print('DEBUG RecruiterApplicantsProvider: Final state - error: ${state.error}, isLoading: ${state.isLoading}');
       }
     } catch (e) {
+      print('DEBUG RecruiterApplicantsProvider: Error loading job applicants: $e');
+      print('DEBUG RecruiterApplicantsProvider: Error type: ${e.runtimeType}');
+      if (e is Exception) {
+        print('DEBUG RecruiterApplicantsProvider: Exception details: ${e.toString()}');
+      }
+      
       state = state.copyWith(
         isLoading: false,
-        error: e.toString(),
+        error: 'Lỗi tải danh sách ứng viên: $e',
       );
     }
   }
@@ -111,27 +139,43 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
     int applicationId,
     UpdateApplicationStatusModel updateStatus,
   ) async {
+    print('DEBUG RecruiterApplicantsProvider: updateApplicantStatus called');
+    print('  - applicationId: $applicationId');
+    print('  - status: ${updateStatus.status}');
+    print('  - rejectionReason: ${updateStatus.rejectionReason}');
+    
     state = state.copyWith(isLoading: true, error: null);
 
     try {
+      print('DEBUG RecruiterApplicantsProvider: Calling ApplicationService.updateApplicationStatus');
       await _applicationService.updateApplicationStatus(applicationId, updateStatus);
+      print('DEBUG RecruiterApplicantsProvider: Update status API call successful');
       
       // Update application status in the list
       final statusEnum = _parseStatus(updateStatus.status);
       
       final updatedApplicants = state.applicants.map((app) {
         if (app.id == applicationId) {
-          return app.copyWith(status: statusEnum);
+          return app.copyWith(
+            status: statusEnum, 
+            rejectionReason: updateStatus.rejectionReason,
+          );
         }
         return app;
       }).toList();
 
+      print('DEBUG RecruiterApplicantsProvider: Updated local state with new status: ${statusEnum.name}');
+
       state = state.copyWith(
         applicants: updatedApplicants,
         isLoading: false,
+        error: null, // Clear error on success
       );
       return true;
     } catch (e) {
+      print('DEBUG RecruiterApplicantsProvider: Error updating applicant status: $e');
+      print('DEBUG RecruiterApplicantsProvider: Error type: ${e.runtimeType}');
+      
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),
@@ -247,16 +291,16 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
   Future<ApplicationModel?> getApplicationById(String applicationId) async {
     try {
       // First check if we have it in current state
-      final existingApp = state.applicants
-          .where((app) => app.id.toString() == applicationId)
-          .firstOrNull;
+      // final existingApp = state.applicants
+      //     .where((app) => app.id.toString() == applicationId)
+      //     .firstOrNull;
       
-      if (existingApp != null) {
-        print('DEBUG Provider: Found in state - Name: "${existingApp.applicantName}", Email: "${existingApp.applicantEmail}"');
-        return existingApp;
-      }
+      // if (existingApp != null) {
+      //   print('DEBUG Provider: Found in state - Name: "${existingApp.applicantName}", Email: "${existingApp.applicantEmail}"');
+      //   return existingApp;
+      // }
 
-      print('DEBUG Provider: Not found in state, fetching from API');
+      // print('DEBUG Provider: Not found in state, fetching from API');
       // If not found in current state, fetch from API
       final application = await _applicationService.getApplication(int.parse(applicationId));
       if (application != null) {

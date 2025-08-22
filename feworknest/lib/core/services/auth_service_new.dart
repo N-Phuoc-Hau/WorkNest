@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 class AuthService {
-  static const String baseUrl = 'https://localhost:5006/api'; // Replace with your C# API URL
+  static const String baseUrl = 'http://localhost:7777/api'; // Updated to match backend port
   late final Dio _dio;
 
   AuthService() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/models/notification_model.dart';
 import '../../../core/providers/auth_provider.dart';
@@ -29,6 +30,22 @@ class NotificationScreen extends ConsumerWidget {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              // Fallback navigation based on user role
+              final user = authState.user;
+              if (user?.isRecruiter == true) {
+                context.go('/recruiter/home');
+              } else {
+                context.go('/home');
+              }
+            }
+          },
+        ),
         actions: [
           // Test Notification Button (for development)
           IconButton(

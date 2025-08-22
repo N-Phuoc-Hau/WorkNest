@@ -226,11 +226,23 @@ class ApplicationService {
     UpdateApplicationStatusModel updateStatus,
   ) async {
     try {
-      await _dio.put(
+      print('DEBUG ApplicationService: updateApplicationStatus called');
+      print('  - id: $id');
+      print('  - updateStatus.toJson(): ${updateStatus.toJson()}');
+      
+      final response = await _dio.put(
         '/api/Application/$id/status',
         data: updateStatus.toJson(),
       );
+      
+      print('DEBUG ApplicationService: Update status response: ${response.statusCode}');
     } on DioException catch (e) {
+      print('DEBUG ApplicationService: DioException in updateApplicationStatus');
+      print('  - Error message: ${e.message}');
+      print('  - Response status code: ${e.response?.statusCode}');
+      print('  - Response data: ${e.response?.data}');
+      print('  - Request path: ${e.requestOptions.path}');
+      print('  - Request data: ${e.requestOptions.data}');
       throw _handleError(e);
     }
   }
@@ -287,15 +299,27 @@ class ApplicationService {
         queryParameters['jobId'] = jobId;
       }
 
+      print('DEBUG ApplicationService: getMyJobApplications called with:');
+      print('  - page: $page, pageSize: $pageSize');
+      print('  - status: $status, jobId: $jobId');
+      print('  - queryParameters: $queryParameters');
+
       final response = await _dio.get(
         '/api/Application/my-job-applications',
         queryParameters: queryParameters,
       );
 
+      print('DEBUG ApplicationService: API response received');
+      print('  - Status code: ${response.statusCode}');
+      print('  - Response data type: ${response.data.runtimeType}');
+      print('  - Response data keys: ${response.data is Map ? response.data.keys.toList() : 'Not a Map'}');
+
       final data = response.data;
       final applications = (data['data'] as List?)
           ?.map((json) => ApplicationModel.fromJson(json))
           .toList() ?? [];
+
+      print('DEBUG ApplicationService: Parsed applications: ${applications.length} items');
 
       return {
         'applications': applications,
@@ -307,6 +331,12 @@ class ApplicationService {
         'filters': data['filters'],
       };
     } on DioException catch (e) {
+      print('DEBUG ApplicationService: DioException in getMyJobApplications');
+      print('  - Error message: ${e.message}');
+      print('  - Response status code: ${e.response?.statusCode}');
+      print('  - Response data: ${e.response?.data}');
+      print('  - Request path: ${e.requestOptions.path}');
+      print('  - Request query parameters: ${e.requestOptions.queryParameters}');
       throw _handleError(e);
     }
   }
@@ -320,7 +350,15 @@ class ApplicationService {
   }
 
   String _handleError(DioException e) {
+    print('DEBUG ApplicationService: _handleError called');
+    print('  - Error type: ${e.type}');
+    print('  - Error message: ${e.message}');
+    
     if (e.response != null) {
+      print('  - Response status: ${e.response!.statusCode}');
+      print('  - Response headers: ${e.response!.headers}');
+      print('  - Response data: ${e.response!.data}');
+      
       final data = e.response!.data;
       if (data is Map<String, dynamic> && data.containsKey('message')) {
         return data['message'];

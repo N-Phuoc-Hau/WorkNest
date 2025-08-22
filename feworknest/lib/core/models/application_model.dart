@@ -45,34 +45,59 @@ class ApplicationModel {
   });
 
   factory ApplicationModel.fromJson(Map<String, dynamic> json) {
-    return ApplicationModel(
-      id: json['id'] as int,
-      applicantId: json['applicantId'] as String? ?? json['userId']?.toString() ?? '',
-      jobId: json['jobId'] as int? ?? json['jobPostId'] as int,
-      applicantName: json['applicantName'] as String? ?? json['fullName'] as String? ?? '',
-      applicantEmail: json['applicantEmail'] as String? ?? json['email'] as String? ?? '',
-      applicantPhone: json['applicantPhone'] as String? ?? json['phoneNumber'] as String? ?? '',
-      jobTitle: json['jobTitle'] as String? ?? json['title'] as String? ?? '',
-      cvUrl: json['cvUrl'] as String?,
-      cvFileName: json['cvFileName'] as String?,
-      coverLetter: json['coverLetter'] as String?,
-      status: _parseStatus(json['status'] as String? ?? 'pending'),
-      createdAt: json['createdAt'] != null 
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      appliedAt: json['appliedAt'] != null 
-          ? DateTime.parse(json['appliedAt'] as String)
-          : DateTime.now(),
-      applicant: json['applicant'] != null
-          ? UserModel.fromJson(json['applicant'] as Map<String, dynamic>)
-          : null,
-      job: json['job'] != null
-          ? JobModel.fromJson(json['job'] as Map<String, dynamic>)
-          : null,
-      isActive: json['isActive'] as bool? ?? true,
-      rejectionReason: json['rejectionReason'] as String?,
-      avatarUrl: json['avatarUrl'] as String?,
-    );
+    try {
+      print('DEBUG ApplicationModel.fromJson: Processing application ID: ${json['id']}');
+      
+      // Extract applicant info
+      final applicant = json['applicant'] as Map<String, dynamic>?;
+      final applicantName = applicant != null 
+          ? '${applicant['firstName'] ?? ''} ${applicant['lastName'] ?? ''}'.trim()
+          : json['applicantName'] as String? ?? '';
+      final applicantEmail = applicant?['email'] as String? ?? json['applicantEmail'] as String? ?? '';
+      final avatarUrl = applicant?['avatar'] as String? ?? json['avatarUrl'] as String?;
+      
+      // Extract job info
+      final job = json['job'] as Map<String, dynamic>?;
+      final jobTitle = job?['title'] as String? ?? json['jobTitle'] as String? ?? '';
+      
+      print('DEBUG ApplicationModel.fromJson: Extracted data:');
+      print('  - applicantName: $applicantName');
+      print('  - applicantEmail: $applicantEmail');
+      print('  - jobTitle: $jobTitle');
+      
+      return ApplicationModel(
+        id: json['id'] as int,
+        applicantId: json['applicantId'] as String? ?? json['userId']?.toString() ?? '',
+        jobId: json['jobId'] as int? ?? json['jobPostId'] as int,
+        applicantName: applicantName,
+        applicantEmail: applicantEmail,
+        applicantPhone: applicant?['phone'] as String? ?? json['applicantPhone'] as String? ?? '',
+        jobTitle: jobTitle,
+        cvUrl: json['cvUrl'] as String?,
+        cvFileName: json['cvFileName'] as String?,
+        coverLetter: json['coverLetter'] as String?,
+        status: _parseStatus(json['status'] as String? ?? 'pending'),
+        createdAt: json['createdAt'] != null 
+            ? DateTime.parse(json['createdAt'] as String)
+            : DateTime.now(),
+        appliedAt: json['appliedAt'] != null 
+            ? DateTime.parse(json['appliedAt'] as String)
+            : DateTime.now(),
+        applicant: applicant != null
+            ? UserModel.fromJson(applicant)
+            : null,
+        job: job != null
+            ? JobModel.fromJson(job)
+            : null,
+        isActive: json['isActive'] as bool? ?? true,
+        rejectionReason: json['rejectionReason'] as String?,
+        avatarUrl: avatarUrl,
+      );
+    } catch (e) {
+      print('DEBUG ApplicationModel.fromJson: Error parsing application: $e');
+      print('DEBUG ApplicationModel.fromJson: Raw JSON: $json');
+      rethrow;
+    }
   }
 
   static ApplicationStatus _parseStatus(String status) {
@@ -184,14 +209,17 @@ class CreateApplicationModel {
 
 class UpdateApplicationStatusModel {
   final String status;
+  final String? rejectionReason;
 
   const UpdateApplicationStatusModel({
     required this.status,
+    this.rejectionReason,
   });
 
   Map<String, dynamic> toJson() {
     return {
       'status': status,
+      'rejectionReason': rejectionReason,
     };
   }
 }

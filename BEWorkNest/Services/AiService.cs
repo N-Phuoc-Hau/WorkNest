@@ -10,17 +10,53 @@ namespace BEWorkNest.Services
         private readonly IConfiguration _configuration;
         private readonly ILogger<AiService> _logger;
         private readonly string _apiKey;
-        private readonly string _baseUrl = "https://api.deepseek.com/v1/chat/completions";
+        private readonly string _baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+        private readonly List<string> _jobDomains = new List<string>
+        {
+            "Software Development", "Web Development", "Mobile Development", "DevOps", "Data Science",
+            "Digital Marketing", "Content Marketing", "SEO/SEM", "Social Media Marketing",
+            "Sales", "Business Development", "Account Management", "Customer Success",
+            "HR", "Recruitment", "Training & Development", "Compensation & Benefits",
+            "Finance", "Accounting", "Financial Analysis", "Risk Management",
+            "Operations", "Project Management", "Quality Assurance", "Supply Chain",
+            "Design", "UI/UX Design", "Graphic Design", "Product Design",
+            "Engineering", "Mechanical Engineering", "Civil Engineering", "Electrical Engineering"
+        };
+
+        private readonly Dictionary<string, List<string>> _skillDatabase = new Dictionary<string, List<string>>
+        {
+            ["Software Development"] = new List<string> { "Java", "C#", ".NET", "Python", "JavaScript", "TypeScript", "React", "Angular", "Vue.js", "Node.js", "Spring Boot", "ASP.NET" },
+            ["Mobile Development"] = new List<string> { "Flutter", "Dart", "React Native", "Swift", "Kotlin", "Java", "Xamarin", "Firebase", "iOS", "Android" },
+            ["Digital Marketing"] = new List<string> { "SEO", "SEM", "Google Ads", "Facebook Ads", "Google Analytics", "Content Marketing", "Email Marketing", "Social Media", "PPC" },
+            ["Data Science"] = new List<string> { "Python", "R", "SQL", "Machine Learning", "Deep Learning", "TensorFlow", "PyTorch", "Pandas", "NumPy", "Jupyter" },
+            ["DevOps"] = new List<string> { "Docker", "Kubernetes", "AWS", "Azure", "Jenkins", "CI/CD", "Terraform", "Ansible", "Linux", "Bash" },
+            ["UI/UX Design"] = new List<string> { "Figma", "Adobe XD", "Sketch", "Photoshop", "Illustrator", "InVision", "Principle", "User Research", "Wireframing", "Prototyping" }
+        };
 
         public AiService(HttpClient httpClient, IConfiguration configuration, ILogger<AiService> logger)
         {
             _httpClient = httpClient;
             _configuration = configuration;
             _logger = logger;
-            _apiKey = "sk-b9713a7d83b546818bbd480aeb227285";
             
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_apiKey}");
-            // Content-Type should be set per request, not in default headers
+            // Read API key from file
+            var apiKeyPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "apikeyDeepSeek.txt");
+            if (File.Exists(apiKeyPath))
+            {
+                var fileContent = File.ReadAllText(apiKeyPath).Trim();
+                // Extract just the API key (first line, before any spaces)
+                _apiKey = fileContent.Split('\n')[0].Split(' ')[0].Trim();
+                _logger.LogInformation($"Loaded Gemini API key from file: {apiKeyPath}");
+            }
+            else
+            {
+                _apiKey = "AIzaSyD6JGsQZBtoj0uI2lvvNcqtXc5WTE7p9ow"; // Fallback Gemini key
+                _logger.LogWarning($"API key file not found at {apiKeyPath}, using fallback Gemini key");
+            }
+            
+            // Gemini uses X-goog-api-key header, not Authorization
+            _httpClient.DefaultRequestHeaders.Add("X-goog-api-key", _apiKey);
         }
 
         public async Task<List<string>> GetSearchSuggestionsAsync(string query, string userRole)
@@ -129,44 +165,92 @@ namespace BEWorkNest.Services
         {
             try
             {
+                _logger.LogInformation($"[CV Analysis] Input cvText length: {cvText?.Length ?? 0}");
+                _logger.LogInformation($"[CV Analysis] CV Content preview: {(string.IsNullOrEmpty(cvText) ? "EMPTY/NULL" : cvText.Substring(0, Math.Min(200, cvText.Length)))}...");
+                
                 var jobJson = JsonSerializer.Serialize(jobDetails);
+                _logger.LogInformation($"[CV Analysis] Job details: {jobJson}");
+                
                 var prompt = $@"
-                Là một AI chuyên gia phân tích CV và matching công việc, hãy phân tích CV sau và tính độ phù hợp với công việc được cung cấp.
-                
-                CV Content: {cvText}
-                
-                Job Details: {jobJson}
-                
-                Yêu cầu phân tích:
-                1. Trích xuất thông tin ứng viên từ CV (skills, experience, education, projects)
-                2. So sánh với yêu cầu công việc
-                3. Tính điểm phù hợp từ 0-100
-                4. Đưa ra lý do tại sao phù hợp/không phù hợp
-                5. Gợi ý những điểm cần cải thiện
-                
-                Trả về JSON format:
+                Bạn là AI CHUYÊN GIA đánh giá CV với tiêu chuẩn CỰC KỲ KHẮT KHE như các HR chuyên nghiệp.
+
+                ⚠️ CẢNH BÁO: Hãy THẬT SỰ KHẮT KHE - Đừng tử tế quá!
+
+                QUY TẮC BẮT BUỘC:
+                🔴 CHUYÊN NGÀNH KHÁC NHAU = ĐIỂM CỰC THẤP (0-20 điểm)
+                - Mobile Developer ứng tuyển Marketing = 5-15 điểm
+                - Developer ứng tuyển Sales/HR = 5-15 điểm  
+                - Technical ứng tuyển Non-technical = 5-20 điểm
+
+                🔴 THIẾU KINH NGHIỆM = TRỪ ĐIỂM NẶNG
+                - Fresher ứng tuyển Senior = 10-25 điểm
+                - Thiếu 1-2 năm exp = trừ 25-40 điểm
+
+                🔴 THIẾU KỸ NĂNG CHÍNH = TRỪ ĐIỂM MẠNH  
+                - Thiếu 50%+ skill yêu cầu = trừ 30-50 điểm
+                - Không có skill chính = 0-20 điểm
+
+                🔴 CHỈ CHO ĐIỂM CAO KHI:
+                - Đúng chuyên ngành 100%
+                - Đủ kinh nghiệm yêu cầu
+                - Có 80%+ kỹ năng cần thiết
+                - 70+ điểm chỉ dành cho CV THẬT SỰ phù hợp
+
+                CV CONTENT: {(string.IsNullOrEmpty(cvText) ? "RỖNG/LỖI - KHÔNG CÓ NỘI DUNG CV" : cvText)}
+                JOB REQUIREMENTS: {jobJson}
+
+                PHẢI TRẢ VỀ JSON - KHÔNG TEXT:
                 {{
-                    ""candidate_info"": {{
-                        ""skills"": [""skill1"", ""skill2""],
-                        ""experience_years"": 3,
-                        ""education"": ""Degree"",
-                        ""previous_positions"": [""position1"", ""position2""],
-                        ""projects"": [""project1"", ""project2""]
+                    ""field_compatibility"": {{
+                        ""cv_field"": ""Unknown"",
+                        ""job_field"": ""Social Media Marketing"",  
+                        ""compatibility_score"": 0,
+                        ""field_change_penalty"": 70,
+                        ""analysis"": ""CV rỗng/lỗi extraction""
                     }},
-                    ""match_score"": 85,
-                    ""strengths"": [""strength1"", ""strength2""],
-                    ""weaknesses"": [""weakness1"", ""weakness2""],
-                    ""improvement_suggestions"": [""suggestion1"", ""suggestion2""],
-                    ""detailed_analysis"": ""Chi tiết phân tích..""
+                    ""experience_analysis"": {{
+                        ""cv_experience_years"": 0,
+                        ""cv_relevant_experience"": 0,
+                        ""job_required_years"": 2,
+                        ""experience_gap_severity"": ""Critical"",
+                        ""experience_penalty"": 50
+                    }},
+                    ""skills_analysis"": {{
+                        ""cv_skills"": [],
+                        ""job_required_skills"": [""Social Media"", ""Content Creation""],
+                        ""matched_skills"": [],
+                        ""critical_missing_skills"": [""All skills missing""],
+                        ""skills_match_rate"": 0,
+                        ""skills_penalty"": 50
+                    }},
+                    ""final_assessment"": {{
+                        ""base_score"": 100,
+                        ""field_penalty"": 70,
+                        ""experience_penalty"": 50,
+                        ""skills_penalty"": 50,
+                        ""final_score"": 0,
+                        ""score_reasoning"": ""CV rỗng - không thể đánh giá"",
+                        ""recommendation"": ""REJECT"",
+                        ""major_red_flags"": [""CV không có nội dung""],
+                        ""minor_concerns"": [],
+                        ""positive_points"": []
+                    }},
+                    ""hr_summary"": ""CV lỗi/rỗng - yêu cầu nộp lại""
                 }}
                 ";
 
+                _logger.LogInformation($"[CV Analysis] Sending prompt to AI with cvText length: {cvText?.Length ?? 0}");
                 var response = await CallDeepSeekApiAsync(prompt);
-                return ParseCVAnalysisResponse(response);
+                _logger.LogInformation($"[CV Analysis] AI Response received: {response?.Substring(0, Math.Min(300, response?.Length ?? 0))}...");
+                
+                var result = ParseStrictCVAnalysisResponse(response ?? "");
+                _logger.LogInformation($"[CV Analysis] Parsed result - MatchScore: {result.MatchScore}, Analysis: {result.DetailedAnalysis?.Substring(0, Math.Min(100, result.DetailedAnalysis?.Length ?? 0))}...");
+                
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error analyzing CV for job");
+                _logger.LogError(ex, "[CV Analysis] Error analyzing CV for job - cvText length: {CvTextLength}", cvText?.Length ?? 0);
                 return GetDefaultCVAnalysisResult();
             }
         }
@@ -305,27 +389,62 @@ namespace BEWorkNest.Services
 
         private async Task<string> CallDeepSeekApiAsync(string prompt)
         {
+            // Gemini API format
             var requestBody = new
             {
-                model = "deepseek-chat",
-                messages = new[]
+                contents = new[]
                 {
-                    new { role = "user", content = prompt }
+                    new
+                    {
+                        parts = new[]
+                        {
+                            new { text = prompt }
+                        }
+                    }
                 },
-                max_tokens = 1000,
-                temperature = 0.7
+                generationConfig = new
+                {
+                    temperature = 0.7,
+                    maxOutputTokens = 1000
+                }
             };
 
             var json = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
+            _logger.LogInformation($"Sending request to Gemini API: {_baseUrl}");
             var response = await _httpClient.PostAsync(_baseUrl, content);
-            response.EnsureSuccessStatusCode();
-
+            
             var responseContent = await response.Content.ReadAsStringAsync();
-            var responseObj = JsonSerializer.Deserialize<JsonElement>(responseContent);
+            _logger.LogInformation($"Gemini API response status: {response.StatusCode}");
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError($"Gemini API error: {responseContent}");
+                throw new HttpRequestException($"Gemini API error: {response.StatusCode} - {responseContent}");
+            }
 
-            return responseObj.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
+            var responseObj = JsonSerializer.Deserialize<JsonElement>(responseContent);
+            
+            // Gemini response format: candidates[0].content.parts[0].text
+            if (responseObj.TryGetProperty("candidates", out var candidates) && 
+                candidates.GetArrayLength() > 0)
+            {
+                var firstCandidate = candidates[0];
+                if (firstCandidate.TryGetProperty("content", out var content_prop) &&
+                    content_prop.TryGetProperty("parts", out var parts) &&
+                    parts.GetArrayLength() > 0)
+                {
+                    var firstPart = parts[0];
+                    if (firstPart.TryGetProperty("text", out var textElement))
+                    {
+                        return textElement.GetString() ?? "";
+                    }
+                }
+            }
+
+            _logger.LogWarning("Could not extract text from Gemini response");
+            return "";
         }
 
         private List<string> ParseSuggestionsResponse(string response)
@@ -490,6 +609,177 @@ namespace BEWorkNest.Services
             return new List<string> { "Ho Chi Minh City", "Hanoi", "Da Nang", "Remote", "Full-time", "Part-time", "Junior", "Senior" };
         }
 
+        private CVAnalysisResult ParseStrictCVAnalysisResponse(string response)
+        {
+            try
+            {
+                _logger.LogInformation($"[Parse CV Analysis] Response length: {response?.Length ?? 0}");
+                _logger.LogInformation($"[Parse CV Analysis] Response content: {response}");
+                
+                if (!string.IsNullOrEmpty(response) && response.Contains('{') && response.Contains('}'))
+                {
+                    var startIndex = response.IndexOf('{');
+                    var endIndex = response.LastIndexOf('}') + 1;
+                    var jsonObject = response.Substring(startIndex, endIndex - startIndex);
+                    
+                    _logger.LogInformation($"[Parse CV Analysis] Extracted JSON: {jsonObject}");
+                    
+                    var jsonDoc = JsonDocument.Parse(jsonObject);
+                    var root = jsonDoc.RootElement;
+
+                    var result = new CVAnalysisResult();
+
+                    // Parse final assessment with new structure
+                    if (root.TryGetProperty("final_assessment", out var finalElement))
+                    {
+                        // Handle negative scores and clamp to 0-100 range
+                        var rawScore = finalElement.TryGetProperty("final_score", out var scoreElement) ? scoreElement.GetInt32() : 10;
+                        result.MatchScore = Math.Max(0, Math.Min(100, rawScore)); // Clamp between 0-100
+                        
+                        _logger.LogInformation("[Parse CV Analysis] Raw score: {RawScore}, Clamped score: {ClampedScore}", rawScore, result.MatchScore);
+                        
+                        // Build detailed reasoning from the penalty system
+                        var reasoning = "";
+                        if (finalElement.TryGetProperty("score_reasoning", out var reasoningElement))
+                        {
+                            reasoning = reasoningElement.GetString() ?? "";
+                        }
+                        
+                        // Add penalty breakdown
+                        JsonElement fieldPenalty = default;
+                        JsonElement expPenalty = default;
+                        JsonElement skillsPenalty = default;
+                        
+                        bool hasFieldPenalty = finalElement.TryGetProperty("field_penalty", out fieldPenalty);
+                        bool hasExpPenalty = finalElement.TryGetProperty("experience_penalty", out expPenalty);
+                        bool hasSkillsPenalty = finalElement.TryGetProperty("skills_penalty", out skillsPenalty);
+                        
+                        if (hasFieldPenalty || hasExpPenalty || hasSkillsPenalty)
+                        {
+                            reasoning += $"\n\nPenalty Breakdown:";
+                            if (hasFieldPenalty && fieldPenalty.GetInt32() > 0) 
+                                reasoning += $"\n- Field mismatch: -{fieldPenalty.GetInt32()} points";
+                            if (hasExpPenalty && expPenalty.GetInt32() > 0) 
+                                reasoning += $"\n- Experience gap: -{expPenalty.GetInt32()} points";
+                            if (hasSkillsPenalty && skillsPenalty.GetInt32() > 0) 
+                                reasoning += $"\n- Skills gap: -{skillsPenalty.GetInt32()} points";
+                        }
+                        
+                        result.DetailedAnalysis = reasoning;
+                        
+                        // Parse positive points as strengths
+                        result.Strengths = finalElement.TryGetProperty("positive_points", out var strengthsElement) ? 
+                            strengthsElement.EnumerateArray().Select(s => s.GetString() ?? "").ToList() : 
+                            new List<string> { "Minimal strengths identified" };
+                        
+                        // Combine red flags and concerns as weaknesses
+                        var weaknesses = new List<string>();
+                        if (finalElement.TryGetProperty("major_red_flags", out var redFlagsElement))
+                        {
+                            weaknesses.AddRange(redFlagsElement.EnumerateArray().Select(s => "🔴 " + (s.GetString() ?? "")));
+                        }
+                        if (finalElement.TryGetProperty("minor_concerns", out var concernsElement))
+                        {
+                            weaknesses.AddRange(concernsElement.EnumerateArray().Select(s => "⚠️ " + (s.GetString() ?? "")));
+                        }
+                        result.Weaknesses = weaknesses.Any() ? weaknesses : new List<string> { "Multiple compatibility issues" };
+                    }
+
+                    // Parse skills for candidate info
+                    if (root.TryGetProperty("skills_analysis", out var skillsElement))
+                    {
+                        var cvSkills = skillsElement.TryGetProperty("cv_skills", out var cvSkillsElement) ?
+                            cvSkillsElement.EnumerateArray().Select(s => s.GetString() ?? "").ToList() : new List<string>();
+                        
+                        result.CandidateInfo = new CandidateInfo
+                        {
+                            Skills = cvSkills
+                        };
+
+                        // Add skills-based improvement suggestions
+                        if (skillsElement.TryGetProperty("critical_missing_skills", out var missingSkillsElement))
+                        {
+                            var missingSkills = missingSkillsElement.EnumerateArray().Select(s => s.GetString() ?? "").ToList();
+                            result.ImprovementSuggestions = missingSkills.Select(skill => $"Acquire {skill} skill").ToList();
+                            
+                            // Add at least 3 suggestions
+                            if (result.ImprovementSuggestions.Count < 3)
+                            {
+                                result.ImprovementSuggestions.AddRange(new List<string>
+                                {
+                                    "Gain relevant industry experience",
+                                    "Consider role-specific training or certification",
+                                    "Build portfolio demonstrating required skills"
+                                });
+                            }
+                        }
+                    }
+
+                    // Parse experience
+                    if (root.TryGetProperty("experience_analysis", out var expElement))
+                    {
+                        if (result.CandidateInfo == null) result.CandidateInfo = new CandidateInfo();
+                        result.CandidateInfo.ExperienceYears = expElement.TryGetProperty("cv_experience_years", out var yearsElement) ? yearsElement.GetInt32() : 0;
+                    }
+
+                    // Add HR summary to detailed analysis if available
+                    if (root.TryGetProperty("hr_summary", out var hrSummaryElement))
+                    {
+                        var hrSummary = hrSummaryElement.GetString() ?? "";
+                        if (!string.IsNullOrEmpty(hrSummary))
+                        {
+                            result.DetailedAnalysis = $"HR Assessment: {hrSummary}\n\n{result.DetailedAnalysis}";
+                        }
+                    }
+
+                    // Ensure we have default values
+                    if (result.ImprovementSuggestions == null || !result.ImprovementSuggestions.Any())
+                    {
+                        result.ImprovementSuggestions = new List<string>
+                        {
+                            "Develop skills relevant to target role",
+                            "Gain experience in the required field",
+                            "Consider transitional roles to bridge the gap"
+                        };
+                    }
+
+                    return result;
+                }
+
+                _logger.LogWarning($"[Parse CV Analysis] No valid JSON found in response, returning default result");
+                return GetStrictDefaultCVAnalysisResult();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Parse CV Analysis] Error parsing strict CV analysis response");
+                return GetStrictDefaultCVAnalysisResult();
+            }
+        }
+
+        private CVAnalysisResult GetStrictDefaultCVAnalysisResult()
+        {
+            return new CVAnalysisResult
+            {
+                MatchScore = 25, // Điểm thấp để phản ánh việc không thể phân tích được
+                DetailedAnalysis = "Không thể phân tích CV tự động do lỗi kỹ thuật. Đề xuất xem xét thủ công với tiêu chí khắt khe.",
+                Strengths = new List<string> { "Cần đánh giá chi tiết bằng tay" },
+                Weaknesses = new List<string> { "Không thể xác định kỹ năng từ CV", "Cần review thủ công" },
+                ImprovementSuggestions = new List<string> { 
+                    "Cập nhật CV với format rõ ràng hơn", 
+                    "Liệt kê kỹ năng cụ thể",
+                    "Mô tả kinh nghiệm chi tiết"
+                },
+                CandidateInfo = new CandidateInfo
+                {
+                    Skills = new List<string>(),
+                    ExperienceYears = 0,
+                    Education = "Chưa xác định",
+                    PreviousPositions = new List<string>(),
+                    Projects = new List<string>()
+                }
+            };
+        }
+
         private CVAnalysisResult ParseCVAnalysisResponse(string response)
         {
             try
@@ -621,6 +911,83 @@ namespace BEWorkNest.Services
                 }
             };
         }
+
+        public async Task<List<string>> GetEnhancedSearchSuggestionsAsync(string query, string userRole, List<string>? userSkills = null)
+        {
+            try
+            {
+                // RAG: Tìm domain phù hợp từ database
+                var relevantDomains = _jobDomains
+                    .Where(d => d.ToLower().Contains(query.ToLower()) || 
+                               query.ToLower().Contains(d.ToLower()))
+                    .ToList();
+
+                // RAG: Tìm skills liên quan
+                var relevantSkills = new List<string>();
+                foreach (var domain in relevantDomains)
+                {
+                    if (_skillDatabase.ContainsKey(domain))
+                    {
+                        relevantSkills.AddRange(_skillDatabase[domain]);
+                    }
+                }
+
+                var ragContext = $@"
+                DOMAIN CONTEXT: {string.Join(", ", relevantDomains)}
+                RELATED SKILLS: {string.Join(", ", relevantSkills.Take(10))}
+                USER SKILLS: {string.Join(", ", userSkills ?? new List<string>())}
+                ";
+
+                var prompt = $@"
+                Dựa trên RAG context và từ khóa tìm kiếm, đưa ra 5 gợi ý tìm kiếm CHÍNH XÁC và THỰC TẾ.
+
+                {ragContext}
+                
+                Query: '{query}'
+                User Role: {userRole}
+                
+                YÊU CẦU:
+                - Ưu tiên các gợi ý trong cùng domain với query
+                - Xem xét skills của user để gợi ý phù hợp
+                - Không gợi ý những vị trí quá cao so với level của user
+                - Trả về đúng 5 gợi ý realistic
+                
+                Format: [""suggestion1"", ""suggestion2"", ""suggestion3"", ""suggestion4"", ""suggestion5""]
+                ";
+
+                var response = await CallDeepSeekApiAsync(prompt);
+                return ParseSuggestionsResponse(response);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting enhanced search suggestions");
+                return GetContextualDefaultSuggestions(query, userRole);
+            }
+        }
+
+        private List<string> GetContextualDefaultSuggestions(string query, string userRole)
+        {
+            var queryLower = query.ToLower();
+            
+            if (queryLower.Contains("flutter") || queryLower.Contains("mobile"))
+            {
+                return userRole == "candidate" 
+                    ? new List<string> { "Flutter Developer", "Mobile App Developer", "Cross-platform Developer", "Android Developer", "iOS Developer" }
+                    : new List<string> { "Junior Flutter Developer", "Mid-level Mobile Developer", "Senior Flutter Engineer", "Lead Mobile Developer", "Mobile Team Lead" };
+            }
+            
+            if (queryLower.Contains("marketing"))
+            {
+                return userRole == "candidate"
+                    ? new List<string> { "Digital Marketing Specialist", "Content Marketing", "SEO Specialist", "Social Media Manager", "Marketing Coordinator" }
+                    : new List<string> { "Marketing Executive", "Senior Marketing Manager", "Marketing Director", "Growth Marketing", "Performance Marketing" };
+            }
+            
+            // Default fallback
+            return userRole == "candidate" 
+                ? new List<string> { "Junior Developer", "Marketing Assistant", "Sales Executive", "Customer Support", "Data Entry" }
+                : new List<string> { "Software Engineer", "Marketing Manager", "Sales Manager", "Project Manager", "Business Analyst" };
+        }
     }
 
     public class JobRecommendation
@@ -676,4 +1043,4 @@ namespace BEWorkNest.Services
         public List<string> PotentialConcerns { get; set; } = new List<string>();
         public string RecommendationLevel { get; set; } = string.Empty;
     }
-} 
+}

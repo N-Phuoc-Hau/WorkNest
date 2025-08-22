@@ -4,6 +4,10 @@ using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using Tesseract;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using ImageMagick;
 
 namespace BEWorkNest.Services
 {
@@ -104,7 +108,26 @@ namespace BEWorkNest.Services
                     text.AppendLine(pageText);
                 }
 
-                return text.ToString();
+                var extractedText = text.ToString().Trim();
+                
+                // If extracted text is too short (likely scanned PDF), try OCR
+                if (extractedText.Length < 50)
+                {
+                    _logger.LogInformation("Text extraction yielded minimal text ({Length} chars), attempting OCR...", extractedText.Length);
+                    
+                    // Reset stream position for OCR
+                    pdfStream.Position = 0;
+                    var ocrText = ExtractTextFromPdfUsingOCR(pdfStream);
+                    
+                    if (!string.IsNullOrEmpty(ocrText) && ocrText.Length > extractedText.Length)
+                    {
+                        _logger.LogInformation("OCR extracted {OcrLength} chars vs normal extraction {NormalLength} chars", 
+                            ocrText.Length, extractedText.Length);
+                        return ocrText;
+                    }
+                }
+
+                return extractedText;
             }
             catch (Exception ex)
             {
@@ -187,6 +210,83 @@ namespace BEWorkNest.Services
             
             // Trim and return
             return cleanText.Trim();
+        }
+
+        /// <summary>
+        /// Extract text from PDF using OCR for scanned documents
+        /// </summary>
+        private string ExtractTextFromPdfUsingOCR(Stream pdfStream)
+        {
+            try
+            {
+                _logger.LogInformation("Starting OCR extraction from PDF...");
+                // Reset stream position
+                if (pdfStream.CanSeek)
+                {
+                    pdfStream.Position = 0;
+                    _logger.LogInformation("Stream position reset to 0");
+                }
+
+                // Use Magick.NET to read PDF pages as images
+                var combinedText = new StringBuilder();
+
+                _logger.LogInformation("Initializing MagickImageCollection...");
+                // Create temp directory for images (in memory, not persisted)
+                using (var images = new MagickImageCollection())
+                {
+                    var settings = new MagickReadSettings()
+                    {
+                        Density = new Density(300, 300), // high density for better OCR
+                        ColorType = ColorType.TrueColor
+                    };
+
+                    _logger.LogInformation("Reading PDF from stream with settings...");
+                    // Read PDF from stream
+                    images.Read(pdfStream, settings);
+                    _logger.LogInformation("PDF read successfully. Page count: {Count}", images.Count);
+
+                    _logger.LogInformation("Initializing TesseractEngine with tessdata path: ./tessdata");
+                    using var engine = new TesseractEngine(@"./tessdata", "eng", EngineMode.Default);
+                    _logger.LogInformation("TesseractEngine initialized successfully");
+
+                    for (int i = 0; i < images.Count; i++)
+                    {
+                        _logger.LogInformation("Processing page {PageNum} of {Total}", i + 1, images.Count);
+                        using var page = (MagickImage)images[i];
+
+                        // Preprocess image for OCR: convert to grayscale and enhance
+                        page.Grayscale();
+                        page.Contrast();
+                        page.Strip();
+
+                        // Convert MagickImage to a memory stream in PNG format
+                        using var ms = new MemoryStream();
+                        page.Write(ms, MagickFormat.Png);
+                        ms.Position = 0;
+                        _logger.LogInformation("Page {PageNum} converted to PNG, size: {Size} bytes", i + 1, ms.Length);
+
+                        using var img = Pix.LoadFromMemory(ms.ToArray());
+                        using var pagePix = engine.Process(img);
+                        var pageText = pagePix.GetText();
+
+                        _logger.LogInformation("Page {PageNum} OCR result length: {Length}", i + 1, pageText?.Length ?? 0);
+                        if (!string.IsNullOrWhiteSpace(pageText))
+                        {
+                            combinedText.AppendLine(pageText.Trim());
+                        }
+                    }
+                }
+
+                var resultText = combinedText.ToString().Trim();
+                _logger.LogInformation("OCR extraction completed. Total length: {Len}", resultText.Length);
+                return resultText;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during OCR extraction: {Message}", ex.Message);
+                _logger.LogError("Stack trace: {StackTrace}", ex.StackTrace);
+                return "";
+            }
         }
 
         /// <summary>

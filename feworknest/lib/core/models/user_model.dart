@@ -24,21 +24,28 @@ class UserModel {
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
-    return UserModel(
-      id: json['id'] as String,
-      email: json['email'] as String,
-      firstName: json['firstName'] as String,
-      lastName: json['lastName'] as String,
-      role: json['role'] as String,
-      avatar: json['avatar'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      company: json['company'] != null
-          ? CompanyModel.fromJson(json['company'] as Map<String, dynamic>)
-          : null,
-      userProfile: json['userProfile'] != null
-          ? UserProfileModel.fromJson(json['userProfile'] as Map<String, dynamic>)
-          : null,
-    );
+    try {
+      print('DEBUG UserModel.fromJson: Processing user ID: ${json['id']}');
+      return UserModel(
+        id: json['id'] as String,
+        email: json['email'] as String,
+        firstName: json['firstName'] as String,
+        lastName: json['lastName'] as String,
+        role: json['role'] as String,
+        avatar: json['avatar'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        company: json['company'] != null
+            ? CompanyModel.fromJson(json['company'] as Map<String, dynamic>)
+            : null,
+        userProfile: json['userProfile'] != null
+            ? UserProfileModel.fromJson(json['userProfile'] as Map<String, dynamic>)
+            : null,
+      );
+    } catch (e) {
+      print('DEBUG UserModel.fromJson: Error parsing user: $e');
+      print('DEBUG UserModel.fromJson: Raw JSON: $json');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -114,17 +121,24 @@ class CompanyModel {
   });
 
   factory CompanyModel.fromJson(Map<String, dynamic> json) {
-    return CompanyModel(
-      id: json['id'] as int,
-      name: json['name'] as String,
-      taxCode: json['taxCode'] as String?,
-      description: json['description'] as String?,
-      location: json['location'] as String?,
-      isVerified: json['isVerified'] as bool? ?? false,
-      images: (json['images'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList() ?? [],
-    );
+    try {
+      print('DEBUG CompanyModel.fromJson: Processing company ID: ${json['id']}');
+      return CompanyModel(
+        id: json['id'] as int,
+        name: json['name'] as String,
+        taxCode: json['taxCode'] as String?,
+        description: json['description'] as String?,
+        location: json['location'] as String?,
+        isVerified: json['isVerified'] as bool? ?? false,
+        images: (json['images'] as List<dynamic>?)
+            ?.map((e) => e as String)
+            .toList() ?? [],
+      );
+    } catch (e) {
+      print('DEBUG CompanyModel.fromJson: Error parsing company: $e');
+      print('DEBUG CompanyModel.fromJson: Raw JSON: $json');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {

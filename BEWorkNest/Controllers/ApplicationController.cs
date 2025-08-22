@@ -19,6 +19,7 @@ namespace BEWorkNest.Controllers
         private readonly CVProcessingService _cvProcessingService;
         private readonly AiService _aiService;
         private readonly UserBehaviorService _userBehaviorService;
+        private readonly ILogger<ApplicationController> _logger;
 
         public ApplicationController(
             ApplicationDbContext context, 
@@ -26,7 +27,8 @@ namespace BEWorkNest.Controllers
             JwtService jwtService,
             CVProcessingService cvProcessingService,
             AiService aiService,
-            UserBehaviorService userBehaviorService)
+            UserBehaviorService userBehaviorService,
+            ILogger<ApplicationController> logger)
         {
             _context = context;
             _cloudinaryService = cloudinaryService;
@@ -34,6 +36,7 @@ namespace BEWorkNest.Controllers
             _cvProcessingService = cvProcessingService;
             _aiService = aiService;
             _userBehaviorService = userBehaviorService;
+            _logger = logger;
         }
 
         // Helper method to get user info from JWT token
@@ -77,6 +80,68 @@ namespace BEWorkNest.Controllers
         public IActionResult Test()
         {
             return Ok(new { message = "ApplicationController is working!", timestamp = DateTime.UtcNow });
+        }
+
+        // Test endpoint to check PDF text extraction from specific URL
+        [HttpGet("test-pdf-extraction")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TestPdfExtraction([FromQuery] string? url = null)
+        {
+            try
+            {
+                // Use default test URL if none provided
+                var testUrl = url ?? "https://res.cloudinary.com/do9yw2fsw/image/upload/v1754472615/cvs/dvlbxoep55ychbblrlr1.pdf";
+                
+                _logger.LogInformation($"[PDF Test] Testing extraction from URL: {testUrl}");
+                
+                // Test text extraction
+                var extractedText = await _cvProcessingService.ExtractTextFromUrlAsync(testUrl);
+                
+                _logger.LogInformation($"[PDF Test] Extracted text length: {extractedText?.Length ?? 0}");
+                
+                if (!string.IsNullOrEmpty(extractedText))
+                {
+                    _logger.LogInformation($"[PDF Test] First 200 chars: {extractedText.Substring(0, Math.Min(200, extractedText.Length))}");
+                }
+                
+                return Ok(new 
+                { 
+                    success = true,
+                    url = testUrl,
+                    textLength = extractedText?.Length ?? 0,
+                    hasText = !string.IsNullOrEmpty(extractedText),
+                    isScannedPdf = extractedText?.Length < 50,
+                    ocrRequired = extractedText?.Length < 50,
+                    message = extractedText?.Length < 50 ? 
+                        "PDF này có vẻ là ảnh scan. Cần OCR để đọc text. Hiện tại hệ thống chưa hỗ trợ OCR đầy đủ." :
+                        "PDF đã được extract text thành công",
+                    firstChars = !string.IsNullOrEmpty(extractedText) ? 
+                        extractedText.Substring(0, Math.Min(2000, extractedText.Length)) : 
+                        "No text extracted - likely scanned PDF requiring OCR",
+                    timestamp = DateTime.UtcNow,
+                    recommendations = extractedText?.Length < 50 ? new[]
+                    {
+                        "Yêu cầu candidate upload file PDF có text (không phải scan)",
+                        "Hoặc implement OCR đầy đủ để đọc PDF scan",
+                        "CV analysis sẽ trả về điểm 0 nếu không có text"
+                    } : new[]
+                    {
+                        "CV đã được extract text thành công",
+                        "AI có thể phân tích CV này bình thường"
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[PDF Test] Error testing PDF extraction");
+                return BadRequest(new 
+                { 
+                    success = false,
+                    error = ex.Message,
+                    stackTrace = ex.StackTrace,
+                    timestamp = DateTime.UtcNow
+                });
+            }
         }
 
         // Debug endpoint to check database data
@@ -205,11 +270,17 @@ namespace BEWorkNest.Controllers
             // Analyze CV if provided and perform matching
             if (createDto.CvFile != null && !string.IsNullOrEmpty(cvUrl))
             {
+                Console.WriteLine($"Starting CV analysis for application {application.Id} with file");
                 _ = Task.Run(async () => await AnalyzeCVForApplicationAsync(application.Id, createDto.CvFile, jobPost));
             }
             else if (!string.IsNullOrEmpty(cvUrl))
             {
+                Console.WriteLine($"Starting CV analysis for application {application.Id} with URL: {cvUrl}");
                 _ = Task.Run(async () => await AnalyzeCVFromUrlAsync(application.Id, cvUrl, jobPost));
+            }
+            else
+            {
+                Console.WriteLine($"No CV file or URL provided for application {application.Id}");
             }
 
             // Return complete application data for Flutter
@@ -725,8 +796,27 @@ namespace BEWorkNest.Controllers
             {
                 application.Status = status;
                 application.UpdatedAt = DateTime.UtcNow;
+                
+                // Set rejection reason if status is Rejected
+                if (status == ApplicationStatus.Rejected)
+                {
+                    application.RejectionReason = !string.IsNullOrEmpty(updateDto.RejectionReason) 
+                        ? updateDto.RejectionReason 
+                        : "Không đáp ứng yêu cầu công việc";
+                }
+                else
+                {
+                    // Clear rejection reason if status is not Rejected
+                    application.RejectionReason = null;
+                }
+                
                 await _context.SaveChangesAsync();
-                return Ok(new { message = "Application status updated successfully" });
+                
+                return Ok(new { 
+                    message = "Cập nhật trạng thái đơn ứng tuyển thành công",
+                    status = status.ToString(),
+                    rejectionReason = application.RejectionReason
+                });
             }
 
             return BadRequest("Invalid status");
@@ -995,9 +1085,15 @@ namespace BEWorkNest.Controllers
         {
             try
             {
+                Console.WriteLine($"[CV Analysis] Starting analysis for application {applicationId}");
+                
                 // Extract text from CV
+                Console.WriteLine($"[CV Analysis] Extracting text from CV file: {cvFile.FileName}");
                 var cvText = await _cvProcessingService.ExtractTextFromCVAsync(cvFile);
+                Console.WriteLine($"[CV Analysis] Extracted {cvText.Length} characters from CV");
+                
                 var cleanedText = _cvProcessingService.CleanExtractedText(cvText);
+                Console.WriteLine($"[CV Analysis] Cleaned text length: {cleanedText.Length}");
 
                 // Prepare job details for AI analysis
                 var jobDetails = new Dictionary<string, object>
@@ -1012,16 +1108,21 @@ namespace BEWorkNest.Controllers
                     ["experienceLevel"] = jobPost.ExperienceLevel
                 };
 
+                Console.WriteLine($"[CV Analysis] Calling AI service for analysis");
                 // Analyze CV with AI
                 var analysisResult = await _aiService.AnalyzeCVForJobAsync(cleanedText, jobDetails);
+                Console.WriteLine($"[CV Analysis] AI analysis completed with match score: {analysisResult.MatchScore}");
 
                 // Save analysis result to database
+                Console.WriteLine($"[CV Analysis] Saving analysis result to database");
                 await SaveCVAnalysisResultAsync(applicationId, jobPost.Id, analysisResult);
+                Console.WriteLine($"[CV Analysis] Analysis completed successfully for application {applicationId}");
             }
             catch (Exception ex)
             {
                 // Log error but don't fail the application process
-                Console.WriteLine($"CV Analysis failed for application {applicationId}: {ex.Message}");
+                Console.WriteLine($"[CV Analysis] ERROR - CV Analysis failed for application {applicationId}: {ex.Message}");
+                Console.WriteLine($"[CV Analysis] ERROR - Stack trace: {ex.StackTrace}");
             }
         }
 
@@ -1029,9 +1130,15 @@ namespace BEWorkNest.Controllers
         {
             try
             {
+                Console.WriteLine($"[CV Analysis] Starting extraction from URL: {cvUrl}");
+                
                 // Extract text from CV URL
                 var cvText = await _cvProcessingService.ExtractTextFromUrlAsync(cvUrl);
-                var cleanedText = _cvProcessingService.CleanExtractedText(cvText);
+                Console.WriteLine($"[CV Analysis] Extracted text length: {cvText?.Length ?? 0}");
+                Console.WriteLine($"[CV Analysis] Extracted text preview: {(string.IsNullOrEmpty(cvText) ? "EMPTY/NULL" : cvText.Substring(0, Math.Min(200, cvText.Length)))}...");
+                
+                var cleanedText = _cvProcessingService.CleanExtractedText(cvText ?? "");
+                Console.WriteLine($"[CV Analysis] Cleaned text length: {cleanedText?.Length ?? 0}");
 
                 // Prepare job details for AI analysis
                 var jobDetails = new Dictionary<string, object>
@@ -1047,7 +1154,7 @@ namespace BEWorkNest.Controllers
                 };
 
                 // Analyze CV with AI
-                var analysisResult = await _aiService.AnalyzeCVForJobAsync(cleanedText, jobDetails);
+                var analysisResult = await _aiService.AnalyzeCVForJobAsync(cleanedText ?? "", jobDetails);
 
                 // Save analysis result to database
                 await SaveCVAnalysisResultAsync(applicationId, jobPost.Id, analysisResult);
@@ -1063,9 +1170,16 @@ namespace BEWorkNest.Controllers
         {
             try
             {
+                Console.WriteLine($"[Save CV Analysis] Starting to save analysis for application {applicationId}");
+                
                 var application = await _context.Applications.FindAsync(applicationId);
-                if (application == null) return;
+                if (application == null) 
+                {
+                    Console.WriteLine($"[Save CV Analysis] ERROR - Application {applicationId} not found");
+                    return;
+                }
 
+                Console.WriteLine($"[Save CV Analysis] Found application, creating analysis result record");
                 var dbAnalysisResult = new Models.CVAnalysisResult
                 {
                     ApplicationId = applicationId,
@@ -1080,12 +1194,18 @@ namespace BEWorkNest.Controllers
                     AnalyzedAt = DateTime.UtcNow
                 };
 
+                Console.WriteLine($"[Save CV Analysis] Adding analysis result to context");
                 _context.CVAnalysisResults.Add(dbAnalysisResult);
+                
+                Console.WriteLine($"[Save CV Analysis] Saving changes to database");
                 await _context.SaveChangesAsync();
+                
+                Console.WriteLine($"[Save CV Analysis] Successfully saved analysis result with ID: {dbAnalysisResult.Id}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to save CV analysis result: {ex.Message}");
+                Console.WriteLine($"[Save CV Analysis] ERROR - Failed to save CV analysis result: {ex.Message}");
+                Console.WriteLine($"[Save CV Analysis] ERROR - Stack trace: {ex.StackTrace}");
             }
         }
 
@@ -1096,14 +1216,14 @@ namespace BEWorkNest.Controllers
         {
             var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
 
-            if (!isAuthenticated || string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized(new
-                {
-                    message = "Không tìm thấy thông tin người dùng trong token",
-                    errorCode = "AUTHENTICATION_REQUIRED"
-                });
-            }
+            // if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            // {
+            //     return Unauthorized(new
+            //     {
+            //         message = "Không tìm thấy thông tin người dùng trong token",
+            //         errorCode = "AUTHENTICATION_REQUIRED"
+            //     });
+            // }
 
             var application = await _context.Applications
                 .Include(a => a.Job)
@@ -1130,7 +1250,34 @@ namespace BEWorkNest.Controllers
 
             if (analysisResult == null)
             {
-                return Ok(new { message = "CV analysis not available yet. Please check back later." });
+                // If no analysis exists yet, try to perform it on-demand when we have a CV URL
+                if (!string.IsNullOrEmpty(application.CvUrl))
+                {
+                    _logger.LogInformation("No CV analysis found for application {ApplicationId}. Attempting on-demand analysis using CvUrl.", id);
+                    try
+                    {
+                        // Perform analysis synchronously so caller gets a result if possible
+                        await AnalyzeCVFromUrlAsync(application.Id, application.CvUrl, application.Job);
+
+                        // Re-fetch analysis result after attempting analysis
+                        analysisResult = await _context.CVAnalysisResults
+                            .FirstOrDefaultAsync(c => c.ApplicationId == id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "On-demand CV analysis failed for application {ApplicationId}", id);
+                    }
+
+                    if (analysisResult == null)
+                    {
+                        return Ok(new { message = "CV analysis is in progress or failed. Please check back later." });
+                    }
+                }
+                else
+                {
+                    // No CV URL to analyze
+                    return Ok(new { message = "CV analysis not available and no CV URL to analyze. Please upload a CV." });
+                }
             }
 
             return Ok(new
@@ -1144,6 +1291,51 @@ namespace BEWorkNest.Controllers
                 detailedAnalysis = analysisResult.DetailedAnalysis,
                 analyzedAt = analysisResult.AnalyzedAt
             });
+        }
+
+        // Test endpoint to manually trigger CV analysis
+        [HttpPost("{id}/trigger-cv-analysis")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TriggerCVAnalysis(int id)
+        {
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized("Authentication required");
+            }
+
+            var application = await _context.Applications
+                .Include(a => a.Job)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (application == null)
+            {
+                return NotFound("Application not found");
+            }
+
+            // Check permissions
+            if (userRole == "recruiter" && application.Job.RecruiterId != userId)
+            {
+                return Forbid("You can only trigger analysis for your job applications");
+            }
+
+            if (string.IsNullOrEmpty(application.CvUrl))
+            {
+                return BadRequest("No CV URL found for this application");
+            }
+
+            try
+            {
+                Console.WriteLine($"[Manual CV Analysis] Triggering analysis for application {id}");
+                await AnalyzeCVFromUrlAsync(application.Id, application.CvUrl, application.Job);
+                return Ok(new { message = "CV analysis triggered successfully" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Manual CV Analysis] ERROR: {ex.Message}");
+                return StatusCode(500, new { message = "Failed to trigger CV analysis", error = ex.Message });
+            }
         }
     }
 }

@@ -985,7 +985,15 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
               Navigator.pop(context);
               
               try {
-                final updateStatus = UpdateApplicationStatusModel(status: 'rejected');
+                final rejectionReason = reasonController.text.trim().isEmpty 
+                    ? null 
+                    : reasonController.text.trim();
+                
+                final updateStatus = UpdateApplicationStatusModel(
+                  status: 'rejected',
+                  rejectionReason: rejectionReason,
+                );
+                
                 final success = await ref.read(recruiterApplicantsProvider.notifier)
                     .updateApplicantStatus(widget.application.id, updateStatus);
                 
