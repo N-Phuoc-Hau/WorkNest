@@ -253,7 +253,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Center(
                   child: TextButton(
                     onPressed: () {
-                      // TODO: Implement forgot password
+                      context.push('/forgot-password');
                     },
                     child: const Text('Quên mật khẩu?'),
                   ),

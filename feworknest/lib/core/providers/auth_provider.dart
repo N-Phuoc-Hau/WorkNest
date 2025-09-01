@@ -336,4 +336,40 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     }
   }
+
+  // Send forgot password OTP
+  Future<bool> sendForgotPasswordOtp(String email) async {
+    try {
+      final authService = ref.read(authServiceProvider);
+      final result = await authService.sendForgotPasswordOtp(email);
+      return result['success'] == true;
+    } catch (e) {
+      print('DEBUG AuthProvider: Send OTP error: $e');
+      return false;
+    }
+  }
+
+  // Verify OTP
+  Future<Map<String, dynamic>?> verifyOtp(String email, String otp) async {
+    try {
+      final authService = ref.read(authServiceProvider);
+      final result = await authService.verifyOtp(email, otp);
+      return result;
+    } catch (e) {
+      print('DEBUG AuthProvider: Verify OTP error: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  // Reset password
+  Future<bool> resetPassword(String email, String resetToken, String newPassword) async {
+    try {
+      final authService = ref.read(authServiceProvider);
+      final result = await authService.resetPassword(email, resetToken, newPassword);
+      return result['success'] == true;
+    } catch (e) {
+      print('DEBUG AuthProvider: Reset password error: $e');
+      return false;
+    }
+  }
 }

@@ -8,8 +8,11 @@ import '../../features/admin/screens/admin_jobs_screen.dart';
 import '../../features/admin/screens/admin_users_screen.dart';
 import '../../features/applications/screens/application_detail_screen.dart';
 import '../../features/applications/screens/my_applications_screen.dart';
+import '../../features/auth/screens/forgot_password_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
+import '../../features/auth/screens/reset_password_screen.dart';
+import '../../features/auth/screens/verify_otp_screen.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
 import '../../features/candidate/screens/following_companies_screen.dart';
 import '../../features/chat/screens/chat_detail_screen.dart';
@@ -29,6 +32,7 @@ import '../../features/notifications/screens/notification_screen.dart';
 import '../../features/profile/screens/edit_profile_screen.dart';
 import '../../features/profile/screens/profile_screen.dart';
 import '../../features/recruiter/pages/recruiter_application_detail_page.dart';
+import '../../features/recruiter/screens/analytics_screen.dart';
 import '../../features/recruiter/screens/recruiter_applicants_screen.dart';
 import '../../features/recruiter/screens/recruiter_company_screen.dart';
 import '../../features/recruiter/screens/recruiter_home_screen.dart';
@@ -79,7 +83,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ];
 
       // PRIORITY 1: If logged in and trying to access auth pages, redirect to appropriate home
-      if (isLoggedIn && user != null && (location == '/login' || location == '/register')) {
+      if (isLoggedIn && user != null && (location == '/login' || location == '/register' || 
+          location == '/forgot-password' || location == '/verify-otp' || location == '/reset-password')) {
         print('DEBUG Router: User is authenticated, redirecting from auth page');
         print('DEBUG Router: user.role = ${user.role}');
         print('DEBUG Router: user.isRecruiter = ${user.isRecruiter}');
@@ -155,6 +160,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/verify-otp',
+        builder: (context, state) {
+          final email = state.extra as String;
+          return VerifyOtpScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: '/reset-password',
+        builder: (context, state) {
+          final data = state.extra as Map<String, String>;
+          return ResetPasswordScreen(
+            email: data['email']!,
+            resetToken: data['resetToken']!,
+          );
+        },
       ),
       
       // Candidate/Public Routes (without /candidate prefix)
@@ -348,6 +374,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => _buildWithLayout(
           context, 
           const RecruiterSettingsScreen(),
+          'recruiter',
+        ),
+      ),
+      GoRoute(
+        path: '/recruiter/analytics',
+        builder: (context, state) => _buildWithLayout(
+          context, 
+          const AnalyticsScreen(),
           'recruiter',
         ),
       ),

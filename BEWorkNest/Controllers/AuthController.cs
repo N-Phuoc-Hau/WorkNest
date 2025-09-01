@@ -19,6 +19,7 @@ namespace BEWorkNest.Controllers
         private readonly RefreshTokenService _refreshTokenService;
         private readonly ApplicationDbContext _context;
         private readonly CloudinaryService _cloudinaryService;
+        private readonly EmailService _emailService;
 
         public AuthController(
             UserManager<User> userManager,
@@ -26,7 +27,8 @@ namespace BEWorkNest.Controllers
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
             ApplicationDbContext context,
-            CloudinaryService cloudinaryService)
+            CloudinaryService cloudinaryService,
+            EmailService emailService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
@@ -34,6 +36,7 @@ namespace BEWorkNest.Controllers
             _refreshTokenService = refreshTokenService;
             _context = context;
             _cloudinaryService = cloudinaryService;
+            _emailService = emailService;
         }
 
         [HttpPost("register/candidate")]
@@ -344,90 +347,6 @@ namespace BEWorkNest.Controllers
             }
         }
 
-        // Simple auth test endpoint
-        [HttpGet("test-auth")]
-        [AllowAnonymous]
-        public IActionResult TestAuth()
-        {
-            var authHeader = Request.Headers["Authorization"].FirstOrDefault();
-            var hasAuthHeader = !string.IsNullOrEmpty(authHeader);
-            var isBearerToken = authHeader?.StartsWith("Bearer ") == true;
-            
-            var debugInfo = new
-            {
-                hasAuthHeader,
-                isBearerToken,
-                authHeader = hasAuthHeader ? authHeader : null,
-                timestamp = DateTime.Now
-            };
-
-            if (!hasAuthHeader)
-            {
-                return Ok(new { message = "No Authorization header", debugInfo });
-            }
-
-            if (!isBearerToken)
-            {
-                return Ok(new { message = "Not a Bearer token", debugInfo });
-            }
-
-                            var token = authHeader!.Substring("Bearer ".Length).Trim();
-            
-            try
-            {
-                var expirationTime = _jwtService.GetTokenExpirationTime(token);
-                var isExpired = _jwtService.IsTokenExpired(token);
-                var userId = _jwtService.GetUserIdFromToken(token);
-                var role = _jwtService.GetRoleFromToken(token);
-                var principal = _jwtService.ValidateToken(token);
-
-                // Extract all claims for detailed analysis
-                var allClaims = new List<object>();
-                if (principal != null)
-                {
-                    foreach (var claim in principal.Claims)
-                    {
-                        allClaims.Add(new { Type = claim.Type, Value = claim.Value });
-                    }
-                }
-
-                // Check specific User ID claims
-                var nameIdentifier = principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var customUserId = principal?.FindFirst("userId")?.Value;
-                var email = principal?.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value;
-
-                return Ok(new
-                {
-                    message = "Token analysis",
-                    token = token.Substring(0, Math.Min(50, token.Length)) + "...",
-                    isValid = !isExpired,
-                    expiresAt = expirationTime,
-                    isExpired = isExpired,
-                    userId = userId,
-                    role = role,
-                    principal = principal != null ? "Valid" : "Invalid",
-                    timeToExpiry = isExpired ? TimeSpan.Zero : expirationTime - DateTime.UtcNow,
-                    claims = new
-                    {
-                        nameIdentifier = nameIdentifier,
-                        customUserId = customUserId,
-                        email = email,
-                        allClaims = allClaims
-                    },
-                    debugInfo
-                });
-            }
-            catch (Exception ex)
-            {
-                return Ok(new
-                {
-                    message = "Token validation error",
-                    error = ex.Message,
-                    debugInfo
-                });
-            }
-        }
-
         [HttpGet("token-status")]
         [AllowAnonymous]
         public IActionResult GetTokenStatus()
@@ -624,6 +543,165 @@ namespace BEWorkNest.Controllers
 
             return BadRequest(result.Errors);
         }
+
+        [HttpPost("forgot-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto forgotPasswordDto)
+        {
+            try
+            {
+                var user = await _userManager.FindByEmailAsync(forgotPasswordDto.Email);
+                if (user == null)
+                {
+                    // Don't reveal that the user doesn't exist
+                    return Ok(new { message = "If an account with that email exists, an OTP has been sent." });
+                }
+
+                // Check if there's an existing valid OTP
+                var existingOtp = await _context.ForgotPasswordOtps
+                    .Where(o => o.Email == forgotPasswordDto.Email && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
+                    .FirstOrDefaultAsync();
+
+                if (existingOtp != null)
+                {
+                    return BadRequest(new { message = "An OTP has already been sent. Please check your email or wait for it to expire." });
+                }
+
+                // Generate 6-digit OTP
+                var random = new Random();
+                var otp = random.Next(100000, 999999).ToString();
+
+                // Save OTP to database
+                var forgotPasswordOtp = new ForgotPasswordOtp
+                {
+                    Email = forgotPasswordDto.Email,
+                    OtpCode = otp,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(15), // OTP expires in 15 minutes
+                    IsUsed = false
+                };
+
+                _context.ForgotPasswordOtps.Add(forgotPasswordOtp);
+                await _context.SaveChangesAsync();
+
+                // Send email with OTP
+                var emailSent = await _emailService.SendOtpEmailAsync(forgotPasswordDto.Email, otp, user.FirstName + " " + user.LastName);
+                
+                if (emailSent)
+                {
+                    return Ok(new { 
+                        message = "OTP has been sent to your email. Please check your inbox." 
+                    });
+                }
+                else
+                {
+                    // If email fails, still return success for security but log the error
+                    return Ok(new { 
+                        message = "If an account with that email exists, an OTP has been sent."
+                    });
+                }
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "An error occurred while processing your request." });
+            }
+        }
+
+        [HttpPost("verify-otp")]
+        [AllowAnonymous]
+        public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpDto verifyOtpDto)
+        {
+            try
+            {
+                var otpRecord = await _context.ForgotPasswordOtps
+                    .Where(o => o.Email == verifyOtpDto.Email && 
+                               o.OtpCode == verifyOtpDto.OTP && 
+                               !o.IsUsed && 
+                               o.ExpiresAt > DateTime.UtcNow)
+                    .FirstOrDefaultAsync();
+
+                if (otpRecord == null)
+                {
+                    return BadRequest(new { message = "Invalid or expired OTP." });
+                }
+
+                // Mark OTP as used
+                otpRecord.IsUsed = true;
+                await _context.SaveChangesAsync();
+
+                // Generate a temporary token for password reset
+                var user = await _userManager.FindByEmailAsync(verifyOtpDto.Email);
+                if (user == null)
+                {
+                    return BadRequest(new { message = "User not found." });
+                }
+
+                var resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+                
+                return Ok(new { 
+                    message = "OTP verified successfully.",
+                    resetToken = resetToken,
+                    email = verifyOtpDto.Email
+                });
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "An error occurred while verifying OTP." });
+            }
+        }
+
+        [HttpPost("reset-password")]
+        [AllowAnonymous]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto resetPasswordDto)
+        {
+            try
+            {
+                var user = await _userManager.FindByEmailAsync(resetPasswordDto.Email);
+                if (user == null)
+                {
+                    return BadRequest(new { message = "Invalid request." });
+                }
+
+                var result = await _userManager.ResetPasswordAsync(user, resetPasswordDto.ResetToken, resetPasswordDto.NewPassword);
+                
+                if (result.Succeeded)
+                {
+                    // Clean up used OTPs for this email
+                    var usedOtps = await _context.ForgotPasswordOtps
+                        .Where(o => o.Email == resetPasswordDto.Email)
+                        .ToListAsync();
+                    
+                    _context.ForgotPasswordOtps.RemoveRange(usedOtps);
+                    await _context.SaveChangesAsync();
+
+                    return Ok(new { message = "Password has been reset successfully." });
+                }
+
+                return BadRequest(new { message = "Failed to reset password.", errors = result.Errors });
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "An error occurred while resetting password." });
+            }
+        }
+    }
+
+    public class ForgotPasswordDto
+    {
+        public string Email { get; set; } = string.Empty;
+    }
+
+    public class VerifyOtpDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string OTP { get; set; } = string.Empty;
+    }
+
+    public class ResetPasswordDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string ResetToken { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
     }
 
     public class RegisterRecruiterDto : RegisterDto

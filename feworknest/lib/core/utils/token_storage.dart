@@ -127,6 +127,14 @@ class TokenStorage {
     await prefs.remove(_userKey);
   }
 
+  static Future<void> clearTokens() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_accessTokenKey);
+    await prefs.remove(_refreshTokenKey);
+    await prefs.remove(_accessTokenExpiresAtKey);
+    await prefs.remove(_refreshTokenExpiresAtKey);
+  }
+
   static Future<bool> hasToken() async {
     final token = await getAccessToken();
     return token != null && token.isNotEmpty;

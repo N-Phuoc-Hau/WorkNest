@@ -61,9 +61,8 @@ namespace BEWorkNest.Controllers
                             userRole = _jwtService.GetRoleFromToken(token);
                             isAuthenticated = !string.IsNullOrEmpty(userId);
                         }
-                        catch (Exception ex)
+                        catch (Exception)
                         {
-                            Console.WriteLine($"Error extracting user info from token: {ex.Message}");
                             isAuthenticated = false;
                         }
                     }

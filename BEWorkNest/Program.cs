@@ -93,6 +93,7 @@ namespace BEWorkNest
             builder.Services.AddScoped<NotificationService>();
             builder.Services.AddScoped<AiService>();
             builder.Services.AddScoped<AnalyticsService>();
+            builder.Services.AddScoped<ExcelExportService>();
             // New AI-related services
             builder.Services.AddScoped<CVProcessingService>();
             builder.Services.AddScoped<UserBehaviorService>();

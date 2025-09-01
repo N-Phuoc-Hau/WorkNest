@@ -719,7 +719,35 @@ namespace BEWorkNest.Services
                     if (root.TryGetProperty("experience_analysis", out var expElement))
                     {
                         if (result.CandidateInfo == null) result.CandidateInfo = new CandidateInfo();
-                        result.CandidateInfo.ExperienceYears = expElement.TryGetProperty("cv_experience_years", out var yearsElement) ? yearsElement.GetInt32() : 0;
+                        
+                        // Handle both int and double values for experience years
+                        if (expElement.TryGetProperty("cv_experience_years", out var yearsElement))
+                        {
+                            if (yearsElement.ValueKind == JsonValueKind.Number)
+                            {
+                                // Try double first, then convert to int
+                                if (yearsElement.TryGetDouble(out var doubleYears))
+                                {
+                                    result.CandidateInfo.ExperienceYears = (int)Math.Round(doubleYears);
+                                }
+                                else if (yearsElement.TryGetInt32(out var intYears))
+                                {
+                                    result.CandidateInfo.ExperienceYears = intYears;
+                                }
+                                else
+                                {
+                                    result.CandidateInfo.ExperienceYears = 0;
+                                }
+                            }
+                            else
+                            {
+                                result.CandidateInfo.ExperienceYears = 0;
+                            }
+                        }
+                        else
+                        {
+                            result.CandidateInfo.ExperienceYears = 0;
+                        }
                     }
 
                     // Add HR summary to detailed analysis if available

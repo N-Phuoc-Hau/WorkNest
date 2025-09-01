@@ -96,5 +96,137 @@ namespace BEWorkNest.Services
             
             await SendEmailAsync(email, subject, body);
         }
+
+        public async Task<bool> SendOtpEmailAsync(string toEmail, string otp, string userName = "")
+        {
+            try
+            {
+                var displayName = string.IsNullOrEmpty(userName) ? "User" : userName;
+                var subject = "WorkNest - Reset Password OTP";
+                var body = CreateOtpEmailTemplate(otp, displayName);
+                
+                await SendEmailAsync(toEmail, subject, body);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private string CreateOtpEmailTemplate(string otp, string userName)
+        {
+            return $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>Reset Password - WorkNest</title>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 28px;
+            font-weight: 300;
+        }}
+        .content {{
+            padding: 40px 30px;
+            text-align: center;
+        }}
+        .otp-container {{
+            background-color: #f8f9fa;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 30px 0;
+        }}
+        .otp-code {{
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+            letter-spacing: 8px;
+            margin: 10px 0;
+        }}
+        .otp-label {{
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }}
+        .warning {{
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }}
+        .footer {{
+            background-color: #f8f9fa;
+            text-align: center;
+            padding: 20px;
+            font-size: 14px;
+            color: #666;
+        }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>🔐 WorkNest</h1>
+            <p>Password Reset Request</p>
+        </div>
+        
+        <div class='content'>
+            <h2>Hello {userName}!</h2>
+            <p>We received a request to reset your WorkNest password. Use the OTP code below to complete your password reset:</p>
+            
+            <div class='otp-container'>
+                <div class='otp-label'>Your OTP Code</div>
+                <div class='otp-code'>{otp}</div>
+                <p style='margin: 10px 0 0 0; color: #666; font-size: 14px;'>Valid for 15 minutes</p>
+            </div>
+            
+            <div class='warning'>
+                <strong>⚠️ Security Notice:</strong><br>
+                • This OTP will expire in 15 minutes<br>
+                • Do not share this code with anyone<br>
+                • If you didn't request this, please ignore this email
+            </div>
+            
+            <p>If you're having trouble, contact our support team.</p>
+        </div>
+        
+        <div class='footer'>
+            <p>This is an automated email from WorkNest. Please do not reply to this email.</p>
+            <p>&copy; 2025 WorkNest. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>";
+        }
     }
 }

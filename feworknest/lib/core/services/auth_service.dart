@@ -561,4 +561,92 @@ class AuthService {
     }
   }
 
+  // Send forgot password OTP
+  Future<Map<String, dynamic>> sendForgotPasswordOtp(String email) async {
+    try {
+      print('DEBUG AuthService: Sending forgot password OTP request...');
+      final response = await _dio.post(ApiConstants.forgotPassword, data: {
+        'email': email,
+      });
+
+      print('DEBUG AuthService: Send OTP SUCCESS');
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'OTP sent successfully',
+      };
+    } catch (e) {
+      print('DEBUG AuthService: Send OTP FAILED - $e');
+      if (e is DioException && e.response != null) {
+        return {
+          'success': false,
+          'message': e.response!.data['message'] ?? 'Failed to send OTP',
+        };
+      }
+      return {
+        'success': false,
+        'message': 'Network error occurred',
+      };
+    }
+  }
+
+  // Verify OTP
+  Future<Map<String, dynamic>> verifyOtp(String email, String otp) async {
+    try {
+      print('DEBUG AuthService: Verifying OTP...');
+      final response = await _dio.post(ApiConstants.verifyOtp, data: {
+        'email': email,
+        'otp': otp,
+      });
+
+      print('DEBUG AuthService: Verify OTP SUCCESS');
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'OTP verified successfully',
+        'resetToken': response.data['resetToken'],
+      };
+    } catch (e) {
+      print('DEBUG AuthService: Verify OTP FAILED - $e');
+      if (e is DioException && e.response != null) {
+        return {
+          'success': false,
+          'message': e.response!.data['message'] ?? 'Invalid or expired OTP',
+        };
+      }
+      return {
+        'success': false,
+        'message': 'Network error occurred',
+      };
+    }
+  }
+
+  // Reset password
+  Future<Map<String, dynamic>> resetPassword(String email, String resetToken, String newPassword) async {
+    try {
+      print('DEBUG AuthService: Resetting password...');
+      final response = await _dio.post(ApiConstants.resetPassword, data: {
+        'email': email,
+        'resetToken': resetToken,
+        'newPassword': newPassword,
+      });
+
+      print('DEBUG AuthService: Reset password SUCCESS');
+      return {
+        'success': true,
+        'message': response.data['message'] ?? 'Password reset successfully',
+      };
+    } catch (e) {
+      print('DEBUG AuthService: Reset password FAILED - $e');
+      if (e is DioException && e.response != null) {
+        return {
+          'success': false,
+          'message': e.response!.data['message'] ?? 'Failed to reset password',
+        };
+      }
+      return {
+        'success': false,
+        'message': 'Network error occurred',
+      };
+    }
+  }
+
 }

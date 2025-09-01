@@ -5,8 +5,9 @@ class NetworkConfig {
   // Use HTTP for localhost in development
   static String get baseUrl {
     if (isDevelopment) {
-      return 'http://192.168.0.161:7777'; // Updated to match backend port
+      // return 'http://192.168.0.161:7777'; // Updated to match backend port
       // return 'http://localhost:5006';
+      return 'http://192.168.1.20:7777';
     }
     return 'https://your-production-domain.com'; // HTTPS for production
   }

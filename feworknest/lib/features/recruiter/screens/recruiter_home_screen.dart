@@ -121,12 +121,15 @@ class RecruiterDashboardPage extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatCard(
-                  context,
-                  'Hoàn thành',
-                  '0',
-                  Icons.check_circle_outline,
-                  Colors.purple,
+                child: InkWell(
+                  onTap: () => context.push('/recruiter/analytics'),
+                  child: _buildStatCard(
+                    context,
+                    'Phân tích',
+                    'Chi tiết',
+                    Icons.analytics,
+                    Colors.purple,
+                  ),
                 ),
               ),
             ],
@@ -339,15 +342,11 @@ class RecruiterJobsPage extends StatelessWidget {
               ),
               _buildJobActionCard(
                 context,
-                'Thống kê',
-                'Xem báo cáo tuyển dụng',
+                'Phân tích & Báo cáo',
+                'Xem thống kê chi tiết',
                 Icons.analytics,
                 Colors.purple,
-                () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Tính năng đang phát triển')),
-                  );
-                },
+                () => context.push('/analytics'),
               ),
             ],
           ),

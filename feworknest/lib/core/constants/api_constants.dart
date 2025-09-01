@@ -12,6 +12,9 @@ class ApiConstants {
   static const String refreshToken = '/api/Auth/refresh-token';
   static const String revokeToken = '/api/Auth/revoke-token';
   static const String revokeAllTokens = '/api/Auth/revoke-all-tokens';
+  static const String forgotPassword = '/api/Auth/forgot-password';
+  static const String verifyOtp = '/api/Auth/verify-otp';
+  static const String resetPassword = '/api/Auth/reset-password';
   
   // Guide endpoints
   static const String appGuide = '/api/Guide/app-guide';

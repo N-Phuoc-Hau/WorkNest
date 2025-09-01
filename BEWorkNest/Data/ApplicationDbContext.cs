@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using BEWorkNest.Models;
 
@@ -23,6 +24,7 @@ namespace BEWorkNest.Data
         public DbSet<Analytics> Analytics { get; set; }
         public DbSet<UserProfile> UserProfiles { get; set; }
         public DbSet<Interview> Interviews { get; set; }
+        public DbSet<ForgotPasswordOtp> ForgotPasswordOtps { get; set; }
 
         // User behavior tracking
         public DbSet<SearchHistory> SearchHistories { get; set; }
@@ -141,6 +143,12 @@ namespace BEWorkNest.Data
 
             builder.Entity<Analytics>()
                 .HasIndex(a => a.CreatedAt);
+
+            // Ignore unused ASP.NET Identity tables to clean up database
+            builder.Ignore<IdentityUserClaim<string>>();
+            builder.Ignore<IdentityUserLogin<string>>();
+            builder.Ignore<IdentityUserToken<string>>();
+            builder.Ignore<IdentityRoleClaim<string>>();
         }
     }
 }
