@@ -243,6 +243,11 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
             route: '/applications',
           ),
           SidebarMenuItem(
+            icon: Icons.analytics,
+            title: 'Phân tích CV',
+            route: '/cv-analysis',
+          ),
+          SidebarMenuItem(
             icon: Icons.favorite,
             title: 'Việc làm đã lưu',
             route: '/favorites',

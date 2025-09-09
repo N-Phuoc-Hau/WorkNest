@@ -7,12 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="EPPlus" Version="8.1.0" />
     <PackageReference Include="FirebaseAdmin" Version="3.3.0" />
     <PackageReference Include="FirebaseDatabase.net" Version="4.2.0" />
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="12.0.0" />
     <PackageReference Include="MailKit" Version="4.13.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.4.0" />
     
     <!-- MySQL packages -->
@@ -28,6 +31,14 @@
     
     <!-- SignalR package -->
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+    
+    <!-- PDF and Document processing packages for CV analysis -->
+    <PackageReference Include="itext7" Version="9.2.0" />
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
+    
+    <!-- Additional System packages for document processing -->
+    <PackageReference Include="System.Text.Json" Version="9.0.4" />
+    <PackageReference Include="Tesseract" Version="5.2.0" />
   </ItemGroup>
 
 </Project>

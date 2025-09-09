@@ -16,7 +16,9 @@ class DetailedAnalytics {
       recruiter: RecruiterAnalytics.fromJson(json['recruiter'] ?? {}),
       company: CompanyAnalytics.fromJson(json['company'] ?? {}),
       jobs: JobAnalytics.fromJson(json['jobs'] ?? {}),
-      generatedAt: DateTime.parse(json['generatedAt'] ?? DateTime.now().toIso8601String()),
+      generatedAt: json['generatedAt'] != null 
+          ? DateTime.parse(json['generatedAt']) 
+          : DateTime.now(),
     );
   }
 
@@ -688,6 +690,196 @@ class Performance {
       bestJob: json['bestJob'] != null ? JobDetailedPerformance.fromJson(json['bestJob']) : null,
       mostViewed: json['mostViewed'] != null ? JobDetailedPerformance.fromJson(json['mostViewed']) : null,
       mostApplied: json['mostApplied'] != null ? JobDetailedPerformance.fromJson(json['mostApplied']) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'bestJob': bestJob?.toJson(),
+      'mostViewed': mostViewed?.toJson(),
+      'mostApplied': mostApplied?.toJson(),
+    };
+  }
+}
+
+// Simple job model for summary analytics (without heavy chart data)
+class JobSummary {
+  final int jobId;
+  final String jobTitle;
+  final String jobCategory;
+  final String jobLocation;
+  final String experienceLevel;
+  final double salary;
+  final DateTime postedDate;
+  final DateTime deadLine;
+  final bool isActive;
+  final int totalViews;
+  final int uniqueViews;
+  final int totalApplications;
+  final int pendingApplications;
+  final int acceptedApplications;
+  final int rejectedApplications;
+  final double viewToApplicationRatio;
+  final double acceptanceRate;
+  final int favoriteCount;
+
+  JobSummary({
+    required this.jobId,
+    required this.jobTitle,
+    required this.jobCategory,
+    required this.jobLocation,
+    required this.experienceLevel,
+    required this.salary,
+    required this.postedDate,
+    required this.deadLine,
+    required this.isActive,
+    required this.totalViews,
+    required this.uniqueViews,
+    required this.totalApplications,
+    required this.pendingApplications,
+    required this.acceptedApplications,
+    required this.rejectedApplications,
+    required this.viewToApplicationRatio,
+    required this.acceptanceRate,
+    required this.favoriteCount,
+  });
+
+  factory JobSummary.fromJson(Map<String, dynamic> json) {
+    return JobSummary(
+      jobId: json['jobId'] ?? 0,
+      jobTitle: json['jobTitle'] ?? '',
+      jobCategory: json['jobCategory'] ?? '',
+      jobLocation: json['jobLocation'] ?? '',
+      experienceLevel: json['experienceLevel'] ?? '',
+      salary: (json['salary'] ?? 0).toDouble(),
+      postedDate: DateTime.parse(json['postedDate'] ?? DateTime.now().toIso8601String()),
+      deadLine: DateTime.parse(json['deadLine'] ?? DateTime.now().toIso8601String()),
+      isActive: json['isActive'] ?? false,
+      totalViews: json['totalViews'] ?? 0,
+      uniqueViews: json['uniqueViews'] ?? 0,
+      totalApplications: json['totalApplications'] ?? 0,
+      pendingApplications: json['pendingApplications'] ?? 0,
+      acceptedApplications: json['acceptedApplications'] ?? 0,
+      rejectedApplications: json['rejectedApplications'] ?? 0,
+      viewToApplicationRatio: (json['viewToApplicationRatio'] ?? 0).toDouble(),
+      acceptanceRate: (json['acceptanceRate'] ?? 0).toDouble(),
+      favoriteCount: json['favoriteCount'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'jobId': jobId,
+      'jobTitle': jobTitle,
+      'jobCategory': jobCategory,
+      'jobLocation': jobLocation,
+      'experienceLevel': experienceLevel,
+      'salary': salary,
+      'postedDate': postedDate.toIso8601String(),
+      'deadLine': deadLine.toIso8601String(),
+      'isActive': isActive,
+      'totalViews': totalViews,
+      'uniqueViews': uniqueViews,
+      'totalApplications': totalApplications,
+      'pendingApplications': pendingApplications,
+      'acceptedApplications': acceptedApplications,
+      'rejectedApplications': rejectedApplications,
+      'viewToApplicationRatio': viewToApplicationRatio,
+      'acceptanceRate': acceptanceRate,
+      'favoriteCount': favoriteCount,
+    };
+  }
+}
+
+// Lightweight summary analytics model for home screen
+class SummaryAnalytics {
+  final CompanySummary companyInfo;
+  final JobStats jobStats;
+  final ApplicationStats applicationStats;
+  final PerformanceSummary performance;
+
+  SummaryAnalytics({
+    required this.companyInfo,
+    required this.jobStats,
+    required this.applicationStats,
+    required this.performance,
+  });
+
+  factory SummaryAnalytics.fromJson(Map<String, dynamic> json) {
+    return SummaryAnalytics(
+      companyInfo: CompanySummary.fromJson(json['companyInfo'] ?? {}),
+      jobStats: JobStats.fromJson(json['jobStats'] ?? {}),
+      applicationStats: ApplicationStats.fromJson(json['applicationStats'] ?? {}),
+      performance: PerformanceSummary.fromJson(json['performance'] ?? {}),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'companyInfo': companyInfo.toJson(),
+      'jobStats': jobStats.toJson(),
+      'applicationStats': applicationStats.toJson(),
+      'performance': performance.toJson(),
+    };
+  }
+}
+
+class CompanySummary {
+  final String companyName;
+  final String companyLocation;
+  final bool isVerified;
+  final int totalFollowers;
+  final double averageRating;
+  final int totalReviews;
+
+  CompanySummary({
+    required this.companyName,
+    required this.companyLocation,
+    required this.isVerified,
+    required this.totalFollowers,
+    required this.averageRating,
+    required this.totalReviews,
+  });
+
+  factory CompanySummary.fromJson(Map<String, dynamic> json) {
+    return CompanySummary(
+      companyName: json['companyName'] ?? '',
+      companyLocation: json['companyLocation'] ?? '',
+      isVerified: json['isVerified'] ?? false,
+      totalFollowers: json['totalFollowers'] ?? 0,
+      averageRating: (json['averageRating'] ?? 0).toDouble(),
+      totalReviews: json['totalReviews'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'companyName': companyName,
+      'companyLocation': companyLocation,
+      'isVerified': isVerified,
+      'totalFollowers': totalFollowers,
+      'averageRating': averageRating,
+      'totalReviews': totalReviews,
+    };
+  }
+}
+
+class PerformanceSummary {
+  final JobSummary? bestJob;
+  final JobSummary? mostViewed;
+  final JobSummary? mostApplied;
+
+  PerformanceSummary({
+    this.bestJob,
+    this.mostViewed,
+    this.mostApplied,
+  });
+
+  factory PerformanceSummary.fromJson(Map<String, dynamic> json) {
+    return PerformanceSummary(
+      bestJob: json['bestJob'] != null ? JobSummary.fromJson(json['bestJob']) : null,
+      mostViewed: json['mostViewed'] != null ? JobSummary.fromJson(json['mostViewed']) : null,
+      mostApplied: json['mostApplied'] != null ? JobSummary.fromJson(json['mostApplied']) : null,
     );
   }
 

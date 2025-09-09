@@ -53,8 +53,8 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             IconButton(
               onPressed: () => _showCVAnalysis(context),
               icon: Badge(
-                label: Text('${analysisState.analysisResult!.matchScore}%'),
-                backgroundColor: analysisState.analysisResult!.matchScoreColor,
+                label: Text('${analysisState.analysisResult!.scores.overallScore}%'),
+                backgroundColor: _getScoreColor(analysisState.analysisResult!.scores.overallScore),
                 child: const Icon(Icons.analytics_outlined),
               ),
               tooltip: 'Phân tích CV',
@@ -272,20 +272,24 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
   }
 
   Widget _buildQuickMatchScore(analysisResult) {
+    final matchScore = analysisResult.scores?.overallScore ?? 0;
+    final matchScoreColor = _getScoreColor(matchScore);
+    final matchScoreText = _getScoreText(matchScore);
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            analysisResult.matchScoreColor.withOpacity(0.1),
-            analysisResult.matchScoreColor.withOpacity(0.05),
+            matchScoreColor.withOpacity(0.1),
+            matchScoreColor.withOpacity(0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: analysisResult.matchScoreColor.withOpacity(0.3)),
+        border: Border.all(color: matchScoreColor.withOpacity(0.3)),
       ),
       child: Row(
         children: [
@@ -294,14 +298,14 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             height: 60,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: analysisResult.matchScoreColor, width: 4),
+              border: Border.all(color: matchScoreColor, width: 4),
             ),
             child: Center(
               child: Text(
-                '${analysisResult.matchScore}%',
+                '$matchScore%',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: analysisResult.matchScoreColor,
+                  color: matchScoreColor,
                   fontSize: 14,
                 ),
               ),
@@ -319,9 +323,9 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                   ),
                 ),
                 Text(
-                  analysisResult.matchScoreText,
+                  matchScoreText,
                   style: TextStyle(
-                    color: analysisResult.matchScoreColor,
+                    color: matchScoreColor,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -1128,6 +1132,22 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+
+  Color _getScoreColor(int score) {
+    if (score >= 90) return const Color(0xFF4CAF50); // Green
+    if (score >= 80) return const Color(0xFF8BC34A); // Light Green
+    if (score >= 70) return const Color(0xFFFFC107); // Amber
+    if (score >= 60) return const Color(0xFFFF9800); // Orange
+    return const Color(0xFFF44336); // Red
+  }
+
+  String _getScoreText(int score) {
+    if (score >= 90) return 'Rất phù hợp';
+    if (score >= 80) return 'Phù hợp';
+    if (score >= 70) return 'Khá phù hợp';
+    if (score >= 60) return 'Trung bình';
+    return 'Ít phù hợp';
   }
 }

@@ -1,6 +1,9 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
+using BEWorkNest.Data;
+using BEWorkNest.Models;
 
 namespace BEWorkNest.Services
 {
@@ -9,6 +12,7 @@ namespace BEWorkNest.Services
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AiService> _logger;
+        private readonly ApplicationDbContext _context;
         private readonly string _apiKey;
         private readonly string _baseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
@@ -34,11 +38,12 @@ namespace BEWorkNest.Services
             ["UI/UX Design"] = new List<string> { "Figma", "Adobe XD", "Sketch", "Photoshop", "Illustrator", "InVision", "Principle", "User Research", "Wireframing", "Prototyping" }
         };
 
-        public AiService(HttpClient httpClient, IConfiguration configuration, ILogger<AiService> logger)
+        public AiService(HttpClient httpClient, IConfiguration configuration, ILogger<AiService> logger, ApplicationDbContext context)
         {
             _httpClient = httpClient;
             _configuration = configuration;
             _logger = logger;
+            _context = context;
             
             // Read API key from file
             var apiKeyPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "apikeyDeepSeek.txt");
@@ -252,6 +257,234 @@ namespace BEWorkNest.Services
             {
                 _logger.LogError(ex, "[CV Analysis] Error analyzing CV for job - cvText length: {CvTextLength}", cvText?.Length ?? 0);
                 return GetDefaultCVAnalysisResult();
+            }
+        }
+
+        // Gợi ý việc làm thực tế từ database dựa trên phân tích CV
+        public async Task<List<JobRecommendationWithScore>> GetJobRecommendationsFromDatabaseAsync(string cvText, string userId)
+        {
+            try
+            {
+                _logger.LogInformation($"[Job Recommendations] Getting job recommendations from database for user: {userId}");
+                
+                // Lấy tất cả JobPost active từ database
+                var activeJobs = await _context.JobPosts
+                    .Where(j => j.IsActive && j.DeadLine > DateTime.UtcNow)
+                    .Include(j => j.Recruiter)
+                        .ThenInclude(r => r.Company)
+                    .OrderByDescending(j => j.CreatedAt)
+                    .Take(50) // Giới hạn 50 jobs gần nhất để tránh quá tải
+                    .ToListAsync();
+
+                _logger.LogInformation($"[Job Recommendations] Found {activeJobs.Count} active jobs in database");
+
+                if (!activeJobs.Any())
+                {
+                    _logger.LogWarning("[Job Recommendations] No active jobs found in database");
+                    return new List<JobRecommendationWithScore>();
+                }
+
+                var recommendations = new List<JobRecommendationWithScore>();
+
+                // Phân tích CV với từng job
+                foreach (var job in activeJobs)
+                {
+                    try
+                    {
+                        var jobDetails = new Dictionary<string, object>
+                        {
+                            ["title"] = job.Title,
+                            ["description"] = job.Description ?? "",
+                            ["requirements"] = job.Requirements ?? "",
+                            ["skills"] = job.Requirements ?? "", // Using Requirements as skills info
+                            ["experience_level"] = job.ExperienceLevel ?? "",
+                            ["category"] = job.Specialized ?? "",
+                            ["location"] = job.Location ?? "",
+                            ["salary"] = job.Salary,
+                            ["job_type"] = job.JobType ?? "Full-time"
+                        };
+
+                        // Phân tích độ phù hợp của CV với job này
+                        var cvAnalysis = await AnalyzeCVForJobAsync(cvText, jobDetails);
+                        
+                        // Chỉ gợi ý những job có match score >= 30 (có thể điều chỉnh)
+                        if (cvAnalysis.MatchScore >= 30)
+                        {
+                            var recommendation = new JobRecommendationWithScore
+                            {
+                                JobId = job.Id,
+                                Title = job.Title,
+                                Company = job.Recruiter?.Company?.Name ?? job.Recruiter?.FirstName + " " + job.Recruiter?.LastName ?? "Unknown Company",
+                                Location = job.Location ?? "",
+                                SalaryRange = job.Salary > 0 ? $"${job.Salary:N0}" : "Negotiable",
+                                SkillsRequired = !string.IsNullOrEmpty(job.Requirements) ? 
+                                    job.Requirements.Split(',', ';').Select(s => s.Trim()).Take(5).ToList() : 
+                                    new List<string>(),
+                                MatchPercentage = cvAnalysis.MatchScore,
+                                Reason = cvAnalysis.DetailedAnalysis,
+                                JobType = job.JobType ?? "Full-time",
+                                ExperienceLevel = job.ExperienceLevel ?? "",
+                                Category = job.Specialized ?? "",
+                                PostedDate = job.CreatedAt,
+                                DeadLine = job.DeadLine,
+                                Description = job.Description ?? "",
+                                Requirements = job.Requirements ?? "",
+                                CVAnalysisResult = cvAnalysis
+                            };
+
+                            recommendations.Add(recommendation);
+                        }
+                    }
+                    catch (Exception jobEx)
+                    {
+                        _logger.LogError(jobEx, "[Job Recommendations] Error analyzing job {JobId}: {JobTitle}", job.Id, job.Title);
+                        continue; // Skip this job and continue with others
+                    }
+                }
+
+                // Sắp xếp theo match score giảm dần và lấy top 10
+                var topRecommendations = recommendations
+                    .OrderByDescending(r => r.MatchPercentage)
+                    .Take(10)
+                    .ToList();
+
+                _logger.LogInformation($"[Job Recommendations] Generated {topRecommendations.Count} recommendations from {activeJobs.Count} jobs");
+                
+                // Log top recommendations
+                foreach (var rec in topRecommendations.Take(3))
+                {
+                    _logger.LogInformation($"[Job Recommendations] Top recommendation: {rec.Title} at {rec.Company} - Match: {rec.MatchPercentage}%");
+                }
+
+                return topRecommendations;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Job Recommendations] Error getting job recommendations from database");
+                return new List<JobRecommendationWithScore>();
+            }
+        }
+
+        // Enhanced method để lấy job recommendations với filters
+        public async Task<List<JobRecommendationWithScore>> GetFilteredJobRecommendationsAsync(
+            string cvText, 
+            string userId, 
+            string? location = null,
+            string? category = null,
+            string? experienceLevel = null,
+            decimal? minSalary = null,
+            int maxResults = 10)
+        {
+            try
+            {
+                _logger.LogInformation($"[Filtered Job Recommendations] Getting filtered recommendations for user: {userId}");
+                
+                var query = _context.JobPosts
+                    .Where(j => j.IsActive && j.DeadLine > DateTime.UtcNow);
+
+                // Apply filters
+                if (!string.IsNullOrEmpty(location))
+                {
+                    query = query.Where(j => j.Location.Contains(location));
+                }
+
+                if (!string.IsNullOrEmpty(category))
+                {
+                    query = query.Where(j => j.Specialized.Contains(category));
+                }
+
+                if (!string.IsNullOrEmpty(experienceLevel))
+                {
+                    query = query.Where(j => j.ExperienceLevel == experienceLevel);
+                }
+
+                if (minSalary.HasValue)
+                {
+                    query = query.Where(j => j.Salary >= minSalary.Value);
+                }
+
+                var filteredJobs = await query
+                    .Include(j => j.Recruiter)
+                        .ThenInclude(r => r.Company)
+                    .OrderByDescending(j => j.CreatedAt)
+                    .Take(30) // Limit to avoid performance issues
+                    .ToListAsync();
+
+                _logger.LogInformation($"[Filtered Job Recommendations] Found {filteredJobs.Count} jobs after filtering");
+
+                if (!filteredJobs.Any())
+                {
+                    return new List<JobRecommendationWithScore>();
+                }
+
+                var recommendations = new List<JobRecommendationWithScore>();
+
+                foreach (var job in filteredJobs)
+                {
+                    try
+                    {
+                        var jobDetails = new Dictionary<string, object>
+                        {
+                            ["title"] = job.Title,
+                            ["description"] = job.Description ?? "",
+                            ["requirements"] = job.Requirements ?? "",
+                            ["skills"] = job.Requirements ?? "", // Using Requirements as skills info
+                            ["experience_level"] = job.ExperienceLevel ?? "",
+                            ["category"] = job.Specialized ?? "",
+                            ["location"] = job.Location ?? "",
+                            ["salary"] = job.Salary,
+                            ["job_type"] = job.JobType ?? "Full-time"
+                        };
+
+                        var cvAnalysis = await AnalyzeCVForJobAsync(cvText, jobDetails);
+                        
+                        if (cvAnalysis.MatchScore >= 25) // Lower threshold for filtered results
+                        {
+                            var recommendation = new JobRecommendationWithScore
+                            {
+                                JobId = job.Id,
+                                Title = job.Title,
+                                Company = job.Recruiter?.Company?.Name ?? job.Recruiter?.FirstName + " " + job.Recruiter?.LastName ?? "Unknown Company",
+                                Location = job.Location ?? "",
+                                SalaryRange = job.Salary > 0 ? $"${job.Salary:N0}" : "Negotiable",
+                                SkillsRequired = !string.IsNullOrEmpty(job.Requirements) ? 
+                                    job.Requirements.Split(',').Select(s => s.Trim()).ToList() : 
+                                    new List<string>(),
+                                MatchPercentage = cvAnalysis.MatchScore,
+                                Reason = cvAnalysis.DetailedAnalysis,
+                                JobType = job.JobType ?? "Full-time",
+                                ExperienceLevel = job.ExperienceLevel ?? "",
+                                Category = job.Specialized ?? "",
+                                PostedDate = job.CreatedAt,
+                                DeadLine = job.DeadLine,
+                                Description = job.Description ?? "",
+                                Requirements = job.Requirements ?? "",
+                                CVAnalysisResult = cvAnalysis
+                            };
+
+                            recommendations.Add(recommendation);
+                        }
+                    }
+                    catch (Exception jobEx)
+                    {
+                        _logger.LogError(jobEx, "[Filtered Job Recommendations] Error analyzing job {JobId}: {JobTitle}", job.Id, job.Title);
+                        continue;
+                    }
+                }
+
+                var topRecommendations = recommendations
+                    .OrderByDescending(r => r.MatchPercentage)
+                    .Take(maxResults)
+                    .ToList();
+
+                _logger.LogInformation($"[Filtered Job Recommendations] Generated {topRecommendations.Count} filtered recommendations");
+
+                return topRecommendations;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[Filtered Job Recommendations] Error getting filtered job recommendations");
+                return new List<JobRecommendationWithScore>();
             }
         }
 
@@ -1070,5 +1303,26 @@ namespace BEWorkNest.Services
         public List<string> MatchReasons { get; set; } = new List<string>();
         public List<string> PotentialConcerns { get; set; } = new List<string>();
         public string RecommendationLevel { get; set; } = string.Empty;
+    }
+
+    public class JobRecommendationWithScore
+    {
+        public int JobId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Company { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string SalaryRange { get; set; } = string.Empty;
+        public List<string> SkillsRequired { get; set; } = new List<string>();
+        public int MatchPercentage { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public string CareerGrowth { get; set; } = string.Empty;
+        public string JobType { get; set; } = string.Empty;
+        public string ExperienceLevel { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public DateTime PostedDate { get; set; }
+        public DateTime DeadLine { get; set; }
+        public string Description { get; set; } = string.Empty;
+        public string Requirements { get; set; } = string.Empty;
+        public CVAnalysisResult? CVAnalysisResult { get; set; }
     }
 }

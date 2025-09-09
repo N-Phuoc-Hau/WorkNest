@@ -226,23 +226,11 @@ class ApplicationService {
     UpdateApplicationStatusModel updateStatus,
   ) async {
     try {
-      print('DEBUG ApplicationService: updateApplicationStatus called');
-      print('  - id: $id');
-      print('  - updateStatus.toJson(): ${updateStatus.toJson()}');
-      
-      final response = await _dio.put(
+      await _dio.put(
         '/api/Application/$id/status',
         data: updateStatus.toJson(),
       );
-      
-      print('DEBUG ApplicationService: Update status response: ${response.statusCode}');
     } on DioException catch (e) {
-      print('DEBUG ApplicationService: DioException in updateApplicationStatus');
-      print('  - Error message: ${e.message}');
-      print('  - Response status code: ${e.response?.statusCode}');
-      print('  - Response data: ${e.response?.data}');
-      print('  - Request path: ${e.requestOptions.path}');
-      print('  - Request data: ${e.requestOptions.data}');
       throw _handleError(e);
     }
   }

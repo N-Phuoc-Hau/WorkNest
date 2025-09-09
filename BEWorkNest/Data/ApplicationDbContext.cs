@@ -33,6 +33,10 @@ namespace BEWorkNest.Data
         public DbSet<CVAnalysisResult> CVAnalysisResults { get; set; }
         public DbSet<JobRecommendationLog> JobRecommendationLogs { get; set; }
 
+        // CV Analysis Tables
+        public DbSet<CVAnalysisHistory> CVAnalysisHistories { get; set; }
+        public DbSet<JobMatchAnalytics> JobMatchAnalytics { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -143,6 +147,45 @@ namespace BEWorkNest.Data
 
             builder.Entity<Analytics>()
                 .HasIndex(a => a.CreatedAt);
+
+            // Configure CV Analysis History entity
+            builder.Entity<CVAnalysisHistory>()
+                .HasOne(ca => ca.User)
+                .WithMany()
+                .HasForeignKey(ca => ca.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVAnalysisHistory>()
+                .HasIndex(ca => ca.UserId);
+
+            builder.Entity<CVAnalysisHistory>()
+                .HasIndex(ca => ca.AnalysisId)
+                .IsUnique();
+
+            builder.Entity<CVAnalysisHistory>()
+                .HasIndex(ca => ca.CreatedAt);
+
+            // Configure Job Match Analytics entity
+            builder.Entity<JobMatchAnalytics>()
+                .HasKey(jma => new { jma.JobId, jma.UserId });
+
+            builder.Entity<JobMatchAnalytics>()
+                .HasOne(jma => jma.JobPost)
+                .WithMany()
+                .HasForeignKey(jma => jma.JobId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<JobMatchAnalytics>()
+                .HasOne(jma => jma.User)
+                .WithMany()
+                .HasForeignKey(jma => jma.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<JobMatchAnalytics>()
+                .HasIndex(jma => jma.MatchScore);
+
+            builder.Entity<JobMatchAnalytics>()
+                .HasIndex(jma => jma.AnalyzedAt);
 
             // Ignore unused ASP.NET Identity tables to clean up database
             builder.Ignore<IdentityUserClaim<string>>();

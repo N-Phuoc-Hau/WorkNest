@@ -1,12 +1,11 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/application_model.dart';
 import '../../../core/providers/application_provider.dart';
 import '../../../core/providers/upload_provider.dart';
+import '../../../core/services/cv_analysis_service.dart';
+import '../../../core/utils/cross_platform_file.dart';
 
 class EditApplicationDialog extends ConsumerStatefulWidget {
   final ApplicationModel application;
@@ -24,8 +23,7 @@ class EditApplicationDialog extends ConsumerStatefulWidget {
 
 class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
   late TextEditingController _coverLetterController;
-  String? _selectedCvPath;
-  String? _selectedCvFileName;
+  CrossPlatformFile? _selectedCvFile;
   bool _isSubmitting = false;
 
   @override
@@ -140,7 +138,7 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
                     const SizedBox(height: 8),
                     
                     // Current CV (if exists)
-                    if (widget.application.cvUrl != null && _selectedCvPath == null) ...[
+                    if (widget.application.cvUrl != null && _selectedCvFile == null) ...[
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
@@ -181,7 +179,7 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
                           ],
                         ),
                       ),
-                    ] else if (_selectedCvPath != null) ...[
+                    ] else if (_selectedCvFile != null) ...[
                       // New CV selected
                       Container(
                         width: double.infinity,
@@ -207,7 +205,7 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
                                     ),
                                   ),
                                   Text(
-                                    _selectedCvFileName ?? 'CV đã chọn',
+                                    _selectedCvFile!.name,
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.blue.shade600,
@@ -219,8 +217,7 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
                             IconButton(
                               onPressed: () {
                                 setState(() {
-                                  _selectedCvPath = null;
-                                  _selectedCvFileName = null;
+                                  _selectedCvFile = null;
                                 });
                               },
                               icon: const Icon(Icons.close, size: 20),
@@ -350,15 +347,10 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
 
   Future<void> _pickCV() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf', 'doc', 'docx'],
-        allowMultiple: false,
-      );
-
-      if (result != null && result.files.isNotEmpty) {
-        final file = result.files.first;
-        
+      final cvAnalysisService = ref.read(cvAnalysisServiceProvider);
+      final file = await cvAnalysisService.pickCVFile();
+      
+      if (file != null) {
         // Check file size (5MB limit)
         if (file.size > 5 * 1024 * 1024) {
           if (mounted) {
@@ -373,8 +365,7 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
         }
 
         setState(() {
-          _selectedCvPath = file.path;
-          _selectedCvFileName = file.name;
+          _selectedCvFile = file;
         });
       }
     } catch (e) {
@@ -400,18 +391,26 @@ class _EditApplicationDialogState extends ConsumerState<EditApplicationDialog> {
       String? cvUrl = widget.application.cvUrl;
 
       // Upload new CV if selected
-      if (_selectedCvPath != null) {
-        final file = File(_selectedCvPath!);
-        final uploadResult = await ref.read(uploadProvider.notifier).uploadFile(
-          file,
-          'cv',
-        );
+      if (_selectedCvFile != null) {
+        try {
+          final uploadResult = await ref.read(uploadProvider.notifier).uploadFile(
+            await _selectedCvFile!.toFile(),
+            'cv',
+          );
 
-        if (!uploadResult.success) {
-          throw Exception(uploadResult.message ?? 'Không thể tải CV lên');
+          if (!uploadResult.success) {
+            throw Exception(uploadResult.message ?? 'Không thể tải CV lên');
+          }
+
+          cvUrl = uploadResult.url;
+        } catch (e) {
+          if (e.toString().contains('not supported on web')) {
+            // For web platform, we'll skip file upload for now
+            throw Exception('Upload file chưa được hỗ trợ trên web platform');
+          } else {
+            rethrow;
+          }
         }
-
-        cvUrl = uploadResult.url;
       }
 
       // Update application

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/application_model.dart';
-import '../../../core/models/cv_analysis_model.dart';
+import '../../../core/models/cv_analysis_models.dart';
 import '../../../core/providers/cv_analysis_provider.dart';
 
 class CVAnalysisBottomSheet extends ConsumerStatefulWidget {
@@ -219,7 +219,7 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildAnalysisResult(CVAnalysisResult result) {
+  Widget _buildAnalysisResult(CVAnalysisResponse result) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -259,20 +259,24 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildMatchScoreCard(CVAnalysisResult result) {
+  Widget _buildMatchScoreCard(CVAnalysisResponse result) {
+    final matchScore = result.scores.overallScore;
+    final matchScoreColor = _getScoreColor(matchScore);
+    final matchScoreText = _getScoreText(matchScore);
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            result.matchScoreColor.withOpacity(0.1),
-            result.matchScoreColor.withOpacity(0.05),
+            matchScoreColor.withOpacity(0.1),
+            matchScoreColor.withOpacity(0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: result.matchScoreColor.withOpacity(0.3)),
+        border: Border.all(color: matchScoreColor.withOpacity(0.3)),
       ),
       child: Column(
         children: [
@@ -288,23 +292,23 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: result.matchScoreColor, width: 8),
+              border: Border.all(color: matchScoreColor, width: 8),
             ),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
-                    '${result.matchScore}%',
+                    '$matchScore%',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: result.matchScoreColor,
+                      color: matchScoreColor,
                     ),
                   ),
                   Text(
-                    result.matchScoreText,
+                    matchScoreText,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: result.matchScoreColor,
+                      color: matchScoreColor,
                     ),
                   ),
                 ],
@@ -323,8 +327,8 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildSkillsSection(CVAnalysisResult result) {
-    if (result.extractedSkills.isEmpty) return const SizedBox.shrink();
+  Widget _buildSkillsSection(CVAnalysisResponse result) {
+    if (result.profile.skills.isEmpty) return const SizedBox.shrink();
     
     return _buildSection(
       title: 'Kỹ năng được trích xuất',
@@ -333,7 +337,7 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: result.extractedSkills.map((skill) => Chip(
+        children: result.profile.skills.map((skill) => Chip(
           label: Text(skill),
           backgroundColor: Colors.blue[50],
           side: BorderSide(color: Colors.blue[200]!),
@@ -342,7 +346,7 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildStrengthsSection(CVAnalysisResult result) {
+  Widget _buildStrengthsSection(CVAnalysisResponse result) {
     if (result.strengths.isEmpty) return const SizedBox.shrink();
     
     return _buildSection(
@@ -373,7 +377,7 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildWeaknessesSection(CVAnalysisResult result) {
+  Widget _buildWeaknessesSection(CVAnalysisResponse result) {
     if (result.weaknesses.isEmpty) return const SizedBox.shrink();
     
     return _buildSection(
@@ -404,7 +408,7 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildImprovementSection(CVAnalysisResult result) {
+  Widget _buildImprovementSection(CVAnalysisResponse result) {
     if (result.improvementSuggestions.isEmpty) return const SizedBox.shrink();
     
     return _buildSection(
@@ -435,7 +439,7 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
     );
   }
 
-  Widget _buildDetailedAnalysisSection(CVAnalysisResult result) {
+  Widget _buildDetailedAnalysisSection(CVAnalysisResponse result) {
     if (result.detailedAnalysis.isEmpty) return const SizedBox.shrink();
     
     return _buildSection(
@@ -487,5 +491,21 @@ class _CVAnalysisBottomSheetState extends ConsumerState<CVAnalysisBottomSheet> {
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  Color _getScoreColor(int score) {
+    if (score >= 90) return const Color(0xFF4CAF50); // Green
+    if (score >= 80) return const Color(0xFF8BC34A); // Light Green
+    if (score >= 70) return const Color(0xFFFFC107); // Amber
+    if (score >= 60) return const Color(0xFFFF9800); // Orange
+    return const Color(0xFFF44336); // Red
+  }
+
+  String _getScoreText(int score) {
+    if (score >= 90) return 'Rất phù hợp';
+    if (score >= 80) return 'Phù hợp';
+    if (score >= 70) return 'Khá phù hợp';
+    if (score >= 60) return 'Trung bình';
+    return 'Ít phù hợp';
   }
 }

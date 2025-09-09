@@ -139,32 +139,20 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
     int applicationId,
     UpdateApplicationStatusModel updateStatus,
   ) async {
-    print('DEBUG RecruiterApplicantsProvider: updateApplicantStatus called');
-    print('  - applicationId: $applicationId');
-    print('  - status: ${updateStatus.status}');
-    print('  - rejectionReason: ${updateStatus.rejectionReason}');
-    
     state = state.copyWith(isLoading: true, error: null);
 
     try {
-      print('DEBUG RecruiterApplicantsProvider: Calling ApplicationService.updateApplicationStatus');
       await _applicationService.updateApplicationStatus(applicationId, updateStatus);
-      print('DEBUG RecruiterApplicantsProvider: Update status API call successful');
       
       // Update application status in the list
       final statusEnum = _parseStatus(updateStatus.status);
       
       final updatedApplicants = state.applicants.map((app) {
         if (app.id == applicationId) {
-          return app.copyWith(
-            status: statusEnum, 
-            rejectionReason: updateStatus.rejectionReason,
-          );
+          return app.copyWith(status: statusEnum);
         }
         return app;
       }).toList();
-
-      print('DEBUG RecruiterApplicantsProvider: Updated local state with new status: ${statusEnum.name}');
 
       state = state.copyWith(
         applicants: updatedApplicants,
@@ -173,9 +161,6 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
       );
       return true;
     } catch (e) {
-      print('DEBUG RecruiterApplicantsProvider: Error updating applicant status: $e');
-      print('DEBUG RecruiterApplicantsProvider: Error type: ${e.runtimeType}');
-      
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),

@@ -14,6 +14,7 @@ import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
 import '../../features/auth/screens/verify_otp_screen.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
+import '../../features/candidate/screens/cv_analysis_screen.dart';
 import '../../features/candidate/screens/following_companies_screen.dart';
 import '../../features/chat/screens/chat_detail_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
@@ -175,10 +176,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/reset-password',
         builder: (context, state) {
-          final data = state.extra as Map<String, String>;
+          final data = state.extra as Map<String, dynamic>;
           return ResetPasswordScreen(
-            email: data['email']!,
-            resetToken: data['resetToken']!,
+            email: data['email'] as String,
+            resetToken: data['resetToken'] as String,
           );
         },
       ),
@@ -235,6 +236,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             'candidate',
           );
         },
+      ),
+      GoRoute(
+        path: '/cv-analysis',
+        builder: (context, state) => _buildWithLayout(
+          context, 
+          const CVAnalysisScreen(),
+          'candidate',
+        ),
       ),
       GoRoute(
         path: '/profile',

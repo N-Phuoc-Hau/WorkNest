@@ -379,6 +379,21 @@ namespace BEWorkNest.Services
             };
         }
 
+        public async Task<DetailedAnalytics> GetSimplifiedAnalyticsAsync(string recruiterId)
+        {
+            var recruiterAnalytics = await GetRecruiterSimplifiedAnalyticsAsync(recruiterId);
+            var companyAnalytics = await GetCompanyAnalyticsAsync(recruiterId);
+            var jobAnalytics = await GetJobSimplifiedAnalyticsAsync(recruiterId);
+
+            return new DetailedAnalytics
+            {
+                Recruiter = recruiterAnalytics,
+                Company = companyAnalytics,
+                Jobs = jobAnalytics,
+                GeneratedAt = DateTime.UtcNow
+            };
+        }
+
         private async Task<RecruiterAnalytics> GetRecruiterDetailedAnalyticsAsync(string recruiterId)
         {
             var now = DateTime.UtcNow;
@@ -898,6 +913,125 @@ namespace BEWorkNest.Services
                     CoverLetter = a.CoverLetter
                 })
                 .ToListAsync();
+        }
+
+        // Simplified methods for better performance in home screen
+        private async Task<RecruiterAnalytics> GetRecruiterSimplifiedAnalyticsAsync(string recruiterId)
+        {
+            var now = DateTime.UtcNow;
+            
+            // Basic stats only - no detailed performance data
+            var totalJobsPosted = await _context.JobPosts.CountAsync(j => j.RecruiterId == recruiterId);
+            var activeJobs = await _context.JobPosts.CountAsync(j => j.RecruiterId == recruiterId && j.IsActive);
+            var inactiveJobs = totalJobsPosted - activeJobs;
+
+            var totalApplications = await _context.Applications
+                .Where(a => a.Job.RecruiterId == recruiterId)
+                .CountAsync();
+
+            var pendingApplications = await _context.Applications
+                .Where(a => a.Job.RecruiterId == recruiterId && a.Status == ApplicationStatus.Pending)
+                .CountAsync();
+
+            var acceptedApplications = await _context.Applications
+                .Where(a => a.Job.RecruiterId == recruiterId && a.Status == ApplicationStatus.Accepted)
+                .CountAsync();
+
+            var rejectedApplications = await _context.Applications
+                .Where(a => a.Job.RecruiterId == recruiterId && a.Status == ApplicationStatus.Rejected)
+                .CountAsync();
+
+            // Simplified view analytics
+            var jobIds = await _context.JobPosts
+                .Where(j => j.RecruiterId == recruiterId)
+                .Select(j => j.Id.ToString())
+                .ToListAsync();
+
+            var totalJobViews = await _context.Analytics
+                .Where(a => a.Type == "job_view" && jobIds.Contains(a.TargetId!))
+                .CountAsync();
+
+            var uniqueJobViewers = await _context.Analytics
+                .Where(a => a.Type == "job_view" && jobIds.Contains(a.TargetId!))
+                .Select(a => a.UserId)
+                .Distinct()
+                .CountAsync();
+
+            // Company followers
+            var companyFollowers = await _context.Follows
+                .CountAsync(f => f.RecruiterId == recruiterId && f.IsActive);
+
+            // Calculate basic averages
+            var averageApplicationsPerJob = totalJobsPosted > 0 ? (decimal)totalApplications / totalJobsPosted : 0;
+            var averageViewsPerJob = totalJobsPosted > 0 ? (decimal)totalJobViews / totalJobsPosted : 0;
+            var applicationToViewRatio = totalJobViews > 0 ? (decimal)totalApplications / totalJobViews : 0;
+
+            return new RecruiterAnalytics
+            {
+                TotalJobsPosted = totalJobsPosted,
+                ActiveJobs = activeJobs,
+                InactiveJobs = inactiveJobs,
+                TotalApplicationsReceived = totalApplications,
+                PendingApplications = pendingApplications,
+                AcceptedApplications = acceptedApplications,
+                RejectedApplications = rejectedApplications,
+                TotalJobViews = totalJobViews,
+                UniqueJobViewers = uniqueJobViewers,
+                CompanyFollowers = companyFollowers,
+                AverageApplicationsPerJob = averageApplicationsPerJob,
+                AverageViewsPerJob = averageViewsPerJob,
+                ApplicationToViewRatio = applicationToViewRatio,
+                JobPerformance = new List<JobDetailedPerformance>(), // Empty for simplified
+                ApplicationsByMonth = new List<ChartData>(), // Empty for simplified
+                ViewsByMonth = new List<ChartData>(), // Empty for simplified  
+                TopJobCategories = new List<ChartData>(), // Empty for simplified
+                ApplicationStatusDistribution = new List<ChartData>(), // Empty for simplified
+                RecentFollowers = new List<FollowerInfo>() // Empty for simplified
+            };
+        }
+
+        private async Task<JobAnalytics> GetJobSimplifiedAnalyticsAsync(string recruiterId)
+        {
+            // Get only basic stats for top 3 performing jobs
+            var topJobs = await _context.JobPosts
+                .Include(j => j.Applications)
+                .Where(j => j.RecruiterId == recruiterId)
+                .OrderByDescending(j => j.Applications.Count)
+                .Take(3)
+                .Select(j => new JobDetailedPerformance
+                {
+                    JobId = j.Id,
+                    JobTitle = j.Title,
+                    JobCategory = j.Specialized,
+                    JobLocation = j.Location,
+                    ExperienceLevel = j.ExperienceLevel,
+                    Salary = j.Salary,
+                    PostedDate = j.CreatedAt,
+                    DeadLine = j.DeadLine,
+                    IsActive = j.IsActive,
+                    TotalViews = 0, // Skip for performance
+                    UniqueViews = 0, // Skip for performance
+                    TotalApplications = j.Applications.Count(a => a.IsActive),
+                    PendingApplications = j.Applications.Count(a => a.IsActive && a.Status == ApplicationStatus.Pending),
+                    AcceptedApplications = j.Applications.Count(a => a.IsActive && a.Status == ApplicationStatus.Accepted),
+                    RejectedApplications = j.Applications.Count(a => a.IsActive && a.Status == ApplicationStatus.Rejected),
+                    ViewToApplicationRatio = 0, // Skip for performance
+                    AcceptanceRate = j.Applications.Count(a => a.IsActive) > 0 ? 
+                        (decimal)j.Applications.Count(a => a.IsActive && a.Status == ApplicationStatus.Accepted) / j.Applications.Count(a => a.IsActive) : 0,
+                    FavoriteCount = 0, // Skip for performance
+                    ViewsByDay = new List<ChartData>(), // Empty for simplified
+                    ApplicationsByDay = new List<ChartData>(), // Empty for simplified
+                    RecentApplicants = new List<ApplicantInfo>() // Empty for simplified
+                })
+                .ToListAsync();
+
+            return new JobAnalytics
+            {
+                AllJobs = topJobs,
+                BestPerformingJob = topJobs.FirstOrDefault(),
+                MostViewedJob = topJobs.FirstOrDefault(),
+                MostAppliedJob = topJobs.OrderByDescending(j => j.TotalApplications).FirstOrDefault()
+            };
         }
     }
 } 

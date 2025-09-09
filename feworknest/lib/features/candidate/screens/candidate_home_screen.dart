@@ -69,7 +69,7 @@ class CandidateHomeScreen extends ConsumerWidget {
               builder: (context, constraints) {
                 final screenWidth = constraints.maxWidth;
                 final crossAxisCount = screenWidth > 600 ? 3 : 2;
-                final childAspectRatio = screenWidth > 600 ? 1.2 : 1.1;
+                final childAspectRatio = screenWidth > 600 ? 1.2 : 0.85; // Increased height for mobile
                 
                 return GridView.count(
                   shrinkWrap: true,
@@ -272,7 +272,7 @@ class CandidateHomeScreen extends ConsumerWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12), // Reduced padding for mobile
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
@@ -286,32 +286,36 @@ class CandidateHomeScreen extends ConsumerWidget {
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min, // Important: use minimum space
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8), // Reduced padding
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   icon,
-                  size: 32,
+                  size: 28, // Slightly smaller icon
                   color: color,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 8), // Reduced spacing
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.titleSmall?.copyWith( // Changed from titleMedium
                   fontWeight: FontWeight.bold,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1, // Ensure single line
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2), // Reduced spacing
               Text(
                 subtitle,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.grey[600],
+                  fontSize: 11, // Smaller font size
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,

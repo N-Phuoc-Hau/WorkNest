@@ -15,10 +15,22 @@ class ApiService {
     _dio.options.baseUrl = ApiConstants.baseUrl;
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+        print('🌐 ApiService: *** Request Interceptor ***');
+        print('🌐 ApiService: Base URL: ${_dio.options.baseUrl}');
+        print('🌐 ApiService: Full URL: ${options.uri}');
+        print('🌐 ApiService: Method: ${options.method}');
+        print('🌐 ApiService: Path: ${options.path}');
+        
         final token = await TokenStorage.getAccessToken();
         if (token != null) {
+          print('🌐 ApiService: Token found, adding to headers');
+          print('🌐 ApiService: Token preview: ${token.substring(0, 50)}...');
           options.headers['Authorization'] = 'Bearer $token';
+        } else {
+          print('🌐 ApiService: ❌ No token found!');
         }
+        
+        print('🌐 ApiService: Request headers: ${options.headers}');
         handler.next(options);
       },
       onError: (error, handler) async {
@@ -69,9 +81,22 @@ class ApiService {
 
   Future<Map<String, dynamic>> get(String path, {Map<String, dynamic>? queryParameters}) async {
     try {
+      print('🌐 ApiService: GET request to: $path');
+      print('🌐 ApiService: Query params: $queryParameters');
+      
       final response = await _dio.get(path, queryParameters: queryParameters);
+      
+      print('🌐 ApiService: Response status: ${response.statusCode}');
+      print('🌐 ApiService: Response data: ${response.data}');
+      
       return response.data;
     } on DioException catch (e) {
+      print('🌐 ApiService: DioException caught in get()');
+      print('🌐 ApiService: Error type: ${e.type}');
+      print('🌐 ApiService: Status code: ${e.response?.statusCode}');
+      print('🌐 ApiService: Error message: ${e.message}');
+      print('🌐 ApiService: Response data: ${e.response?.data}');
+      
       throw _handleError(e);
     }
   }

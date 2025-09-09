@@ -8,6 +8,7 @@ using BEWorkNest.Services;
 using BEWorkNest.Data;
 using BEWorkNest.Authorization;
 using Microsoft.AspNetCore.Authorization;
+using OfficeOpenXml;
 
 namespace BEWorkNest
 {
@@ -15,6 +16,9 @@ namespace BEWorkNest
     {
         public static void Main(string[] args)
         {
+            // Note: EPPlus 8+ requires license setup through other means
+            // For development, we'll handle license exceptions gracefully
+            
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
@@ -96,6 +100,7 @@ namespace BEWorkNest
             builder.Services.AddScoped<ExcelExportService>();
             // New AI-related services
             builder.Services.AddScoped<CVProcessingService>();
+            builder.Services.AddScoped<CVAnalysisService>();
             builder.Services.AddScoped<UserBehaviorService>();
             builder.Services.AddHttpClient<AiService>();
             builder.Services.AddHttpContextAccessor();

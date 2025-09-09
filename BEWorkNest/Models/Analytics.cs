@@ -271,4 +271,115 @@ namespace BEWorkNest.Models
         public string? Metadata { get; set; }
         public int Count { get; set; }
     }
+
+    // CV Analysis Models
+    public class CVAnalysisRequest
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string CVText { get; set; } = string.Empty;
+        public string? CVFilePath { get; set; }
+        public bool IncludeJobRecommendations { get; set; } = true;
+        public int MaxJobRecommendations { get; set; } = 10;
+    }
+
+    public class CVAnalysisResponse
+    {
+        public string AnalysisId { get; set; } = string.Empty;
+        public string UserId { get; set; } = string.Empty;
+        public CVProfile Profile { get; set; } = new CVProfile();
+        public CVScoreBreakdown Scores { get; set; } = new CVScoreBreakdown();
+        public List<string> Strengths { get; set; } = new List<string>();
+        public List<string> Weaknesses { get; set; } = new List<string>();
+        public List<string> ImprovementSuggestions { get; set; } = new List<string>();
+        public List<JobRecommendationAnalytics> RecommendedJobs { get; set; } = new List<JobRecommendationAnalytics>();
+        public string DetailedAnalysis { get; set; } = string.Empty;
+        public DateTime AnalyzedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    public class CVProfile
+    {
+        public List<string> Skills { get; set; } = new List<string>();
+        public List<string> TechnicalSkills { get; set; } = new List<string>();
+        public List<string> SoftSkills { get; set; } = new List<string>();
+        public int ExperienceYears { get; set; }
+        public string EducationLevel { get; set; } = string.Empty;
+        public List<string> Degrees { get; set; } = new List<string>();
+        public List<string> Certifications { get; set; } = new List<string>();
+        public List<WorkExperience> WorkHistory { get; set; } = new List<WorkExperience>();
+        public List<string> Projects { get; set; } = new List<string>();
+        public List<string> Languages { get; set; } = new List<string>();
+        public List<string> Industries { get; set; } = new List<string>();
+    }
+
+    public class WorkExperience
+    {
+        public string Position { get; set; } = string.Empty;
+        public string Company { get; set; } = string.Empty;
+        public string Duration { get; set; } = string.Empty;
+        public List<string> Responsibilities { get; set; } = new List<string>();
+        public List<string> Achievements { get; set; } = new List<string>();
+    }
+
+    public class CVScoreBreakdown
+    {
+        public int OverallScore { get; set; }
+        public int SkillsScore { get; set; }
+        public int ExperienceScore { get; set; }
+        public int EducationScore { get; set; }
+        public int ProjectsScore { get; set; }
+        public int CertificationsScore { get; set; }
+        public Dictionary<string, int> CategoryScores { get; set; } = new Dictionary<string, int>();
+    }
+
+    public class JobRecommendationAnalytics
+    {
+        public int JobId { get; set; }
+        public string JobTitle { get; set; } = string.Empty;
+        public string CompanyName { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string SalaryRange { get; set; } = string.Empty;
+        public string JobType { get; set; } = string.Empty;
+        public string ExperienceLevel { get; set; } = string.Empty;
+        public int MatchScore { get; set; }
+        public List<string> MatchedSkills { get; set; } = new List<string>();
+        public List<string> MissingSkills { get; set; } = new List<string>();
+        public List<string> MatchReasons { get; set; } = new List<string>();
+        public string RecommendationLevel { get; set; } = string.Empty; // "Highly Recommended", "Good Match", "Potential Match"
+        public double SalaryFitScore { get; set; }
+        public double LocationFitScore { get; set; }
+        public double SkillFitScore { get; set; }
+        public double ExperienceFitScore { get; set; }
+        public DateTime PostedDate { get; set; }
+        public DateTime? ApplicationDeadline { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    public class CVAnalysisHistory
+    {
+        [Key]
+        public int Id { get; set; }
+        public string AnalysisId { get; set; } = string.Empty;
+        public string UserId { get; set; } = string.Empty;
+        public string CVText { get; set; } = string.Empty;
+        public string AnalysisResult { get; set; } = string.Empty; // JSON
+        public int OverallScore { get; set; }
+        public int JobRecommendationsCount { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        // Navigation property
+        public User User { get; set; } = null!;
+    }
+
+    public class JobMatchAnalytics
+    {
+        public int JobId { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public int MatchScore { get; set; }
+        public string MatchDetails { get; set; } = string.Empty; // JSON
+        public DateTime AnalyzedAt { get; set; } = DateTime.UtcNow;
+        
+        // Navigation properties
+        public JobPost JobPost { get; set; } = null!;
+        public User User { get; set; } = null!;
+    }
 } 
