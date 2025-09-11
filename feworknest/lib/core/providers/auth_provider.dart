@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../utils/token_storage.dart';
+import 'cv_analysis_provider.dart';
 
 // Auth Service Provider
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -240,6 +241,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     // Clear all tokens
     await TokenStorage.clearAll();
+    
+    // Clear CV analysis data when user logs out
+    try {
+      ref.read(cvAnalysisProvider.notifier).clearAllData();
+    } catch (e) {
+      // Ignore if CV analysis provider is not available
+    }
+    
     state = const AuthState(isLoading: false);
   }
 

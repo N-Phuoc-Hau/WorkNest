@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
-import '../models/review_model.dart';
+
 import '../constants/api_constants.dart';
+import '../models/review_model.dart';
 import '../utils/token_storage.dart';
 
 class ReviewService {
@@ -84,6 +85,7 @@ class ReviewService {
     int pageSize = 10,
   }) async {
     try {
+      print('🔍 ReviewService: Getting company reviews for companyId: $companyId');
       final response = await _dio.get(
         '/api/Review/company/$companyId',
         queryParameters: {
@@ -92,11 +94,19 @@ class ReviewService {
         },
       );
 
+      print('🔍 ReviewService: Raw response: ${response.data}');
       final data = response.data;
+      print('🔍 ReviewService: Data structure: ${data.runtimeType}');
+      print('🔍 ReviewService: Data keys: ${data is Map ? data.keys.toList() : 'Not a map'}');
+      
       final reviews = (data['data'] as List)
-          .map((json) => ReviewModel.fromJson(json))
+          .map((json) {
+            print('🔍 ReviewService: Processing review json: $json');
+            return ReviewModel.fromJson(json);
+          })
           .toList();
 
+      print('🔍 ReviewService: Parsed ${reviews.length} reviews successfully');
       return {
         'reviews': reviews,
         'totalCount': data['totalCount'],

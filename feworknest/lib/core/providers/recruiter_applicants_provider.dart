@@ -52,6 +52,18 @@ class RecruiterApplicantsNotifier extends StateNotifier<RecruiterApplicantsState
 
   RecruiterApplicantsNotifier(this._applicationService) : super(const RecruiterApplicantsState());
 
+  Future<void> refreshApplicants() async {
+    print('DEBUG RecruiterApplicantsProvider: Refreshing applicants list');
+    await loadJobApplicants(
+      null, // Load all jobs
+      page: 1,
+      pageSize: 10,
+      search: state.searchQuery,
+      status: state.statusFilter,
+      loadMore: false,
+    );
+  }
+
   Future<void> loadJobApplicants(
     int? jobId, {
     int page = 1,

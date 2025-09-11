@@ -669,7 +669,7 @@ namespace BEWorkNest.Controllers
                 });
             }
 
-            if (Enum.TryParse<ApplicationStatus>(updateDto.Status, out var status))
+            if (Enum.TryParse<ApplicationStatus>(updateDto.Status, true, out var status))  // Added ignoreCase = true
             {
                 application.Status = status;
                 application.UpdatedAt = DateTime.UtcNow;
@@ -696,7 +696,7 @@ namespace BEWorkNest.Controllers
                 });
             }
 
-            return BadRequest("Invalid status");
+            return BadRequest($"Invalid status: {updateDto.Status}");
         }
 
 

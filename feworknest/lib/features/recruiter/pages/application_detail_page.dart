@@ -30,8 +30,53 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
     print('DEBUG ApplicationDetailPage: Avatar: ${widget.application.avatarUrl}');
     // Load CV analysis when page opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(cvAnalysisProvider.notifier).getCVAnalysis(widget.application.id);
+      _loadCVAnalysis();
     });
+  }
+
+  Future<void> _loadCVAnalysis() async {
+    try {
+      await ref.read(cvAnalysisProvider.notifier).getCVAnalysis(widget.application.id);
+      
+      // If no analysis found and we have CV, trigger analysis
+      final analysisState = ref.read(cvAnalysisProvider);
+      if (analysisState.currentAnalysis == null && 
+          !analysisState.isLoading && 
+          !analysisState.isAnalyzing &&
+          widget.application.cvUrl?.isNotEmpty == true) {
+        
+        print('DEBUG ApplicationDetailPage: No analysis found, triggering analysis');
+        _showAnalysisWaitingDialog();
+        await _requestCVAnalysis();
+      }
+    } catch (e) {
+      print('DEBUG ApplicationDetailPage: Error loading CV analysis: $e');
+    }
+  }
+
+  void _showAnalysisWaitingDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Text('Đang phân tích CV'),
+          ],
+        ),
+        content: const Text(
+          'Hệ thống đang phân tích CV của ứng viên. Vui lòng chờ trong giây lát...'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Đóng'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -117,8 +162,14 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             const SizedBox(height: 16),
             
             // Quick Match Score (if available)
-            if (analysisState.analysisResult != null)
-              _buildQuickMatchScore(analysisState.analysisResult!),
+            if (analysisState.currentAnalysis != null)
+              _buildQuickMatchScore(analysisState.currentAnalysis!)
+            else if (analysisState.isLoading || analysisState.isAnalyzing)
+              _buildLoadingMatchScore(analysisState)
+            else if (widget.application.cvUrl?.isNotEmpty == true)
+              _buildNoAnalysisCard()
+            else
+              _buildNoCVCard(),
             
             const SizedBox(height: 16),
             
@@ -359,7 +410,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             children: [
               // CV Analysis Button
               Expanded(
-                child: analysisState.analysisResult != null
+                child: analysisState.currentAnalysis != null
                     ? ElevatedButton.icon(
                         onPressed: () => _showCVAnalysis(context),
                         icon: const Icon(Icons.analytics_outlined),
@@ -373,27 +424,51 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                           ),
                         ),
                       )
-                    : ElevatedButton.icon(
-                        onPressed: analysisState.isAnalyzing 
-                            ? null 
-                            : () => _requestCVAnalysis(),
-                        icon: analysisState.isAnalyzing 
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                    : analysisState.isAnalyzing || analysisState.isLoading
+                        ? ElevatedButton.icon(
+                            onPressed: null,
+                            icon: const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            ),
+                            label: Text(analysisState.isAnalyzing ? 'Đang phân tích...' : 'Đang tải...'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          )
+                        : widget.application.cvUrl?.isNotEmpty == true
+                            ? ElevatedButton.icon(
+                                onPressed: () => _requestCVAnalysis(),
+                                icon: const Icon(Icons.analytics_outlined),
+                                label: const Text('Phân tích CV'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                               )
-                            : const Icon(Icons.analytics_outlined),
-                        label: Text(analysisState.isAnalyzing ? 'Đang phân tích...' : 'Phân tích CV'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                      ),
+                            : ElevatedButton.icon(
+                                onPressed: null,
+                                icon: const Icon(Icons.warning_outlined),
+                                label: const Text('Không có CV'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.grey,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
               ),
               
               const SizedBox(width: 12),
@@ -416,6 +491,39 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
           ),
           
           const SizedBox(height: 12),
+          
+          // Error message for CV analysis
+          if (analysisState.error != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red[50],
+                border: Border.all(color: Colors.red[200]!),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.red[600], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Lỗi phân tích: ${analysisState.error}',
+                      style: TextStyle(color: Colors.red[700], fontSize: 12),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      ref.read(cvAnalysisProvider.notifier).clearError();
+                      _requestCVAnalysis();
+                    },
+                    child: const Text('Thử lại', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           
           // Interview Schedule Button (only if approved or interviewing)
           if (widget.application.status == ApplicationStatus.accepted || 
@@ -846,15 +954,36 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
   }
 
   void _requestCVAnalysis() async {
-    final success = await ref.read(cvAnalysisProvider.notifier).requestCVAnalysis(widget.application.id);
-    
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Phân tích CV thành công!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    try {
+      final success = await ref.read(cvAnalysisProvider.notifier).requestCVAnalysis(widget.application.id);
+      
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Phân tích CV thành công!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        
+        // Close the waiting dialog if it's open
+        Navigator.of(context, rootNavigator: true).popUntil((route) => route.isFirst || !route.willHandlePopInternally);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Không thể phân tích CV. Vui lòng thử lại sau.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi phân tích CV: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -922,10 +1051,27 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             onPressed: () async {
               Navigator.pop(context);
               
+              // Show loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const AlertDialog(
+                  content: Row(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(width: 16),
+                      Text('Đang cập nhật...'),
+                    ],
+                  ),
+                ),
+              );
+              
               try {
                 final updateStatus = UpdateApplicationStatusModel(status: 'accepted');
                 final success = await ref.read(recruiterApplicantsProvider.notifier)
                     .updateApplicantStatus(widget.application.id, updateStatus);
+                
+                Navigator.pop(context); // Close loading dialog
                 
                 if (success && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -934,9 +1080,16 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                       backgroundColor: Colors.green,
                     ),
                   );
-                  Navigator.pop(context); // Go back to applicants list
+                  
+                  // Refresh parent screen data
+                  ref.read(recruiterApplicantsProvider.notifier).refreshApplicants();
+                  
+                  // Go back with result
+                  Navigator.pop(context, {'statusUpdated': true, 'action': 'accepted'});
                 }
               } catch (e) {
+                Navigator.pop(context); // Close loading dialog
+                
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -988,6 +1141,21 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             onPressed: () async {
               Navigator.pop(context);
               
+              // Show loading
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => const AlertDialog(
+                  content: Row(
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(width: 16),
+                      Text('Đang cập nhật...'),
+                    ],
+                  ),
+                ),
+              );
+              
               try {
                 final rejectionReason = reasonController.text.trim().isEmpty 
                     ? null 
@@ -1001,6 +1169,8 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                 final success = await ref.read(recruiterApplicantsProvider.notifier)
                     .updateApplicantStatus(widget.application.id, updateStatus);
                 
+                Navigator.pop(context); // Close loading dialog
+                
                 if (success && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1008,9 +1178,16 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                       backgroundColor: Colors.red,
                     ),
                   );
-                  Navigator.pop(context); // Go back to applicants list
+                  
+                  // Refresh parent screen data
+                  ref.read(recruiterApplicantsProvider.notifier).refreshApplicants();
+                  
+                  // Go back with result
+                  Navigator.pop(context, {'statusUpdated': true, 'action': 'rejected'});
                 }
               } catch (e) {
+                Navigator.pop(context); // Close loading dialog
+                
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

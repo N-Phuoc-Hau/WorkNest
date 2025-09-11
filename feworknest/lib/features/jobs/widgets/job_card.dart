@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/models/job_model.dart';
 import '../../../core/providers/favorite_provider.dart';
@@ -69,34 +70,44 @@ class JobCard extends ConsumerWidget {
                   
                   // Company info
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          job.recruiter.company?.name ?? 'Công ty chưa xác định',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[600],
+                    child: GestureDetector(
+                      onTap: () {
+                        if (job.recruiter.company?.id != null) {
+                          context.push('/company/${job.recruiter.company!.id}');
+                        }
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            job.recruiter.company?.name ?? 'Công ty chưa xác định',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey[600],
+                              decoration: job.recruiter.company?.id != null 
+                                  ? TextDecoration.underline 
+                                  : null,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        if (job.recruiter.company?.isVerified == true)
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.verified,
-                                size: 16,
-                                color: Colors.blue[600],
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Đã xác thực',
-                                style: theme.textTheme.bodySmall?.copyWith(
+                          const SizedBox(height: 2),
+                          if (job.recruiter.company?.isVerified == true)
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.verified,
+                                  size: 16,
                                   color: Colors.blue[600],
                                 ),
-                              ),
-                            ],
-                          ),
-                      ],
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Đã xác thực',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: Colors.blue[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                   

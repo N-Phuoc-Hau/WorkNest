@@ -36,6 +36,7 @@ namespace BEWorkNest.Data
         // CV Analysis Tables
         public DbSet<CVAnalysisHistory> CVAnalysisHistories { get; set; }
         public DbSet<JobMatchAnalytics> JobMatchAnalytics { get; set; }
+        public DbSet<CVAnalysisStats> CVAnalysisStats { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -186,6 +187,20 @@ namespace BEWorkNest.Data
 
             builder.Entity<JobMatchAnalytics>()
                 .HasIndex(jma => jma.AnalyzedAt);
+
+            // Configure CVAnalysisStats entity
+            builder.Entity<CVAnalysisStats>()
+                .HasOne(cas => cas.User)
+                .WithMany()
+                .HasForeignKey(cas => cas.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVAnalysisStats>()
+                .HasIndex(cas => cas.UserId)
+                .IsUnique();
+
+            builder.Entity<CVAnalysisStats>()
+                .HasIndex(cas => cas.UpdatedAt);
 
             // Ignore unused ASP.NET Identity tables to clean up database
             builder.Ignore<IdentityUserClaim<string>>();

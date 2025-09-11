@@ -241,7 +241,9 @@ class _FollowingCompaniesScreenState extends ConsumerState<FollowingCompaniesScr
                   ),
                   child: InkWell(
                     onTap: () {
-                      context.push('/company-details/${company.id}');
+                      print('🔍 Following company tapped! Company ID: ${company.id}');
+                      print('🔍 Navigating to /company/${company.id}');
+                      context.push('/company/${company.id}');
                     },
                     borderRadius: BorderRadius.circular(12),
                     child: Padding(

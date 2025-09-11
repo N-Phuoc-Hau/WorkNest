@@ -48,13 +48,9 @@ namespace BEWorkNest.Controllers
                     {
                         try
                         {
-                            var principal = _jwtService.ValidateToken(token);
-                            if (principal != null)
-                            {
-                                userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                                userRole = principal.FindFirst("role")?.Value;
-                                isAuthenticated = true;
-                            }
+                            userId = _jwtService.GetUserIdFromToken(token);
+                            userRole = _jwtService.GetRoleFromToken(token);
+                            isAuthenticated = !string.IsNullOrEmpty(userId);
                         }
                         catch (Exception ex)
                         {
@@ -64,18 +60,28 @@ namespace BEWorkNest.Controllers
                 }
             }
 
+            _logger.LogInformation("GetUserInfoFromToken result - UserId: {UserId}, Role: {Role}, Auth: {Auth}", 
+                userId, userRole, isAuthenticated);
+
             return (userId, userRole, isAuthenticated);
         }
 
         [HttpPost("schedule")]
+        [AllowAnonymous]
         public async Task<IActionResult> ScheduleInterview([FromBody] ScheduleInterviewDto dto)
         {
             try
             {
+                _logger.LogInformation("ScheduleInterview called with ApplicationId: {ApplicationId}", dto.ApplicationId);
+                
                 var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+                
+                _logger.LogInformation("Auth info - UserId: {UserId}, Role: {Role}, Authenticated: {Auth}", 
+                    userId, userRole, isAuthenticated);
 
                 if (!isAuthenticated || string.IsNullOrEmpty(userId))
                 {
+                    _logger.LogWarning("Unauthorized - User not authenticated");
                     return Unauthorized(new
                     {
                         message = "Token không hợp lệ hoặc đã hết hạn",
@@ -85,10 +91,12 @@ namespace BEWorkNest.Controllers
 
                 if (userRole != "recruiter")
                 {
+                    _logger.LogWarning("Insufficient permissions - User role: {Role}", userRole);
                     return BadRequest(new
                     {
                         message = "Chỉ nhà tuyển dụng mới có thể lên lịch phỏng vấn",
-                        errorCode = "INSUFFICIENT_PERMISSIONS"
+                        errorCode = "INSUFFICIENT_PERMISSIONS",
+                        currentRole = userRole
                     });
                 }
 

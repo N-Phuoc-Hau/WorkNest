@@ -24,21 +24,29 @@ class ReviewModel {
   });
 
   factory ReviewModel.fromJson(Map<String, dynamic> json) {
-    return ReviewModel(
-      id: json['id'] as int,
-      reviewerId: json['reviewerId'] as String,
-      reviewedUserId: json['reviewedUserId'] as String,
-      rating: json['rating'] as int,
-      comment: json['comment'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      reviewer: json['reviewer'] != null
-          ? UserModel.fromJson(json['reviewer'] as Map<String, dynamic>)
-          : null,
-      reviewedUser: json['reviewedUser'] != null
-          ? UserModel.fromJson(json['reviewedUser'] as Map<String, dynamic>)
-          : null,
-      isActive: json['isActive'] as bool? ?? true,
-    );
+    print('🔍 ReviewModel.fromJson: Processing json: $json');
+    try {
+      return ReviewModel(
+        id: json['id'] as int,
+        reviewerId: json['reviewerId'] as String? ?? 
+                   (json['reviewer']?['id'] as String? ?? ''),
+        reviewedUserId: json['reviewedUserId'] as String? ?? 
+                       (json['reviewedUser']?['id'] as String? ?? ''),
+        rating: json['rating'] as int,
+        comment: json['comment'] as String?,
+        createdAt: DateTime.parse(json['createdAt'] as String),
+        reviewer: json['reviewer'] != null
+            ? UserModel.fromJson(json['reviewer'] as Map<String, dynamic>)
+            : null,
+        reviewedUser: json['reviewedUser'] != null
+            ? UserModel.fromJson(json['reviewedUser'] as Map<String, dynamic>)
+            : null,
+        isActive: json['isActive'] as bool? ?? true,
+      );
+    } catch (e) {
+      print('❌ ReviewModel.fromJson: Error parsing json: $e');
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toJson() {

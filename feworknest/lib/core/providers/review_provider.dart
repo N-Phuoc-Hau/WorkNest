@@ -12,15 +12,21 @@ class ReviewNotifier extends StateNotifier<ReviewState> {
   // Get reviews for a company
   Future<void> getCompanyReviews(int companyId) async {
     try {
+      print('🔍 ReviewProvider: Starting getCompanyReviews for companyId: $companyId');
       state = state.copyWith(isLoading: true, error: null);
       final result = await _reviewService.getCompanyReviews(companyId);
+      print('🔍 ReviewProvider: Service returned result: $result');
+      
       final reviews = result['reviews'] as List<ReviewModel>;
+      print('🔍 ReviewProvider: Extracted ${reviews.length} reviews');
       
       state = state.copyWith(
         reviews: reviews,
         isLoading: false,
       );
+      print('🔍 ReviewProvider: State updated with reviews, isLoading: false');
     } catch (e) {
+      print('❌ ReviewProvider: Error getting company reviews: $e');
       state = state.copyWith(
         isLoading: false,
         error: e.toString(),

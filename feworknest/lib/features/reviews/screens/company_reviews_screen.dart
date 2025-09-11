@@ -49,9 +49,14 @@ class _CompanyReviewsScreenState extends ConsumerState<CompanyReviewsScreen> {
 
   void _onScroll() {
     if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent) {
-      if (_hasMorePages && !ref.read(reviewProvider).isLoading) {
-        // Load more reviews if needed
-        ref.read(reviewProvider.notifier).getCompanyReviews(widget.company.id);
+      final reviewState = ref.read(reviewProvider);
+      if (_hasMorePages && !reviewState.isLoading && reviewState.reviews.isNotEmpty) {
+        // Only load more if we have existing reviews and there might be more
+        final currentCount = reviewState.reviews.length;
+        if (currentCount >= 10) { // Only load more if we have at least 10 reviews
+          _hasMorePages = false; // Prevent infinite loading for now
+          // ref.read(reviewProvider.notifier).getCompanyReviews(widget.company.id);
+        }
       }
     }
   }

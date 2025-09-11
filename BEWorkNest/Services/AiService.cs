@@ -307,9 +307,14 @@ namespace BEWorkNest.Services
                         // Phân tích độ phù hợp của CV với job này
                         var cvAnalysis = await AnalyzeCVForJobAsync(cvText, jobDetails);
                         
+                        _logger.LogInformation($"[Job Analysis] Job '{job.Title}' - Match Score: {cvAnalysis.MatchScore}");
+                        _logger.LogInformation($"[Job Analysis] Job '{job.Title}' - Analysis: {cvAnalysis.DetailedAnalysis?.Substring(0, Math.Min(200, cvAnalysis.DetailedAnalysis?.Length ?? 0))}...");
+                        
                         // Chỉ gợi ý những job có match score >= 30 (có thể điều chỉnh)
                         if (cvAnalysis.MatchScore >= 30)
                         {
+                            _logger.LogInformation($"[Job Analysis] Job '{job.Title}' - PASSED filter (score >= 30)");
+                            
                             var recommendation = new JobRecommendationWithScore
                             {
                                 JobId = job.Id,
@@ -349,6 +354,13 @@ namespace BEWorkNest.Services
                     .ToList();
 
                 _logger.LogInformation($"[Job Recommendations] Generated {topRecommendations.Count} recommendations from {activeJobs.Count} jobs");
+                _logger.LogInformation($"[Job Recommendations] Total recommendations before filtering: {recommendations.Count}");
+                
+                // Log all job analysis results for debugging
+                foreach (var job in activeJobs.Take(5)) // Only log first 5 for brevity
+                {
+                    _logger.LogInformation($"[Job Debug] Job: '{job.Title}' - Category: '{job.Specialized}' - Experience: '{job.ExperienceLevel}'");
+                }
                 
                 // Log top recommendations
                 foreach (var rec in topRecommendations.Take(3))

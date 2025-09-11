@@ -88,36 +88,65 @@ namespace BEWorkNest.Services
 
         private string ExtractTextFromPdfAsync(IFormFile pdfFile)
         {
-            using var stream = pdfFile.OpenReadStream();
-            return ExtractTextFromPdfStream(stream);
+            // Copy the stream to a MemoryStream to avoid stream disposal issues
+            using var originalStream = pdfFile.OpenReadStream();
+            using var memoryStream = new MemoryStream();
+            originalStream.CopyTo(memoryStream);
+            memoryStream.Position = 0;
+            
+            return ExtractTextFromPdfStream(memoryStream);
         }
 
         private string ExtractTextFromPdfStream(Stream pdfStream)
         {
             try
             {
-                using var pdfReader = new PdfReader(pdfStream);
-                using var pdfDocument = new PdfDocument(pdfReader);
-
-                var text = new StringBuilder();
-                for (int i = 1; i <= pdfDocument.GetNumberOfPages(); i++)
+                // Ensure stream is at the beginning
+                if (pdfStream.CanSeek)
                 {
-                    var page = pdfDocument.GetPage(i);
-                    var textExtractionStrategy = new SimpleTextExtractionStrategy();
-                    var pageText = PdfTextExtractor.GetTextFromPage(page, textExtractionStrategy);
-                    text.AppendLine(pageText);
+                    pdfStream.Position = 0;
                 }
 
-                var extractedText = text.ToString().Trim();
+                string extractedText;
+                byte[] streamBytes;
+                
+                // Read stream into byte array for multiple uses
+                if (pdfStream is MemoryStream ms)
+                {
+                    streamBytes = ms.ToArray();
+                }
+                else
+                {
+                    using var tempMs = new MemoryStream();
+                    pdfStream.CopyTo(tempMs);
+                    streamBytes = tempMs.ToArray();
+                }
+
+                // First attempt: normal PDF text extraction
+                using (var textStream = new MemoryStream(streamBytes))
+                {
+                    using var pdfReader = new PdfReader(textStream);
+                    using var pdfDocument = new PdfDocument(pdfReader);
+
+                    var text = new StringBuilder();
+                    for (int i = 1; i <= pdfDocument.GetNumberOfPages(); i++)
+                    {
+                        var page = pdfDocument.GetPage(i);
+                        var textExtractionStrategy = new SimpleTextExtractionStrategy();
+                        var pageText = PdfTextExtractor.GetTextFromPage(page, textExtractionStrategy);
+                        text.AppendLine(pageText);
+                    }
+
+                    extractedText = text.ToString().Trim();
+                }
                 
                 // If extracted text is too short (likely scanned PDF), try OCR
                 if (extractedText.Length < 50)
                 {
                     _logger.LogInformation("Text extraction yielded minimal text ({Length} chars), attempting OCR...", extractedText.Length);
                     
-                    // Reset stream position for OCR
-                    pdfStream.Position = 0;
-                    var ocrText = ExtractTextFromPdfUsingOCR(pdfStream);
+                    using var ocrStream = new MemoryStream(streamBytes);
+                    var ocrText = ExtractTextFromPdfUsingOCR(ocrStream);
                     
                     if (!string.IsNullOrEmpty(ocrText) && ocrText.Length > extractedText.Length)
                     {
@@ -138,8 +167,13 @@ namespace BEWorkNest.Services
 
         private string ExtractTextFromDocxAsync(IFormFile docxFile)
         {
-            using var stream = docxFile.OpenReadStream();
-            return ExtractTextFromDocxStream(stream);
+            // Copy the stream to a MemoryStream to avoid stream disposal issues
+            using var originalStream = docxFile.OpenReadStream();
+            using var memoryStream = new MemoryStream();
+            originalStream.CopyTo(memoryStream);
+            memoryStream.Position = 0;
+            
+            return ExtractTextFromDocxStream(memoryStream);
         }
 
         private string ExtractTextFromDocxStream(Stream docxStream)
@@ -220,7 +254,8 @@ namespace BEWorkNest.Services
             try
             {
                 _logger.LogInformation("Starting OCR extraction from PDF...");
-                // Reset stream position
+                
+                // Ensure stream is at the beginning
                 if (pdfStream.CanSeek)
                 {
                     pdfStream.Position = 0;
@@ -241,8 +276,22 @@ namespace BEWorkNest.Services
                     };
 
                     _logger.LogInformation("Reading PDF from stream with settings...");
-                    // Read PDF from stream
-                    images.Read(pdfStream, settings);
+                    
+                    // Read stream into byte array first to avoid stream issues
+                    byte[] pdfBytes;
+                    if (pdfStream is MemoryStream ms)
+                    {
+                        pdfBytes = ms.ToArray();
+                    }
+                    else
+                    {
+                        using var tempMs = new MemoryStream();
+                        pdfStream.CopyTo(tempMs);
+                        pdfBytes = tempMs.ToArray();
+                    }
+                    
+                    // Read PDF from byte array
+                    images.Read(pdfBytes, settings);
                     _logger.LogInformation("PDF read successfully. Page count: {Count}", images.Count);
 
                     _logger.LogInformation("Initializing TesseractEngine with tessdata path: ./tessdata");
@@ -260,12 +309,12 @@ namespace BEWorkNest.Services
                         page.Strip();
 
                         // Convert MagickImage to a memory stream in PNG format
-                        using var ms = new MemoryStream();
-                        page.Write(ms, MagickFormat.Png);
-                        ms.Position = 0;
-                        _logger.LogInformation("Page {PageNum} converted to PNG, size: {Size} bytes", i + 1, ms.Length);
+                        using var imageMs = new MemoryStream();
+                        page.Write(imageMs, MagickFormat.Png);
+                        var imageBytes = imageMs.ToArray();
+                        _logger.LogInformation("Page {PageNum} converted to PNG, size: {Size} bytes", i + 1, imageBytes.Length);
 
-                        using var img = Pix.LoadFromMemory(ms.ToArray());
+                        using var img = Pix.LoadFromMemory(imageBytes);
                         using var pagePix = engine.Process(img);
                         var pageText = pagePix.GetText();
 

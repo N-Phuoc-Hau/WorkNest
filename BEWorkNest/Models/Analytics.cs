@@ -382,4 +382,34 @@ namespace BEWorkNest.Models
         public JobPost JobPost { get; set; } = null!;
         public User User { get; set; } = null!;
     }
+
+    public class CVAnalysisStats
+    {
+        [Key]
+        public int Id { get; set; }
+        public string UserId { get; set; } = string.Empty;
+        public int TotalAnalyses { get; set; }
+        public double AverageScore { get; set; }
+        public int HighestScore { get; set; }
+        public int LowestScore { get; set; }
+        public int TotalJobRecommendations { get; set; }
+        public DateTime? FirstAnalysisDate { get; set; }
+        public DateTime? LastAnalysisDate { get; set; }
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        
+        // Navigation property
+        public User User { get; set; } = null!;
+    }
+
+    // CV Analysis Stats DTO for API response
+    public class CVAnalysisStatsDto
+    {
+        public int TotalAnalyses { get; set; }
+        public double AverageScore { get; set; }
+        public int HighestScore { get; set; }
+        public int LowestScore { get; set; }
+        public int TotalJobRecommendations { get; set; }
+        public DateTime? FirstAnalysisDate { get; set; }
+        public DateTime? LastAnalysisDate { get; set; }
+    }
 } 

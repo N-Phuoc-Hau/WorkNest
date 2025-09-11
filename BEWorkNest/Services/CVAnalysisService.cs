@@ -91,7 +91,26 @@ namespace BEWorkNest.Services
                 });
 
                 // Get job recommendations using AI
-                var jobRecommendations = await GetPersonalizedJobRecommendationsAsync(userId, cvText, aiAnalysisResult);
+                var aiJobRecommendations = await _aiService.GetJobRecommendationsFromDatabaseAsync(cvText, userId);
+                
+                // Convert to analytics format
+                var jobRecommendations = aiJobRecommendations.Select(rec => new JobRecommendationAnalytics
+                {
+                    JobId = rec.JobId,
+                    JobTitle = rec.Title,
+                    CompanyName = rec.Company,
+                    Location = rec.Location,
+                    SalaryRange = rec.SalaryRange,
+                    JobType = rec.JobType,
+                    ExperienceLevel = rec.ExperienceLevel,
+                    MatchScore = rec.MatchPercentage,
+                    MatchedSkills = rec.SkillsRequired,
+                    MatchReasons = new List<string> { rec.Reason },
+                    RecommendationLevel = GetRecommendationLevel(rec.MatchPercentage),
+                    PostedDate = rec.PostedDate,
+                    ApplicationDeadline = rec.DeadLine,
+                    IsActive = true
+                }).ToList();
 
                 // Create response
                 var analysisId = Guid.NewGuid().ToString();
