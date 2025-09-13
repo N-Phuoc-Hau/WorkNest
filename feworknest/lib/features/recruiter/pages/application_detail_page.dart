@@ -47,7 +47,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
         
         print('DEBUG ApplicationDetailPage: No analysis found, triggering analysis');
         _showAnalysisWaitingDialog();
-        await _requestCVAnalysis();
+        _requestCVAnalysis();
       }
     } catch (e) {
       print('DEBUG ApplicationDetailPage: Error loading CV analysis: $e');
@@ -394,6 +394,163 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             onPressed: () => _showCVAnalysis(context),
             icon: const Icon(Icons.open_in_full),
             tooltip: 'Xem chi tiết',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingMatchScore(analysisState) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.grey[300]!, width: 4),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  analysisState.isAnalyzing ? 'Đang phân tích CV...' : 'Đang tải...',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  'Vui lòng chờ trong giây lát',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoAnalysisCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.blue[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.blue[100],
+              border: Border.all(color: Colors.blue[300]!, width: 2),
+            ),
+            child: Icon(
+              Icons.analytics_outlined,
+              color: Colors.blue[600],
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Phân tích CV',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[800],
+                  ),
+                ),
+                Text(
+                  'Nhấn để phân tích độ phù hợp với vị trí',
+                  style: TextStyle(
+                    color: Colors.blue[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(
+            Icons.arrow_forward_ios,
+            color: Colors.blue[600],
+            size: 16,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoCVCard() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange[50],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.orange[200]!),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.orange[100],
+              border: Border.all(color: Colors.orange[300]!, width: 2),
+            ),
+            child: Icon(
+              Icons.warning_outlined,
+              color: Colors.orange[600],
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Không có CV',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange[800],
+                  ),
+                ),
+                Text(
+                  'Ứng viên chưa tải lên CV',
+                  style: TextStyle(
+                    color: Colors.orange[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
