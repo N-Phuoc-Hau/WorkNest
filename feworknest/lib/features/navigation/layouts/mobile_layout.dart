@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/providers/notification_provider.dart';
-import '../../../core/theme/app_theme.dart';
+import '../../../core/providers/unified_notification_provider.dart';
+import '../../../core/theme/app_colors.dart';
 import '../widgets/web_sidebar.dart';
 
 class MobileLayout extends ConsumerStatefulWidget {
@@ -32,7 +32,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: AppTheme.lightGrey,
+      backgroundColor: AppColors.neutral100,
       appBar: _buildAppBar(context, userRole),
       drawer: userRole != null ? _buildMobileDrawer() : null,
       body: widget.child,
@@ -50,10 +50,10 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
           fontSize: 18,
         ),
       ),
-      backgroundColor: AppTheme.white,
-      foregroundColor: AppTheme.black,
+      backgroundColor: AppColors.white,
+      foregroundColor: AppColors.neutral900,
       elevation: 1,
-      shadowColor: AppTheme.black.withOpacity(0.1),
+      shadowColor: AppColors.neutral900.withOpacity(0.1),
       leading: userRole != null 
           ? IconButton(
               onPressed: () {
@@ -62,7 +62,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
               },
               icon: const Icon(
                 Icons.menu_rounded,
-                color: AppTheme.primaryBlue,
+                color: AppColors.primary,
                 size: 28,
               ),
               tooltip: 'Mở menu',
@@ -79,8 +79,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
               // Get notification unread count
               if (authState.user?.id != null) {
                 try {
-                  final notificationState = ref.watch(notificationProvider(authState.user!.id));
-                  unreadCount = notificationState.unreadCount;
+                  unreadCount = ref.watch(unreadCountProvider);
                 } catch (e) {
                   // Handle error silently
                 }
@@ -95,7 +94,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
                   children: [
                     const Icon(
                       Icons.notifications_outlined, 
-                      color: AppTheme.primaryBlue,
+                      color: AppColors.primary,
                       size: 26,
                     ),
                     // Badge for unread notifications
@@ -106,7 +105,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
                         child: Container(
                           padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: AppTheme.error,
+                            color: AppColors.error,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           constraints: const BoxConstraints(
@@ -116,7 +115,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
                           child: Text(
                             unreadCount > 99 ? '99+' : unreadCount.toString(),
                             style: const TextStyle(
-                              color: AppTheme.white,
+                              color: AppColors.white,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -138,7 +137,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
 
   Widget _buildMobileDrawer() {
     return Drawer(
-      backgroundColor: AppTheme.white,
+      backgroundColor: AppColors.white,
       width: MediaQuery.of(context).size.width * 0.85, // 85% of screen width
       child: SafeArea(
         child: Column(
@@ -175,7 +174,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
       padding: const EdgeInsets.all(20),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [AppTheme.primaryBlue, AppTheme.lightBlue],
+          colors: [AppColors.primary, AppColors.primaryLight],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -186,10 +185,10 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
           // User avatar
           CircleAvatar(
             radius: 35,
-            backgroundColor: AppTheme.white.withOpacity(0.2),
+            backgroundColor: AppColors.white.withOpacity(0.2),
             child: CircleAvatar(
               radius: 32,
-              backgroundColor: AppTheme.white,
+              backgroundColor: AppColors.white,
               backgroundImage: user?.avatar != null
                   ? NetworkImage(user!.avatar!)
                   : null,
@@ -199,7 +198,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
                           ? user.fullName.substring(0, 1).toUpperCase()
                           : 'U',
                       style: const TextStyle(
-                        color: AppTheme.primaryBlue,
+                        color: AppColors.primary,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                       ),
@@ -214,7 +213,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
           Text(
             user?.fullName ?? 'User',
             style: const TextStyle(
-              color: AppTheme.white,
+              color: AppColors.white,
               fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
@@ -228,7 +227,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
           Text(
             user?.email ?? 'user@email.com',
             style: TextStyle(
-              color: AppTheme.white.withOpacity(0.9),
+              color: AppColors.white.withOpacity(0.9),
               fontSize: 14,
             ),
             maxLines: 1,
@@ -241,7 +240,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             decoration: BoxDecoration(
-              color: AppTheme.white.withOpacity(0.2),
+              color: AppColors.white.withOpacity(0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
@@ -251,7 +250,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
                       ? 'Quản trị viên'
                       : 'Ứng viên',
               style: const TextStyle(
-                color: AppTheme.white,
+                color: AppColors.white,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -268,7 +267,7 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
       decoration: BoxDecoration(
         border: Border(
           top: BorderSide(
-            color: AppTheme.lightGrey,
+            color: AppColors.neutral200,
             width: 1,
           ),
         ),
@@ -277,14 +276,14 @@ class _MobileLayoutState extends ConsumerState<MobileLayout> {
         children: [
           Icon(
             Icons.info_outline,
-            color: AppTheme.mediumGrey,
+            color: AppColors.neutral500,
             size: 16,
           ),
           const SizedBox(width: 8),
           Text(
             'WorkNest v1.0.0',
             style: TextStyle(
-              color: AppTheme.mediumGrey,
+              color: AppColors.neutral500,
               fontSize: 12,
             ),
           ),

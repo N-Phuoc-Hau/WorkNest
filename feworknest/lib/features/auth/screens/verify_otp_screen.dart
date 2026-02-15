@@ -6,11 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_button.dart';
+import '../../../shared/widgets/language_toggle_widget.dart';
+import '../../../shared/widgets/worknest_logo.dart';
 
 class VerifyOtpScreen extends ConsumerStatefulWidget {
   final String email;
-  
+
   const VerifyOtpScreen({
     super.key,
     required this.email,
@@ -21,8 +27,10 @@ class VerifyOtpScreen extends ConsumerStatefulWidget {
 }
 
 class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
-  final List<TextEditingController> _controllers = List.generate(6, (index) => TextEditingController());
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
+  final List<TextEditingController> _controllers =
+      List.generate(6, (index) => TextEditingController());
+  final List<FocusNode> _focusNodes =
+      List.generate(6, (index) => FocusNode());
   bool _isLoading = false;
   bool _canResend = false;
   int _countdown = 60;
@@ -36,25 +44,23 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
   @override
   void dispose() {
+    _timer?.cancel();
     for (var controller in _controllers) {
       controller.dispose();
     }
-    for (var focusNode in _focusNodes) {
-      focusNode.dispose();
+    for (var node in _focusNodes) {
+      node.dispose();
     }
-    _timer?.cancel();
     super.dispose();
   }
 
   void _startCountdown() {
-    _canResend = false;
-    _countdown = 60;
-    _timer?.cancel();
+    setState(() {
+      _canResend = false;
+      _countdown = 60;
+    });
+
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
       setState(() {
         if (_countdown > 0) {
           _countdown--;
@@ -66,39 +72,16 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
     });
   }
 
-  String get _otpCode {
-    return _controllers.map((controller) => controller.text).join();
-  }
-
-  bool get _isOtpComplete {
-    return _otpCode.length == 6;
-  }
-
-  void _onOtpChanged(String value, int index) {
-    if (value.length == 1 && index < 5) {
-      _focusNodes[index + 1].requestFocus();
-    }
-    
-    // Auto verify when all digits are entered
-    if (_isOtpComplete) {
-      _verifyOtp();
-    }
-    
-    setState(() {});
-  }
-
-  void _onOtpBackspace(int index) {
-    if (_controllers[index].text.isEmpty && index > 0) {
-      _focusNodes[index - 1].requestFocus();
-    }
-  }
-
   Future<void> _verifyOtp() async {
-    if (!_isOtpComplete) {
+    final otp = _controllers.map((c) => c.text).join();
+    
+    final l10n = ref.read(localizationsProvider);
+
+    if (otp.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vui lòng nhập đầy đủ mã OTP'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: Text(l10n.pleaseEnterOtp),
+          backgroundColor: AppColors.error,
         ),
       );
       return;
@@ -110,49 +93,32 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
     try {
       final authNotifier = ref.read(authProvider.notifier);
-      final result = await authNotifier.verifyOtp(widget.email, _otpCode);
+      final result = await authNotifier.verifyOtp(widget.email, otp);
 
       if (!mounted) return;
 
       if (result != null && result['success'] == true) {
-        // Navigate to reset password screen with the reset token
-        context.push('/reset-password', extra: {
-          'email': widget.email,
-          'resetToken': result['resetToken'],
-        });
-        
+        final resetToken = result['resetToken'];
+        context.go('/reset-password?email=${widget.email}&resetToken=$resetToken');
+      } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mã OTP hợp lệ'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(result?['message'] ?? l10n.otpInvalid),
+            backgroundColor: AppColors.error,
           ),
         );
-      } else {
         // Clear OTP fields
         for (var controller in _controllers) {
           controller.clear();
         }
         _focusNodes[0].requestFocus();
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result?['message'] ?? 'Mã OTP không hợp lệ hoặc đã hết hạn'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     } catch (e) {
       if (mounted) {
-        // Clear OTP fields
-        for (var controller in _controllers) {
-          controller.clear();
-        }
-        _focusNodes[0].requestFocus();
-        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text(e.toString()),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -166,6 +132,8 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
   }
 
   Future<void> _resendOtp() async {
+    final l10n = ref.read(localizationsProvider);
+
     setState(() {
       _isLoading = true;
     });
@@ -177,18 +145,23 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       if (!mounted) return;
 
       if (success) {
-        _startCountdown();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mã OTP mới đã được gửi'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(l10n.otpSentSuccess),
+            backgroundColor: AppColors.success,
           ),
         );
+        _startCountdown();
+        // Clear OTP fields
+        for (var controller in _controllers) {
+          controller.clear();
+        }
+        _focusNodes[0].requestFocus();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Có lỗi xảy ra khi gửi lại mã'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: Text(l10n.error),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -196,8 +169,8 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text(e.toString()),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -212,201 +185,211 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = ref.watch(localizationsProvider);
+
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Xác thực OTP'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: LanguageToggleButton(),
+          ),
+        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 600;
+
+            if (isWide) {
+              return Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  padding: EdgeInsets.all(AppSpacing.spacing48),
+                  child: _buildContent(context, l10n),
+                ),
+              );
+            } else {
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(AppSpacing.spacing24),
+                child: _buildContent(context, l10n),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, dynamic l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(height: AppSpacing.spacing32),
+
+        // Logo
+        Center(
+          child: const WorkNestLogo(size: 80),
+        ),
+        SizedBox(height: AppSpacing.spacing32),
+
+        // Title
+        Text(
+          l10n.verifyOtpTitle,
+          style: AppTypography.h2,
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(height: AppSpacing.spacing12),
+
+        // Subtitle with email
+        RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.neutral600,
+            ),
             children: [
-              const SizedBox(height: 40),
-              
-              // Icon and title
-              Center(
-                child: Column(
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.mail_lock_outlined,
-                        size: 40,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Nhập mã xác thực',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                        children: [
-                          const TextSpan(text: 'Mã xác thực đã được gửi đến\n'),
-                          TextSpan(
-                            text: widget.email,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 48),
-              
-              // OTP input fields
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 45,
-                    height: 55,
-                    child: TextField(
-                      controller: _controllers[index],
-                      focusNode: _focusNodes[index],
-                      textAlign: TextAlign.center,
-                      keyboardType: TextInputType.number,
-                      maxLength: 1,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        counterText: '',
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 2,
-                          ),
-                        ),
-                      ),
-                      onChanged: (value) => _onOtpChanged(value, index),
-                      onTap: () {
-                        _controllers[index].selection = TextSelection.fromPosition(
-                          TextPosition(offset: _controllers[index].text.length),
-                        );
-                      },
-                      onSubmitted: (value) {
-                        if (index < 5 && value.isNotEmpty) {
-                          _focusNodes[index + 1].requestFocus();
-                        }
-                      },
-                      onEditingComplete: () {
-                        if (_controllers[index].text.isEmpty && index > 0) {
-                          _onOtpBackspace(index);
-                        }
-                      },
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 32),
-              
-              // Verify button
-              AppButton(
-                onPressed: _isLoading || !_isOtpComplete ? null : _verifyOtp,
-                isLoading: _isLoading,
-                text: 'Xác thực',
-              ),
-              const SizedBox(height: 24),
-              
-              // Resend OTP section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Không nhận được mã? ',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                    ),
-                  ),
-                  if (_canResend)
-                    TextButton(
-                      onPressed: _isLoading ? null : _resendOtp,
-                      child: const Text('Gửi lại'),
-                    )
-                  else
-                    Text(
-                      'Gửi lại sau $_countdown giây',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              
-              // Info card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.timer_outlined,
-                      size: 20,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Mã xác thực có hiệu lực trong 15 phút. Hãy kiểm tra cả thư mục spam.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                      ),
-                    ),
-                  ],
+              TextSpan(text: l10n.otpSentTo),
+              TextSpan(
+                text: '\n${widget.email}',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
         ),
+        SizedBox(height: AppSpacing.spacing48),
+
+        // OTP input boxes
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(6, (index) => _buildOtpBox(index)),
+        ),
+        SizedBox(height: AppSpacing.spacing24),
+
+        // OTP validity info
+        Container(
+          padding: EdgeInsets.all(AppSpacing.spacing12),
+          decoration: BoxDecoration(
+            color: AppColors.warningLight,
+            borderRadius: AppSpacing.borderRadiusMd,
+            border: Border.all(
+              color: AppColors.warning.withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.access_time,
+                color: AppColors.warning,
+                size: 20,
+              ),
+              SizedBox(width: AppSpacing.spacing8),
+              Expanded(
+                child: Text(
+                  l10n.otpValidInfo,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: AppSpacing.spacing32),
+
+        // Verify button
+        AppButton(
+          onPressed: _isLoading ? null : _verifyOtp,
+          isLoading: _isLoading,
+          text: l10n.verify,
+        ),
+        SizedBox(height: AppSpacing.spacing24),
+
+        // Resend OTP
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              l10n.didntReceiveCode,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.neutral600,
+              ),
+            ),
+            SizedBox(width: AppSpacing.spacing8),
+            if (_canResend)
+              TextButton(
+                onPressed: _isLoading ? null : _resendOtp,
+                child: Text(
+                  l10n.resendCode,
+                  style: AppTypography.labelMedium.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              )
+            else
+              Text(
+                '${l10n.resendAfter} $_countdown${l10n.seconds}',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral500,
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOtpBox(int index) {
+    return Container(
+      width: 45,
+      height: 55,
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: _controllers[index].text.isNotEmpty
+              ? AppColors.primary
+              : AppColors.neutral300,
+          width: 1.5,
+        ),
+        borderRadius: AppSpacing.borderRadiusMd,
+      ),
+      child: TextField(
+        controller: _controllers[index],
+        focusNode: _focusNodes[index],
+        keyboardType: TextInputType.number,
+        textAlign: TextAlign.center,
+        maxLength: 1,
+        style: AppTypography.h3.copyWith(
+          fontWeight: FontWeight.bold,
+        ),
+        decoration: const InputDecoration(
+          counterText: '',
+          border: InputBorder.none,
+        ),
+        inputFormatters: [
+          FilteringTextInputFormatter.digitsOnly,
+        ],
+        onChanged: (value) {
+          if (value.isNotEmpty) {
+            if (index < 5) {
+              _focusNodes[index + 1].requestFocus();
+            } else {
+              // Last box filled, try to verify
+              _focusNodes[index].unfocus();
+              _verifyOtp();
+            }
+          } else if (index > 0) {
+            _focusNodes[index - 1].requestFocus();
+          }
+        },
       ),
     );
   }

@@ -2,830 +2,797 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/utils/responsive_utils.dart';
-import '../navigation/layouts/web_layout.dart';
+import '../../core/providers/language_provider.dart';
+import '../../core/providers/theme_provider.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../core/theme/app_typography.dart';
+import '../../shared/widgets/language_toggle_widget.dart';
+import '../../shared/widgets/worknest_logo.dart';
 
 class LandingPage extends ConsumerWidget {
   const LandingPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return WebLayout(
-      child: SingleChildScrollView(
+    return Scaffold(
+      body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildHeroSection(context),
-            _buildStatsSection(context),
-            _buildFeaturesSection(context),
-            _buildHowItWorksSection(context),
-            _buildTestimonialsSection(context),
-            _buildCTASection(context),
-            _buildFooter(context),
+            _buildHeader(context, ref),
+            _buildHeroSection(context, ref),
+            _buildStatsSection(context, ref),
+            _buildCategoriesSection(context, ref),
+            _buildFeaturedJobsSection(context, ref),
+            _buildHowItWorksSection(context, ref),
+            _buildTestimonialsSection(context, ref),
+            _buildCTASection(context, ref),
+            _buildFooter(context, ref),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeroSection(BuildContext context) {
-    final isWeb = ResponsiveUtils.isWeb(context);
-    
+  // ============================================================================
+  // HEADER
+  // ============================================================================
+  Widget _buildHeader(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
+    final isWide = MediaQuery.of(context).size.width > 768;
+
     return Container(
-      height: isWeb ? 600 : 500,
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing16,
+      ),
       decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Logo
+          const WorkNestLogo(size: 40, showName: false),
+          SizedBox(width: AppSpacing.spacing12),
+          Text(
+            l10n.appName,
+            style: AppTypography.h4.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const Spacer(),
+
+          // Navigation (for wide screens)
+          if (isWide) ...[
+            TextButton(
+              onPressed: () => context.go('/jobs'),
+              child: Text(l10n.jobs),
+            ),
+            SizedBox(width: AppSpacing.spacing8),
+            TextButton(
+              onPressed: () => context.go('/companies'),
+              child: Text(l10n.companies),
+            ),
+            SizedBox(width: AppSpacing.spacing8),
+            TextButton(
+              onPressed: () {},
+              child: Text(l10n.aboutUs),
+            ),
+            SizedBox(width: AppSpacing.spacing24),
+          ],
+
+          // Theme toggle
+          IconButton(
+            onPressed: () {
+              ref.read(themeModeProvider.notifier).toggleTheme();
+            },
+            icon: Icon(
+              isDark ? Icons.light_mode : Icons.dark_mode,
+              color: AppColors.neutral700,
+            ),
+            tooltip: isDark ? 'Light Mode' : 'Dark Mode',
+          ),
+
+          // Language toggle
+          const LanguageToggleButton(),
+
+          SizedBox(width: AppSpacing.spacing16),
+
+          // Login button
+          OutlinedButton(
+            onPressed: () => context.go('/login'),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: AppColors.primary),
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.spacing20,
+                vertical: AppSpacing.spacing12,
+              ),
+            ),
+            child: Text(l10n.login),
+          ),
+
+          SizedBox(width: AppSpacing.spacing12),
+
+          // Sign up button
+          ElevatedButton(
+            onPressed: () => context.go('/register'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.spacing20,
+                vertical: AppSpacing.spacing12,
+              ),
+            ),
+            child: Text(l10n.signUp),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // HERO SECTION
+  // ============================================================================
+  Widget _buildHeroSection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 900;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: isWide ? AppSpacing.spacing64 : AppSpacing.spacing48,
+      ),
+      child: isWide
+          ? Row(
+              children: [
+                Expanded(
+                  flex: 1,
+                  child: _buildHeroContent(context, ref),
+                ),
+                SizedBox(width: AppSpacing.spacing64),
+                Expanded(
+                  flex: 1,
+                  child: _buildHeroImage(context),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                _buildHeroContent(context, ref),
+                SizedBox(height: AppSpacing.spacing32),
+                _buildHeroImage(context),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildHeroContent(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.heroTitle,
+          style: AppTypography.h1.copyWith(
+            fontSize: 48,
+            height: 1.2,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: AppSpacing.spacing16),
+        Text(
+          l10n.heroSubtitle,
+          style: AppTypography.bodyLarge.copyWith(
+            color: AppColors.neutral600,
+            height: 1.6,
+          ),
+        ),
+        SizedBox(height: AppSpacing.spacing32),
+        _buildSearchBar(context, ref),
+        SizedBox(height: AppSpacing.spacing16),
+        Text(
+          'Popular: ${l10n.design}, ${l10n.sales}, ${l10n.marketing}, ${l10n.business}',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.neutral500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchBar(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 768;
+
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: AppSpacing.borderRadiusMd,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: isWide
+          ? Row(
+              children: [
+                Icon(Icons.search, color: AppColors.neutral600),
+                SizedBox(width: AppSpacing.spacing12),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: l10n.searchPlaceholder,
+                      border: InputBorder.none,
+                      hintStyle: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.neutral400,
+                      ),
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 40,
+                  color: AppColors.neutral200,
+                  margin: EdgeInsets.symmetric(horizontal: AppSpacing.spacing12),
+                ),
+                Icon(Icons.location_on, color: AppColors.neutral600),
+                SizedBox(width: AppSpacing.spacing8),
+                Expanded(
+                  flex: 2,
+                  child: DropdownButtonFormField<String>(
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: l10n.location,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    items: [
+                      DropdownMenuItem(value: 'all', child: Text(l10n.allLocations, overflow: TextOverflow.ellipsis)),
+                      DropdownMenuItem(value: 'hanoi', child: Text('Hà Nội', overflow: TextOverflow.ellipsis)),
+                      DropdownMenuItem(value: 'hcm', child: Text('TP.HCM', overflow: TextOverflow.ellipsis)),
+                      DropdownMenuItem(value: 'danang', child: Text('Đà Nẵng', overflow: TextOverflow.ellipsis)),
+                    ],
+                    onChanged: (value) {},
+                  ),
+                ),
+                SizedBox(width: AppSpacing.spacing12),
+                ElevatedButton(
+                  onPressed: () => context.go('/jobs'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.spacing32,
+                      vertical: AppSpacing.spacing16,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: AppSpacing.borderRadiusSm,
+                    ),
+                  ),
+                  child: Text(l10n.search),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: l10n.searchPlaceholder,
+                    prefixIcon: Icon(Icons.search, color: AppColors.neutral600),
+                    border: OutlineInputBorder(
+                      borderRadius: AppSpacing.borderRadiusSm,
+                      borderSide: BorderSide(color: AppColors.neutral200),
+                    ),
+                  ),
+                ),
+                SizedBox(height: AppSpacing.spacing12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        decoration: InputDecoration(
+                          hintText: l10n.location,
+                          prefixIcon: Icon(Icons.location_on, color: AppColors.neutral600),
+                          border: OutlineInputBorder(
+                            borderRadius: AppSpacing.borderRadiusSm,
+                            borderSide: BorderSide(color: AppColors.neutral200),
+                          ),
+                        ),
+                        items: [
+                          DropdownMenuItem(value: 'all', child: Text(l10n.allLocations)),
+                          DropdownMenuItem(value: 'hanoi', child: Text('Hà Nội')),
+                          DropdownMenuItem(value: 'hcm', child: Text('TP.HCM')),
+                        ],
+                        onChanged: (value) {},
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.spacing12),
+                    ElevatedButton(
+                      onPressed: () => context.go('/jobs'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: EdgeInsets.all(AppSpacing.spacing16),
+                      ),
+                      child: Icon(Icons.search, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildHeroImage(BuildContext context) {
+    return Container(
+      height: 400,
+      decoration: BoxDecoration(
+        borderRadius: AppSpacing.borderRadiusLg,
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).primaryColor,
-            Theme.of(context).primaryColor.withOpacity(0.8),
+            AppColors.primary.withOpacity(0.1),
+            AppColors.primary.withOpacity(0.05),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: Padding(
-        padding: ResponsiveUtils.getContentPadding(context),
-        child: isWeb ? _buildWebHero(context) : _buildMobileHero(context),
+      child: Center(
+        child: Icon(
+          Icons.work_outline,
+          size: 120,
+          color: AppColors.primary.withOpacity(0.3),
+        ),
       ),
     );
   }
 
-  Widget _buildWebHero(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 1,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
+  // ============================================================================
+  // STATS SECTION
+  // ============================================================================
+  Widget _buildStatsSection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 768;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing48,
+      ),
+      color: AppColors.neutral50,
+      child: GridView.count(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisCount: isWide ? 4 : 2,
+        crossAxisSpacing: AppSpacing.spacing24,
+        mainAxisSpacing: AppSpacing.spacing24,
+        childAspectRatio: isWide ? 1.5 : 1.2,
+        children: [
+          _buildStatCard('1.7M+', l10n.peopleGotHired, context),
+          _buildStatCard('50,000+', l10n.liveJobs, context),
+          _buildStatCard('10,000+', l10n.totalCompanies, context),
+          _buildStatCard('2.5M+', l10n.newJobsToday, context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String number, String label, BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: AppSpacing.borderRadiusMd,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            number,
+            style: AppTypography.h2.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing8),
+          Text(
+            label,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.neutral600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // CATEGORIES SECTION
+  // ============================================================================
+  Widget _buildCategoriesSection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 900;
+
+    final categories = [
+      {'icon': Icons.palette, 'name': l10n.design, 'jobs': '235', 'color': Colors.blue},
+      {'icon': Icons.sell, 'name': l10n.sales, 'jobs': '756', 'color': Colors.orange},
+      {'icon': Icons.campaign, 'name': l10n.marketing, 'jobs': '140', 'color': AppColors.primary},
+      {'icon': Icons.monetization_on, 'name': l10n.finance, 'jobs': '325', 'color': Colors.green},
+      {'icon': Icons.computer, 'name': l10n.technology, 'jobs': '436', 'color': Colors.purple},
+      {'icon': Icons.construction, 'name': l10n.engineering, 'jobs': '542', 'color': Colors.teal},
+      {'icon': Icons.business, 'name': l10n.business, 'jobs': '211', 'color': Colors.brown},
+      {'icon': Icons.people, 'name': l10n.humanResource, 'jobs': '346', 'color': Colors.pink},
+    ];
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing64,
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Tiếp lời thế,\nnối thành công',
-                style: TextStyle(
-                  fontSize: ResponsiveUtils.isDesktop(context) ? 48 : 36,
+                l10n.exploreByCategory,
+                style: AppTypography.h3.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  height: 1.2,
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                'WorkNest - Hệ sinh thái nhân sự tiên phong ứng dụng công nghệ tại Việt Nam. Kết nối hàng ngàn ứng viên tài năng với các cơ hội việc làm tuyệt vời.',
-                style: TextStyle(
-                  fontSize: 18,
-                  color: Colors.white.withOpacity(0.9),
-                  height: 1.6,
-                ),
-              ),
-              const SizedBox(height: 32),
-              _buildSearchBar(context),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  ElevatedButton(
-                    onPressed: () => context.push('/register'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Theme.of(context).primaryColor,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Đăng ký ngay', style: TextStyle(fontSize: 16)),
-                  ),
-                  const SizedBox(width: 16),
-                  OutlinedButton(
-                    onPressed: () => context.push('/login'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white, width: 2),
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('Đăng nhập', style: TextStyle(fontSize: 16)),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 60),
-        Expanded(
-          flex: 1,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              color: Colors.white.withOpacity(0.1),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.business_center,
-                size: 200,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileHero(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.business_center,
-          size: 100,
-          color: Colors.white.withOpacity(0.9),
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Tiếp lời thế,\nnối thành công',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'WorkNest - Nền tảng tìm kiếm việc làm hàng đầu Việt Nam',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white.withOpacity(0.9),
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: 32),
-        _buildSearchBar(context),
-        const SizedBox(height: 24),
-        Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => context.push('/register'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Theme.of(context).primaryColor,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Đăng ký ngay', style: TextStyle(fontSize: 16)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => context.push('/login'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white, width: 2),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Đăng nhập', style: TextStyle(fontSize: 16)),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: ResponsiveUtils.isWeb(context) 
-          ? _buildWebSearchBar(context)
-          : _buildMobileSearchBar(context),
-    );
-  }
-
-  Widget _buildWebSearchBar(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          flex: 2,
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: 'Tìm kiếm vị trí, công ty...',
-              prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-          ),
-        ),
-        Container(
-          width: 1,
-          height: 30,
-          color: Colors.grey[300],
-        ),
-        Flexible(
-          child: DropdownButtonFormField<String>(
-            decoration: InputDecoration(
-              hintText: 'Địa điểm',
-              prefixIcon: Icon(Icons.location_on, color: Colors.grey[600]),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            ),
-            items: const [
-              DropdownMenuItem(value: 'all', child: Text('Tất cả')),
-              DropdownMenuItem(value: 'hanoi', child: Text('Hà Nội')),
-              DropdownMenuItem(value: 'hcm', child: Text('TP.HCM')),
-              DropdownMenuItem(value: 'danang', child: Text('Đà Nẵng')),
-            ],
-            onChanged: (value) {},
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(4),
-          child: ElevatedButton(
-            onPressed: () => context.go('/jobs'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Tìm kiếm'),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMobileSearchBar(BuildContext context) {
-    return Column(
-      children: [
-        TextField(
-          decoration: InputDecoration(
-            hintText: 'Tìm kiếm vị trí, công ty...',
-            prefixIcon: Icon(Icons.search, color: Colors.grey[600]),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          ),
-        ),
-        Divider(color: Colors.grey[300], height: 1),
-        Row(
-          children: [
-            Flexible(
-              child: DropdownButtonFormField<String>(
-                decoration: InputDecoration(
-                  hintText: 'Địa điểm',
-                  prefixIcon: Icon(Icons.location_on, color: Colors.grey[600]),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'all', child: Text('Tất cả')),
-                  DropdownMenuItem(value: 'hanoi', child: Text('Hà Nội')),
-                  DropdownMenuItem(value: 'hcm', child: Text('TP.HCM')),
-                ],
-                onChanged: (value) {},
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(4),
-              child: ElevatedButton(
+              TextButton(
                 onPressed: () => context.go('/jobs'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Tìm'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatsSection(BuildContext context) {
-    return Container(
-      padding: ResponsiveUtils.getContentPadding(context),
-      color: Colors.grey[50],
-      child: Column(
-        children: [
-          const SizedBox(height: 60),
-          Text(
-            'Con số ấn tượng',
-            style: TextStyle(
-              fontSize: ResponsiveUtils.isWeb(context) ? 32 : 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 40),
-          ResponsiveUtils.isWeb(context)
-              ? Row(
-                  children: _buildStatItems(context),
-                )
-              : Column(
-                  children: _buildStatItems(context),
-                ),
-          const SizedBox(height: 60),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildStatItems(BuildContext context) {
-    final stats = [
-      {'number': '50,000+', 'label': 'Việc làm'},
-      {'number': '10,000+', 'label': 'Công ty'},
-      {'number': '1M+', 'label': 'Ứng viên'},
-      {'number': '95%', 'label': 'Tỷ lệ thành công'},
-    ];
-
-    return stats.map((stat) => Expanded(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Text(
-              stat['number']!,
-              style: TextStyle(
-                fontSize: ResponsiveUtils.isWeb(context) ? 36 : 28,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).primaryColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              stat['label']!,
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    )).toList();
-  }
-
-  Widget _buildFeaturesSection(BuildContext context) {
-    return Container(
-      padding: ResponsiveUtils.getContentPadding(context),
-      child: Column(
-        children: [
-          const SizedBox(height: 60),
-          Text(
-            'Tính năng nổi bật',
-            style: TextStyle(
-              fontSize: ResponsiveUtils.isWeb(context) ? 32 : 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 40),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: ResponsiveUtils.getCrossAxisCount(context, mobile: 1, tablet: 2, desktop: 3),
-            crossAxisSpacing: 24,
-            mainAxisSpacing: 24,
-            childAspectRatio: ResponsiveUtils.isWeb(context) ? 1.2 : 1.5,
-            children: [
-              _buildFeatureCard(
-                icon: Icons.search,
-                title: 'Tìm kiếm thông minh',
-                description: 'AI-powered search giúp bạn tìm được công việc phù hợp nhất',
-                color: Colors.blue,
-              ),
-              _buildFeatureCard(
-                icon: Icons.chat,
-                title: 'Chat trực tiếp',
-                description: 'Kết nối trực tiếp với HR, trao đổi ngay lập tức',
-                color: Colors.green,
-              ),
-              _buildFeatureCard(
-                icon: Icons.notification_important,
-                title: 'Thông báo thời gian thực',
-                description: 'Cập nhật tình trạng ứng tuyển, cơ hội mới ngay lập tức',
-                color: Colors.orange,
-              ),
-              _buildFeatureCard(
-                icon: Icons.analytics,
-                title: 'Thống kê chi tiết',
-                description: 'Theo dõi hiệu quả tuyển dụng với báo cáo chi tiết',
-                color: Colors.purple,
-              ),
-              _buildFeatureCard(
-                icon: Icons.verified,
-                title: 'Xác thực công ty',
-                description: 'Tất cả công ty đều được xác thực, đảm bảo uy tín',
-                color: Colors.teal,
-              ),
-              _buildFeatureCard(
-                icon: Icons.favorite,
-                title: 'Lưu việc yêu thích',
-                description: 'Lưu và quản lý các công việc quan tâm dễ dàng',
-                color: Colors.pink,
-              ),
-            ],
-          ),
-          const SizedBox(height: 60),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureCard({
-    required IconData icon,
-    required String title,
-    required String description,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(
-              icon,
-              size: 32,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            description,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-              height: 1.4,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHowItWorksSection(BuildContext context) {
-    return Container(
-      padding: ResponsiveUtils.getContentPadding(context),
-      color: Colors.grey[50],
-      child: Column(
-        children: [
-          const SizedBox(height: 60),
-          Text(
-            'Cách thức hoạt động',
-            style: TextStyle(
-              fontSize: ResponsiveUtils.isWeb(context) ? 32 : 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 40),
-          ResponsiveUtils.isWeb(context)
-              ? Row(
-                  children: _buildStepItems(context),
-                )
-              : Column(
-                  children: _buildStepItems(context),
-                ),
-          const SizedBox(height: 60),
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _buildStepItems(BuildContext context) {
-    final steps = [
-      {
-        'number': '1',
-        'title': 'Đăng ký tài khoản',
-        'description': 'Tạo hồ sơ cá nhân và tải lên CV của bạn',
-        'icon': Icons.person_add,
-      },
-      {
-        'number': '2',
-        'title': 'Tìm kiếm việc làm',
-        'description': 'Sử dụng bộ lọc thông minh để tìm công việc phù hợp',
-        'icon': Icons.search,
-      },
-      {
-        'number': '3',
-        'title': 'Ứng tuyển & Chat',
-        'description': 'Nộp đơn ứng tuyển và chat trực tiếp với HR',
-        'icon': Icons.chat,
-      },
-      {
-        'number': '4',
-        'title': 'Nhận việc làm',
-        'description': 'Thành công trong quá trình phỏng vấn và nhận việc',
-        'icon': Icons.work,
-      },
-    ];
-
-    return steps.asMap().entries.map((entry) {
-      final index = entry.key;
-      final step = entry.value;
-      final isLast = index == steps.length - 1;
-
-      return Expanded(
-        child: Column(
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor,
-                borderRadius: BorderRadius.circular(40),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    step['icon'] as IconData,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    (step['number']! as String),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              (step['title']! as String),
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              (step['description']! as String),
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-                height: 1.4,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            if (!isLast && ResponsiveUtils.isWeb(context)) ...[
-              const SizedBox(height: 40),
-              Icon(
-                Icons.arrow_forward,
-                color: Theme.of(context).primaryColor,
-                size: 24,
-              ),
-            ] else if (!ResponsiveUtils.isWeb(context)) ...[
-              const SizedBox(height: 24),
-            ],
-          ],
-        ),
-      );
-    }).toList();
-  }
-
-  Widget _buildTestimonialsSection(BuildContext context) {
-    return Container(
-      padding: ResponsiveUtils.getContentPadding(context),
-      child: Column(
-        children: [
-          const SizedBox(height: 60),
-          Text(
-            'Khách hàng nói gì về chúng tôi',
-            style: TextStyle(
-              fontSize: ResponsiveUtils.isWeb(context) ? 32 : 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[800],
-            ),
-          ),
-          const SizedBox(height: 40),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: ResponsiveUtils.getCrossAxisCount(context, mobile: 1, tablet: 2, desktop: 3),
-            crossAxisSpacing: 24,
-            mainAxisSpacing: 24,
-            childAspectRatio: ResponsiveUtils.isWeb(context) ? 1.0 : 1.2,
-            children: [
-              _buildTestimonialCard(
-                context,
-                name: 'Nguyễn Văn A',
-                role: 'Frontend Developer',
-                company: 'TechCorp',
-                content: 'WorkNest giúp tôi tìm được công việc mơ ước chỉ trong 2 tuần. Giao diện thân thiện và hỗ trợ tuyệt vời!',
-                rating: 5,
-              ),
-              _buildTestimonialCard(
-                context,
-                name: 'Trần Thị B',
-                role: 'HR Manager',
-                company: 'StartupXYZ',
-                content: 'Chất lượng ứng viên từ WorkNest rất cao. Chúng tôi đã tuyển được nhiều nhân tài từ nền tảng này.',
-                rating: 5,
-              ),
-              _buildTestimonialCard(
-                context,
-                name: 'Lê Minh C',
-                role: 'Product Manager',
-                company: 'InnovateInc',
-                content: 'Tính năng chat trực tiếp rất tiện lợi. Tôi có thể trao đổi với HR ngay lập tức mà không cần chờ đợi.',
-                rating: 5,
-              ),
-            ],
-          ),
-          const SizedBox(height: 60),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTestimonialCard(
-    BuildContext context, {
-    required String name,
-    required String role,
-    required String company,
-    required String content,
-    required int rating,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: List.generate(
-              rating,
-              (index) => Icon(
-                Icons.star,
-                color: Colors.orange,
-                size: 16,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            content,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[700],
-              height: 1.4,
-            ),
-          ),
-          const Spacer(),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Theme.of(context).primaryColor,
-                child: Text(
-                  name.substring(0, 1),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      '$role tại $company',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
+                    Text(l10n.showAll),
+                    Icon(Icons.arrow_forward, size: 16),
                   ],
                 ),
               ),
             ],
           ),
+          SizedBox(height: AppSpacing.spacing32),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isWide ? 4 : 2,
+              crossAxisSpacing: AppSpacing.spacing24,
+              mainAxisSpacing: AppSpacing.spacing24,
+              childAspectRatio: 1.8,
+            ),
+            itemCount: categories.length,
+            itemBuilder: (context, index) {
+              final category = categories[index];
+              return _buildCategoryCard(
+                icon: category['icon'] as IconData,
+                name: category['name'] as String,
+                jobs: category['jobs'] as String,
+                color: category['color'] as Color,
+                context: context,
+                ref: ref,
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildCTASection(BuildContext context) {
+  Widget _buildCategoryCard({
+    required IconData icon,
+    required String name,
+    required String jobs,
+    required Color color,
+    required BuildContext context,
+    required WidgetRef ref,
+  }) {
+    final l10n = ref.watch(localizationsProvider);
+
+    return InkWell(
+      onTap: () => context.go('/jobs'),
+      borderRadius: AppSpacing.borderRadiusMd,
+      child: Container(
+        padding: EdgeInsets.all(AppSpacing.spacing20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: AppSpacing.borderRadiusMd,
+          border: Border.all(color: AppColors.neutral200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(AppSpacing.spacing12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: AppSpacing.borderRadiusSm,
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            SizedBox(width: AppSpacing.spacing12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    name,
+                    style: AppTypography.labelLarge.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: AppSpacing.spacing4),
+                  Text(
+                    '$jobs ${l10n.jobsAvailable}',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.neutral400),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ============================================================================
+  // FEATURED JOBS (Placeholder)
+  // ============================================================================
+  Widget _buildFeaturedJobsSection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 768;
+
     return Container(
-      padding: ResponsiveUtils.getContentPadding(context),
-      color: Theme.of(context).primaryColor,
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing64,
+      ),
+      color: AppColors.neutral50,
       child: Column(
         children: [
-          const SizedBox(height: 60),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                l10n.featuredJobs,
+                style: AppTypography.h3.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.go('/jobs'),
+                child: Row(
+                  children: [
+                    Text(l10n.showAll),
+                    Icon(Icons.arrow_forward, size: 16),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.spacing32),
           Text(
-            'Sẵn sàng bắt đầu hành trình mới?',
-            style: TextStyle(
-              fontSize: ResponsiveUtils.isWeb(context) ? 32 : 24,
+            '${l10n.exploreByCategory} - ${l10n.jobs}',
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.neutral600,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing24),
+          ElevatedButton(
+            onPressed: () => context.go('/jobs'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.spacing32,
+                vertical: AppSpacing.spacing16,
+              ),
+            ),
+            child: Text('${l10n.viewAll} ${l10n.jobs}'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // HOW IT WORKS
+  // ============================================================================
+  Widget _buildHowItWorksSection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 900;
+
+    final steps = [
+      {'icon': Icons.person_add, 'title': l10n.step1Title, 'desc': l10n.step1Desc},
+      {'icon': Icons.upload_file, 'title': l10n.step2Title, 'desc': l10n.step2Desc},
+      {'icon': Icons.search, 'title': l10n.step3Title, 'desc': l10n.step3Desc},
+      {'icon': Icons.work, 'title': l10n.step4Title, 'desc': l10n.step4Desc},
+    ];
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing64,
+      ),
+      child: Column(
+        children: [
+          Text(
+            l10n.howItWorks,
+            style: AppTypography.h3.copyWith(
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing48),
+          isWide
+              ? Row(
+                  children: steps.asMap().entries.map((entry) {
+                    final isLast = entry.key == steps.length - 1;
+                    return Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(child: _buildStepCard(entry.value, entry.key + 1, context)),
+                          if (!isLast)
+                            Icon(Icons.arrow_forward, color: AppColors.primary, size: 32),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                )
+              : Column(
+                  children: steps.asMap().entries.map((entry) {
+                    return Column(
+                      children: [
+                        _buildStepCard(entry.value, entry.key + 1, context),
+                        if (entry.key < steps.length - 1)
+                          SizedBox(height: AppSpacing.spacing24),
+                      ],
+                    );
+                  }).toList(),
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepCard(Map<String, dynamic> step, int number, BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: AppSpacing.borderRadiusMd,
+        border: Border.all(color: AppColors.neutral200),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '$number',
+                style: AppTypography.h3.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          Text(
+            step['title'],
+            style: AppTypography.h5.copyWith(
+              fontWeight: FontWeight.bold,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: AppSpacing.spacing8),
           Text(
-            'Tham gia WorkNest ngay hôm nay và khám phá hàng ngàn cơ hội việc làm tuyệt vời!',
-            style: TextStyle(
-              fontSize: 16,
+            step['desc'],
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.neutral600,
+              height: 1.5,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // TESTIMONIALS (Placeholder)
+  // ============================================================================
+  Widget _buildTestimonialsSection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.spacing48,
+        vertical: AppSpacing.spacing64,
+      ),
+      color: AppColors.neutral50,
+      child: Column(
+        children: [
+          Text(
+            l10n.whatPeopleSay,
+            style: AppTypography.h3.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          Text(
+            l10n.testimonials,
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.neutral600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ============================================================================
+  // CTA SECTION
+  // ============================================================================
+  Widget _buildCTASection(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 768;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing64,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.primary, AppColors.primary.withOpacity(0.8)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            l10n.readyToStart,
+            style: AppTypography.h2.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          Text(
+            l10n.ctaDescription,
+            style: AppTypography.bodyLarge.copyWith(
               color: Colors.white.withOpacity(0.9),
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 32),
-          ResponsiveUtils.isWeb(context)
+          SizedBox(height: AppSpacing.spacing32),
+          isWide
               ? Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -833,26 +800,26 @@ class LandingPage extends ConsumerWidget {
                       onPressed: () => context.push('/register'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
-                        foregroundColor: Theme.of(context).primaryColor,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                        foregroundColor: AppColors.primary,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.spacing32,
+                          vertical: AppSpacing.spacing16,
                         ),
                       ),
-                      child: const Text('Đăng ký ngay', style: TextStyle(fontSize: 16)),
+                      child: Text(l10n.signUpNow),
                     ),
-                    const SizedBox(width: 16),
+                    SizedBox(width: AppSpacing.spacing16),
                     OutlinedButton(
-                      onPressed: () => context.go('/jobs'),
+                      onPressed: () => context.push('/register'),
                       style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.white),
                         foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white, width: 2),
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.spacing32,
+                          vertical: AppSpacing.spacing16,
                         ),
                       ),
-                      child: const Text('Xem việc làm', style: TextStyle(fontSize: 16)),
+                      child: Text(l10n.postJob),
                     ),
                   ],
                 )
@@ -864,194 +831,164 @@ class LandingPage extends ConsumerWidget {
                         onPressed: () => context.push('/register'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
-                          foregroundColor: Theme.of(context).primaryColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          foregroundColor: AppColors.primary,
+                          padding: EdgeInsets.all(AppSpacing.spacing16),
                         ),
-                        child: const Text('Đăng ký ngay', style: TextStyle(fontSize: 16)),
+                        child: Text(l10n.signUpNow),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: AppSpacing.spacing12),
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () => context.go('/jobs'),
+                        onPressed: () => context.push('/register'),
                         style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.white),
                           foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white, width: 2),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                          padding: EdgeInsets.all(AppSpacing.spacing16),
                         ),
-                        child: const Text('Xem việc làm', style: TextStyle(fontSize: 16)),
+                        child: Text(l10n.postJob),
                       ),
                     ),
                   ],
                 ),
-          const SizedBox(height: 60),
         ],
       ),
     );
   }
 
-  Widget _buildFooter(BuildContext context) {
+  // ============================================================================
+  // FOOTER
+  // ============================================================================
+  Widget _buildFooter(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+    final isWide = MediaQuery.of(context).size.width > 900;
+
     return Container(
-      padding: ResponsiveUtils.getContentPadding(context),
-      color: Colors.grey[900],
+      padding: EdgeInsets.symmetric(
+        horizontal: isWide ? AppSpacing.spacing48 : AppSpacing.spacing24,
+        vertical: AppSpacing.spacing48,
+      ),
+      color: AppColors.neutral900,
       child: Column(
         children: [
-          const SizedBox(height: 40),
-          ResponsiveUtils.isWeb(context)
+          isWide
               ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Expanded(child: _buildFooterBrand(context, ref)),
+                    SizedBox(width: AppSpacing.spacing64),
                     Expanded(
-                      flex: 2,
-                      child: _buildFooterBrand(),
+                      child: _buildFooterLinks(
+                        l10n.about,
+                        [l10n.aboutUs, l10n.careers, l10n.companies],
+                        context,
+                      ),
                     ),
-                    Expanded(child: _buildFooterLinks('Dành cho ứng viên', [
-                      'Tìm việc làm',
-                      'Công ty hàng đầu',
-                      'Cẩm nang nghề nghiệp',
-                      'Tạo CV',
-                    ])),
-                    Expanded(child: _buildFooterLinks('Dành cho nhà tuyển dụng', [
-                      'Đăng tin tuyển dụng',
-                      'Tìm hồ sơ',
-                      'Dịch vụ tuyển dụng',
-                      'Báo cáo thị trường',
-                    ])),
-                    Expanded(child: _buildFooterLinks('Về WorkNest', [
-                      'Giới thiệu',
-                      'Liên hệ',
-                      'Điều khoản',
-                      'Chính sách bảo mật',
-                    ])),
+                    Expanded(
+                      child: _buildFooterLinks(
+                        l10n.resources,
+                        [l10n.helpCenter, l10n.blog, l10n.support],
+                        context,
+                      ),
+                    ),
+                    Expanded(
+                      child: _buildFooterLinks(
+                        l10n.getInTouch,
+                        [l10n.contact, l10n.support],
+                        context,
+                      ),
+                    ),
                   ],
                 )
               : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildFooterBrand(),
-                    const SizedBox(height: 32),
-                    _buildFooterLinks('Dành cho ứng viên', [
-                      'Tìm việc làm',
-                      'Công ty hàng đầu',
-                      'Cẩm nang nghề nghiệp',
-                      'Tạo CV',
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildFooterLinks('Dành cho nhà tuyển dụng', [
-                      'Đăng tin tuyển dụng',
-                      'Tìm hồ sơ',
-                      'Dịch vụ tuyển dụng',
-                      'Báo cáo thị trường',
-                    ]),
-                    const SizedBox(height: 24),
-                    _buildFooterLinks('Về WorkNest', [
-                      'Giới thiệu',
-                      'Liên hệ',
-                      'Điều khoản',
-                      'Chính sách bảo mật',
-                    ]),
+                    _buildFooterBrand(context, ref),
+                    SizedBox(height: AppSpacing.spacing32),
+                    _buildFooterLinks(
+                      l10n.about,
+                      [l10n.aboutUs, l10n.careers, l10n.companies],
+                      context,
+                    ),
+                    SizedBox(height: AppSpacing.spacing24),
+                    _buildFooterLinks(
+                      l10n.resources,
+                      [l10n.helpCenter, l10n.blog, l10n.support],
+                      context,
+                    ),
                   ],
                 ),
-          const SizedBox(height: 32),
-          Divider(color: Colors.grey[700]),
-          const SizedBox(height: 16),
+          SizedBox(height: AppSpacing.spacing32),
+          Divider(color: AppColors.neutral700),
+          SizedBox(height: AppSpacing.spacing16),
           Text(
-            '© 2025 WorkNest. All rights reserved.',
-            style: TextStyle(
-              color: Colors.grey[500],
-              fontSize: 14,
+            '© 2026 WorkNest. ${l10n.allRightsReserved}.',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.neutral500,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  Widget _buildFooterBrand() {
+  Widget _buildFooterBrand(BuildContext context, WidgetRef ref) {
+    final l10n = ref.watch(localizationsProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(
-              Icons.work,
-              color: Colors.white,
-              size: 32,
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'WorkNest',
-              style: TextStyle(
+            const WorkNestLogo(size: 32, showName: false),
+            SizedBox(width: AppSpacing.spacing8),
+            Text(
+              l10n.appName,
+              style: AppTypography.h5.copyWith(
                 color: Colors.white,
-                fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: AppSpacing.spacing16),
         Text(
-          'Nền tảng tìm kiếm việc làm hàng đầu Việt Nam, kết nối hàng ngàn ứng viên với các cơ hội việc làm tuyệt vời.',
-          style: TextStyle(
-            color: Colors.grey[400],
+          l10n.heroSubtitle,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.neutral400,
             height: 1.5,
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            IconButton(
-              onPressed: () {},
-              icon: Icon(Icons.facebook, color: Colors.grey[400]),
-            ),
-            IconButton(
-              onPressed: () {},
-              icon: Icon(Icons.link, color: Colors.grey[400]),
-            ),
-            IconButton(
-              onPressed: () {},
-              icon: Icon(Icons.email, color: Colors.grey[400]),
-            ),
-          ],
         ),
       ],
     );
   }
 
-  Widget _buildFooterLinks(String title, List<String> links) {
+  Widget _buildFooterLinks(String title, List<String> links, BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: AppTypography.labelLarge.copyWith(
             color: Colors.white,
-            fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: AppSpacing.spacing16),
         ...links.map((link) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: InkWell(
-            onTap: () {},
-            child: Text(
-              link,
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 14,
+              padding: EdgeInsets.only(bottom: AppSpacing.spacing8),
+              child: InkWell(
+                onTap: () {},
+                child: Text(
+                  link,
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.neutral400,
+                  ),
+                ),
               ),
-            ),
-          ),
-        )).toList(),
+            )),
       ],
     );
   }

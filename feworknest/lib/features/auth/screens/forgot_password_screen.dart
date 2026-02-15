@@ -3,14 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
+import '../../../shared/widgets/language_toggle_widget.dart';
+import '../../../shared/widgets/worknest_logo.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() =>
+      _ForgotPasswordScreenState();
 }
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
@@ -33,25 +40,27 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
     try {
       final authNotifier = ref.read(authProvider.notifier);
-      final success = await authNotifier.sendForgotPasswordOtp(_emailController.text.trim());
+      final success = await authNotifier.sendForgotPasswordOtp(
+        _emailController.text.trim(),
+      );
 
       if (!mounted) return;
 
+      final l10n = ref.read(localizationsProvider);
+
       if (success) {
-        // Navigate to OTP verification screen
-        context.push('/verify-otp', extra: _emailController.text.trim());
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Mã OTP đã được gửi đến email của bạn'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text(l10n.otpSentSuccess),
+            backgroundColor: AppColors.success,
           ),
         );
+        context.push('/verify-otp?email=${_emailController.text.trim()}');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Có lỗi xảy ra. Vui lòng thử lại'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: Text(l10n.error),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -59,8 +68,8 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text(e.toString()),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -75,135 +84,160 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = ref.watch(localizationsProvider);
+
     return Scaffold(
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: const Text('Quên mật khẩu'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: LanguageToggleButton(),
+          ),
+        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 600;
+
+            if (isWide) {
+              return Center(
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  padding: EdgeInsets.all(AppSpacing.spacing48),
+                  child: _buildContent(context, l10n),
+                ),
+              );
+            } else {
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(AppSpacing.spacing24),
+                child: _buildContent(context, l10n),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, dynamic l10n) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: AppSpacing.spacing32),
+
+          // Logo
+          Center(
+            child: const WorkNestLogo(size: 80),
+          ),
+          SizedBox(height: AppSpacing.spacing32),
+
+          // Title
+          Text(
+            l10n.forgotPasswordTitle,
+            style: AppTypography.h2,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.spacing12),
+
+          // Subtitle
+          Text(
+            l10n.forgotPasswordSubtitle,
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.neutral600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.spacing48),
+
+          // Info card
+          Container(
+            padding: EdgeInsets.all(AppSpacing.spacing16),
+            decoration: BoxDecoration(
+              color: AppColors.infoLight,
+              borderRadius: AppSpacing.borderRadiusMd,
+              border: Border.all(
+                color: AppColors.info.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
               children: [
-                const SizedBox(height: 40),
-                
-                // Icon and title
-                Center(
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Icon(
-                          Icons.lock_reset,
-                          size: 40,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Khôi phục mật khẩu',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Nhập email của bạn để nhận mã xác thực',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
+                Icon(
+                  Icons.info_outline,
+                  color: AppColors.info,
+                  size: 24,
                 ),
-                const SizedBox(height: 48),
-                
-                // Email field
-                AppTextField(
-                  controller: _emailController,
-                  label: 'Email',
-                  hintText: 'Nhập email đã đăng ký',
-                  keyboardType: TextInputType.emailAddress,
-                  prefixIcon: const Icon(Icons.email_outlined),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Email không hợp lệ';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 32),
-                
-                // Send OTP button
-                AppButton(
-                  onPressed: _isLoading ? null : _sendOtp,
-                  isLoading: _isLoading,
-                  text: 'Gửi mã xác thực',
-                ),
-                const SizedBox(height: 24),
-                
-                // Info card
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                SizedBox(width: AppSpacing.spacing12),
+                Expanded(
+                  child: Text(
+                    l10n.otpInfo,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.info,
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.info_outline,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Mã xác thực sẽ được gửi đến email của bạn và có hiệu lực trong 15 phút.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 32),
-                
-                // Back to login
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Nhớ mật khẩu? '),
-                    TextButton(
-                      onPressed: () => context.go('/login'),
-                      child: const Text('Đăng nhập ngay'),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
-        ),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Email field
+          AppTextField(
+            controller: _emailController,
+            label: l10n.email,
+            hintText: l10n.emailHint,
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: const Icon(Icons.email_outlined),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.emailRequired;
+              }
+              if (!value.contains('@')) {
+                return l10n.emailInvalid;
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: AppSpacing.spacing32),
+
+          // Send OTP button
+          AppButton(
+            onPressed: _isLoading ? null : _sendOtp,
+            isLoading: _isLoading,
+            text: l10n.sendOtpCode,
+          ),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Back to login link
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                l10n.rememberPassword,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral600,
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.go('/login'),
+                child: Text(
+                  l10n.backToLogin,
+                  style: AppTypography.labelMedium.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

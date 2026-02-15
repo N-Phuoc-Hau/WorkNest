@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
+import '../../../core/models/user_model.dart';
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_text_field.dart';
-import '../../../shared/widgets/register_image_picker_widget.dart';
+import '../../../shared/widgets/language_toggle_widget.dart';
+import '../../../shared/widgets/worknest_logo.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -20,104 +25,65 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  
-  // For recruiter registration
+  final _fullNameController = TextEditingController();
   final _companyNameController = TextEditingController();
-  final _taxCodeController = TextEditingController();
-  final _companyDescriptionController = TextEditingController();
-  final _locationController = TextEditingController();
   
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isRecruiter = false;
-  
-  // Image files for registration
-  XFile? _avatarFile;
-  List<XFile> _companyImageFiles = [];
+  bool _agreedToTerms = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _firstNameController.dispose();
-    _lastNameController.dispose();
+    _fullNameController.dispose();
     _companyNameController.dispose();
-    _taxCodeController.dispose();
-    _companyDescriptionController.dispose();
-    _locationController.dispose();
     super.dispose();
   }
 
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final authNotifier = ref.read(authProvider.notifier);
-    
-    Map<String, dynamic> userData = {
-      'email': _emailController.text.trim(),
-      'password': _passwordController.text,
-      'firstName': _firstNameController.text.trim(),
-      'lastName': _lastNameController.text.trim(),
-    };
+    final l10n = ref.read(localizationsProvider);
 
-    // Add avatar if selected
-    // Avatar file will be handled separately in registerWithFiles
-
-    print('DEBUG RegisterScreen: userData before register: $userData');
-    print('DEBUG RegisterScreen: isRecruiter: $_isRecruiter');
-
-    if (_isRecruiter) {
-      // Validate company images
-      if (_companyImageFiles.length < 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Công ty phải có ít nhất 3 ảnh môi trường làm việc'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        return;
-      }
-
-      userData.addAll({
-        'companyName': _companyNameController.text.trim(),
-        'taxCode': _taxCodeController.text.trim(),
-        'description': _companyDescriptionController.text.trim(),
-        'location': _locationController.text.trim(),
-      });
+    if (!_agreedToTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.agreeToTerms),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
     }
 
-    final success = await authNotifier.registerWithFiles(
-      userData, 
+    final authNotifier = ref.read(authProvider.notifier);
+    authNotifier.clearError();
+
+    final userData = {
+      'email': _emailController.text.trim(),
+      'password': _passwordController.text,
+      'fullName': _fullNameController.text.trim(),
+      if (_isRecruiter) 'companyName': _companyNameController.text.trim(),
+    };
+
+    final success = await authNotifier.register(
+      userData,
       isRecruiter: _isRecruiter,
-      avatarFile: _avatarFile,
-      companyImageFiles: _companyImageFiles,
     );
 
-    print('DEBUG RegisterScreen: Registration result: $success');
+    if (!mounted) return;
 
-    if (success && mounted) {
-      print('DEBUG RegisterScreen: Registration SUCCESS, navigating to login');
+    if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Đăng ký thành công! Vui lòng đăng nhập.'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text(l10n.registerSuccess),
+          backgroundColor: AppColors.success,
         ),
       );
       context.go('/login');
-    } else if (mounted) {
-      print('DEBUG RegisterScreen: Registration FAILED, staying on register page');
-      final error = ref.read(authProvider).error;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error ?? 'Đăng ký thất bại'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      
-      // Force rebuild to show error state
+    } else {
       setState(() {});
     }
   }
@@ -125,349 +91,545 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
+    final l10n = ref.watch(localizationsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Đăng ký'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/login'),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth > 900;
+            
+            if (isWide) {
+              return _buildWideLayout(context, authState, l10n);
+            } else {
+              return _buildMobileLayout(context, authState, l10n);
+            }
+          },
         ),
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
+    );
+  }
+
+  Widget _buildMobileLayout(
+    BuildContext context,
+    AuthState authState,
+    dynamic l10n,
+  ) {
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.spacing24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Language toggle
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: const [
+                LanguageToggleButton(),
+              ],
+            ),
+            SizedBox(height: AppSpacing.spacing24),
+
+            // Logo and branding
+            _buildBranding(context, l10n),
+            SizedBox(height: AppSpacing.spacing32),
+
+            // Register form
+            _buildRegisterForm(context, authState, l10n),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideLayout(
+    BuildContext context,
+    AuthState authState,
+    dynamic l10n,
+  ) {
+    return Row(
+      children: [
+        // Left side - Illustration
+        Expanded(
+          flex: 5,
+          child: Container(
+            color: AppColors.primary.withOpacity(0.05),
+            padding: EdgeInsets.all(AppSpacing.spacing48),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Role selector
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isRecruiter = false),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: !_isRecruiter
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.transparent,
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(12),
-                                bottomLeft: Radius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Ứng viên',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: !_isRecruiter
-                                    ? Colors.white
-                                    : Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _isRecruiter = true),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: _isRecruiter
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Colors.transparent,
-                              borderRadius: const BorderRadius.only(
-                                topRight: Radius.circular(12),
-                                bottomRight: Radius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              'Nhà tuyển dụng',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _isRecruiter
-                                    ? Colors.white
-                                    : Theme.of(context).colorScheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                
-                // Personal information
+                const WorkNestLogo(size: 60),
+                SizedBox(height: AppSpacing.spacing32),
                 Text(
-                  'Thông tin cá nhân',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  l10n.registerTitle,
+                  style: AppTypography.h2,
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
-                
-                // Avatar picker
-                RegisterImagePickerWidget(
-                  label: 'Ảnh đại diện (tùy chọn)',
-                  isMultiple: false,
-                  onSingleImageSelected: (file) {
-                    setState(() {
-                      _avatarFile = file;
-                    });
-                  },
+                SizedBox(height: AppSpacing.spacing16),
+                Text(
+                  l10n.registerSubtitle,
+                  style: AppTypography.bodyLarge.copyWith(
+                    color: AppColors.neutral600,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                
-                const SizedBox(height: 16),
-                
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppTextField(
-                        controller: _firstNameController,
-                        label: 'Họ',
-                        hintText: 'Nhập họ của bạn',
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Vui lòng nhập họ';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: AppTextField(
-                        controller: _lastNameController,
-                        label: 'Tên',
-                        hintText: 'Nhập tên của bạn',
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Vui lòng nhập tên';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                AppTextField(
-                  controller: _emailController,
-                  label: 'Email',
-                  hintText: 'Nhập email của bạn',
-                  keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Email không hợp lệ';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                
-                AppTextField(
-                  controller: _passwordController,
-                  label: 'Mật khẩu',
-                  hintText: 'Nhập mật khẩu của bạn',
-                  obscureText: _obscurePassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng nhập mật khẩu';
-                    }
-                    if (value.length < 6) {
-                      return 'Mật khẩu phải có ít nhất 6 ký tự';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                
-                AppTextField(
-                  controller: _confirmPasswordController,
-                  label: 'Xác nhận mật khẩu',
-                  hintText: 'Nhập lại mật khẩu',
-                  obscureText: _obscureConfirmPassword,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscureConfirmPassword = !_obscureConfirmPassword;
-                      });
-                    },
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Vui lòng xác nhận mật khẩu';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'Mật khẩu không khớp';
-                    }
-                    return null;
-                  },
-                ),
-                
-                // Company information (for recruiters)
-                if (_isRecruiter) ...[
-                  const SizedBox(height: 24),
-                  Text(
-                    'Thông tin công ty',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  AppTextField(
-                    controller: _companyNameController,
-                    label: 'Tên công ty',
-                    hintText: 'Nhập tên công ty',
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Vui lòng nhập tên công ty';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  AppTextField(
-                    controller: _taxCodeController,
-                    label: 'Mã số thuế',
-                    hintText: 'Nhập mã số thuế công ty',
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Vui lòng nhập mã số thuế';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  AppTextField(
-                    controller: _locationController,
-                    label: 'Địa chỉ',
-                    hintText: 'Nhập địa chỉ công ty',
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Vui lòng nhập địa chỉ';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  AppTextField(
-                    controller: _companyDescriptionController,
-                    label: 'Mô tả công ty',
-                    hintText: 'Nhập mô tả về công ty',
-                    maxLines: 3,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Vui lòng nhập mô tả công ty';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Company images picker
-                  RegisterImagePickerWidget(
-                    label: 'Ảnh môi trường làm việc (tối thiểu 3 ảnh)',
-                    isMultiple: true,
-                    maxImages: 5,
-                    onSingleImageSelected: (file) {}, // Not used for multiple
-                    onMultipleImagesSelected: (files) {
-                      setState(() {
-                        _companyImageFiles = files;
-                      });
-                    },
-                  ),
-                ],
-                
-                const SizedBox(height: 32),
-                
-                // Error message display
-                if (authState.error != null)
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      border: Border.all(color: Colors.red.withOpacity(0.3)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.error_outline, color: Colors.red[700], size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            authState.error!,
-                            style: TextStyle(
-                              color: Colors.red[700],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                
-                // Register button
-                AppButton(
-                  onPressed: authState.isLoading ? null : _register,
-                  isLoading: authState.isLoading,
-                  text: 'Đăng ký',
-                ),
-                const SizedBox(height: 16),
-                
-                // Login link
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Đã có tài khoản? '),
-                    TextButton(
-                      onPressed: () => context.go('/login'),
-                      child: const Text('Đăng nhập ngay'),
-                    ),
-                  ],
+                SizedBox(height: AppSpacing.spacing48),
+                Icon(
+                  Icons.person_add_rounded,
+                  size: 200,
+                  color: AppColors.primary.withOpacity(0.2),
                 ),
               ],
             ),
           ),
         ),
+
+        // Right side - Form
+        Expanded(
+          flex: 4,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(AppSpacing.spacing48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: const [
+                    LanguageToggleButton(),
+                  ],
+                ),
+                SizedBox(height: AppSpacing.spacing32),
+                Text(
+                  l10n.signUp,
+                  style: AppTypography.h2,
+                ),
+                SizedBox(height: AppSpacing.spacing48),
+                _buildRegisterForm(context, authState, l10n),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBranding(BuildContext context, dynamic l10n) {
+    return Column(
+      children: [
+        const WorkNestLogo(size: 80),
+        SizedBox(height: AppSpacing.spacing20),
+        Text(
+          l10n.appName,
+          style: AppTypography.h2.copyWith(
+            color: AppColors.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: AppSpacing.spacing8),
+        Text(
+          l10n.registerSubtitle,
+          style: AppTypography.bodyLarge.copyWith(
+            color: AppColors.neutral600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegisterForm(
+    BuildContext context,
+    AuthState authState,
+    dynamic l10n,
+  ) {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Role selector tabs
+          _buildRoleTabs(context, l10n),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Google Sign-up button
+          _buildGoogleSignUpButton(context, l10n),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Divider
+          _buildDivider(context, l10n),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Full Name / Company Name
+          AppTextField(
+            controller: _isRecruiter ? _companyNameController : _fullNameController,
+            label: _isRecruiter ? l10n.companyName : l10n.fullName,
+            hintText: _isRecruiter ? l10n.companyNameHint : l10n.fullNameHint,
+            prefixIcon: Icon(_isRecruiter ? Icons.business : Icons.person_outlined),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.fullNameRequired;
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+
+          // Email
+          AppTextField(
+            controller: _emailController,
+            label: l10n.email,
+            hintText: l10n.emailHint,
+            keyboardType: TextInputType.emailAddress,
+            prefixIcon: const Icon(Icons.email_outlined),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.emailRequired;
+              }
+              if (!value.contains('@')) {
+                return l10n.emailInvalid;
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+
+          // Password
+          AppTextField(
+            controller: _passwordController,
+            label: l10n.password,
+            hintText: l10n.passwordHint,
+            obscureText: _obscurePassword,
+            prefixIcon: const Icon(Icons.lock_outlined),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscurePassword = !_obscurePassword;
+                });
+              },
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.passwordRequired;
+              }
+              if (value.length < 6) {
+                return l10n.passwordTooShort;
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+
+          // Confirm Password
+          AppTextField(
+            controller: _confirmPasswordController,
+            label: l10n.confirmPassword,
+            hintText: l10n.confirmPasswordHint,
+            obscureText: _obscureConfirmPassword,
+            prefixIcon: const Icon(Icons.lock_outlined),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirmPassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+              ),
+              onPressed: () {
+                setState(() {
+                  _obscureConfirmPassword = !_obscureConfirmPassword;
+                });
+              },
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return l10n.passwordRequired;
+              }
+              if (value != _passwordController.text) {
+                return l10n.passwordsNotMatch;
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: AppSpacing.spacing20),
+
+          // Terms & Privacy checkbox
+          _buildTermsCheckbox(context, l10n),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Error message
+          if (authState.error != null) ...[
+            Container(
+              padding: EdgeInsets.all(AppSpacing.spacing12),
+              decoration: BoxDecoration(
+                color: AppColors.errorLight,
+                borderRadius: AppSpacing.borderRadiusMd,
+                border: Border.all(
+                  color: AppColors.error.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    color: AppColors.error,
+                    size: 20,
+                  ),
+                  SizedBox(width: AppSpacing.spacing8),
+                  Expanded(
+                    child: Text(
+                      authState.error!,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: AppSpacing.spacing16),
+          ],
+
+          // Register button
+          AppButton(
+            onPressed: authState.isLoading ? null : _register,
+            isLoading: authState.isLoading,
+            text: l10n.signUp,
+          ),
+          SizedBox(height: AppSpacing.spacing24),
+
+          // Login link
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                l10n.alreadyHaveAccount,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral600,
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.go('/login'),
+                child: Text(
+                  l10n.loginNow,
+                  style: AppTypography.labelMedium.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildRoleTabs(BuildContext context, dynamic l10n) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.neutral100,
+        borderRadius: AppSpacing.borderRadiusMd,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildRoleTab(
+              context,
+              l10n.jobSeeker,
+              Icons.person_outline,
+              !_isRecruiter,
+              () => setState(() => _isRecruiter = false),
+            ),
+          ),
+          Expanded(
+            child: _buildRoleTab(
+              context,
+              l10n.company,
+              Icons.business_outlined,
+              _isRecruiter,
+              () => setState(() => _isRecruiter = true),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoleTab(
+    BuildContext context,
+    String label,
+    IconData icon,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: AppSpacing.borderRadiusMd,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          vertical: AppSpacing.spacing12,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: AppSpacing.borderRadiusMd,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? AppColors.white : AppColors.neutral600,
+              size: 20,
+            ),
+            SizedBox(width: AppSpacing.spacing8),
+            Text(
+              label,
+              style: AppTypography.labelMedium.copyWith(
+                color: isSelected ? AppColors.white : AppColors.neutral600,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGoogleSignUpButton(BuildContext context, dynamic l10n) {
+    return OutlinedButton.icon(
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Google Sign-Up coming soon!'),
+            backgroundColor: AppColors.info,
+          ),
+        );
+      },
+      icon: Image.network(
+        'https://www.google.com/favicon.ico',
+        width: 20,
+        height: 20,
+        errorBuilder: (context, error, stackTrace) {
+          return const Icon(
+            Icons.g_mobiledata_rounded,
+            color: AppColors.primary,
+            size: 24,
+          );
+        },
+      ),
+      label: Text(
+        l10n.loginWithGoogle,
+        style: AppTypography.labelLarge.copyWith(
+          color: AppColors.neutral900,
+        ),
+      ),
+      style: OutlinedButton.styleFrom(
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.spacing20,
+          vertical: AppSpacing.spacing16,
+        ),
+        side: BorderSide(
+          color: AppColors.neutral300,
+          width: 1.5,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppSpacing.borderRadiusMd,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDivider(BuildContext context, dynamic l10n) {
+    return Row(
+      children: [
+        const Expanded(child: Divider(color: AppColors.neutral300, thickness: 1)),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpacing.spacing16),
+          child: Text(
+            l10n.orSignUpWith,
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.neutral500,
+            ),
+          ),
+        ),
+        const Expanded(child: Divider(color: AppColors.neutral300, thickness: 1)),
+      ],
+    );
+  }
+
+  Widget _buildTermsCheckbox(BuildContext context, dynamic l10n) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Checkbox(
+          value: _agreedToTerms,
+          onChanged: (value) {
+            setState(() {
+              _agreedToTerms = value ?? false;
+            });
+          },
+          activeColor: AppColors.primary,
+        ),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(top: AppSpacing.spacing12),
+            child: Wrap(
+              children: [
+                Text(
+                  '${l10n.agreeToTerms.split(',')[0]}, ',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.neutral600,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // TODO: Open Terms of Service
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    l10n.termsOfService,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.primary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+                Text(
+                  ' ${l10n.and} ',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.neutral600,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    // TODO: Open Privacy Policy
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    l10n.privacyPolicy,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.primary,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

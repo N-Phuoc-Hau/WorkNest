@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/application_model.dart';
-import '../../../core/providers/cv_analysis_provider.dart';
+import '../../../core/providers/application_cv_analysis_provider.dart';
 import '../../../core/providers/recruiter_applicants_provider.dart';
 import '../../../shared/widgets/common_widgets.dart';
 import '../../chat/screens/chat_detail_screen.dart';
@@ -36,13 +36,13 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
 
   Future<void> _loadCVAnalysis() async {
     try {
-      await ref.read(cvAnalysisProvider.notifier).getCVAnalysis(widget.application.id);
+      await ref.read(applicationCVAnalysisProvider.notifier).getCVAnalysis(widget.application.id);
       
       // If no analysis found and we have CV, trigger analysis
-      final analysisState = ref.read(cvAnalysisProvider);
+      final analysisState = ref.read(applicationCVAnalysisProvider);
       if (analysisState.currentAnalysis == null && 
           !analysisState.isLoading && 
-          !analysisState.isAnalyzing &&
+          !analysisState.isRequesting &&
           widget.application.cvUrl?.isNotEmpty == true) {
         
         print('DEBUG ApplicationDetailPage: No analysis found, triggering analysis');
@@ -81,9 +81,38 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final analysisState = ref.watch(cvAnalysisProvider);
+    final analysisState = ref.watch(applicationCVAnalysisProvider);
     
     print('DEBUG ApplicationDetailPage: Building UI with applicant: ${widget.application.applicantName}');
+    
+    // Show loading screen if initial load is in progress (loading but no data yet)
+    if (analysisState.isLoading && analysisState.currentAnalysis == null) {
+      return Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: const Text('Chi tiết ứng viên'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Đang tải thông tin phân tích CV...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -94,12 +123,12 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
         elevation: 0,
         actions: [
           // CV Analysis Quick Button
-          if (analysisState.analysisResult != null)
+          if (analysisState.currentAnalysis != null)
             IconButton(
               onPressed: () => _showCVAnalysis(context),
               icon: Badge(
-                label: Text('${analysisState.analysisResult!.scores.overallScore}%'),
-                backgroundColor: _getScoreColor(analysisState.analysisResult!.scores.overallScore),
+                label: Text('${analysisState.currentAnalysis!.matchScore}%'),
+                backgroundColor: _getScoreColor(analysisState.currentAnalysis!.matchScore),
                 child: const Icon(Icons.analytics_outlined),
               ),
               tooltip: 'Phân tích CV',
@@ -164,7 +193,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             // Quick Match Score (if available)
             if (analysisState.currentAnalysis != null)
               _buildQuickMatchScore(analysisState.currentAnalysis!)
-            else if (analysisState.isLoading || analysisState.isAnalyzing)
+            else if (analysisState.isLoading || analysisState.isRequesting)
               _buildLoadingMatchScore(analysisState)
             else if (widget.application.cvUrl?.isNotEmpty == true)
               _buildNoAnalysisCard()
@@ -184,8 +213,8 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             const SizedBox(height: 16),
             
             // CV Analysis Summary (if available)
-            if (analysisState.analysisResult != null)
-              _buildAnalysisSummary(analysisState.analysisResult!),
+            if (analysisState.currentAnalysis != null)
+              _buildAnalysisSummary(analysisState.currentAnalysis!),
             
             const SizedBox(height: 16),
             
@@ -323,7 +352,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
   }
 
   Widget _buildQuickMatchScore(analysisResult) {
-    final matchScore = analysisResult.scores?.overallScore ?? 0;
+    final matchScore = analysisResult.scores?.overallScore ?? analysisResult.matchScore ?? 0;
     final matchScoreColor = _getScoreColor(matchScore);
     final matchScoreText = _getScoreText(matchScore);
     
@@ -428,7 +457,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  analysisState.isAnalyzing ? 'Đang phân tích CV...' : 'Đang tải...',
+                  analysisState.isRequesting ? 'Đang phân tích CV...' : 'Đang tải...',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -581,7 +610,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                           ),
                         ),
                       )
-                    : analysisState.isAnalyzing || analysisState.isLoading
+                    : analysisState.isRequesting || analysisState.isLoading
                         ? ElevatedButton.icon(
                             onPressed: null,
                             icon: const SizedBox(
@@ -589,7 +618,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             ),
-                            label: Text(analysisState.isAnalyzing ? 'Đang phân tích...' : 'Đang tải...'),
+                            label: Text(analysisState.isRequesting ? 'Đang phân tích...' : 'Đang tải...'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.grey,
                               foregroundColor: Colors.white,
@@ -671,7 +700,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                   ),
                   TextButton(
                     onPressed: () {
-                      ref.read(cvAnalysisProvider.notifier).clearError();
+                      ref.read(applicationCVAnalysisProvider.notifier).clearError();
                       _requestCVAnalysis();
                     },
                     child: const Text('Thử lại', style: TextStyle(fontSize: 12)),
@@ -852,7 +881,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
           const SizedBox(height: 16),
           
           // Skills Preview
-          if (analysisResult.extractedSkills.isNotEmpty) ...[
+          if (analysisResult.extractedSkills?.isNotEmpty == true) ...[
             Text(
               'Kỹ năng nổi bật:',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -863,7 +892,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: analysisResult.extractedSkills.take(5).map<Widget>((skill) => 
+              children: (analysisResult.extractedSkills ?? []).take(5).map<Widget>((skill) => 
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
@@ -881,11 +910,11 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                 ),
               ).toList(),
             ),
-            if (analysisResult.extractedSkills.length > 5)
+            if ((analysisResult.extractedSkills ?? []).length > 5)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  '+${analysisResult.extractedSkills.length - 5} kỹ năng khác',
+                  '+${(analysisResult.extractedSkills ?? []).length - 5} kỹ năng khác',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
@@ -908,7 +937,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                         Icon(Icons.thumb_up_outlined, size: 16, color: Colors.green[600]),
                         const SizedBox(width: 4),
                         Text(
-                          'Điểm mạnh (${analysisResult.strengths.length})',
+                          'Điểm mạnh (${(analysisResult.strengths ?? []).length})',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -917,9 +946,9 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                         ),
                       ],
                     ),
-                    if (analysisResult.strengths.isNotEmpty)
+                    if ((analysisResult.strengths ?? []).isNotEmpty)
                       Text(
-                        analysisResult.strengths.first,
+                        (analysisResult.strengths ?? []).first,
                         style: const TextStyle(fontSize: 12),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -937,7 +966,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                         Icon(Icons.warning_outlined, size: 16, color: Colors.orange[600]),
                         const SizedBox(width: 4),
                         Text(
-                          'Cần cải thiện (${analysisResult.weaknesses.length})',
+                          'Cần cải thiện (${(analysisResult.weaknesses ?? []).length})',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -946,9 +975,9 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
                         ),
                       ],
                     ),
-                    if (analysisResult.weaknesses.isNotEmpty)
+                    if ((analysisResult.weaknesses ?? []).isNotEmpty)
                       Text(
-                        analysisResult.weaknesses.first,
+                        (analysisResult.weaknesses ?? []).first,
                         style: const TextStyle(fontSize: 12),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -1112,7 +1141,7 @@ class _ApplicationDetailPageState extends ConsumerState<ApplicationDetailPage> {
 
   void _requestCVAnalysis() async {
     try {
-      final success = await ref.read(cvAnalysisProvider.notifier).requestCVAnalysis(widget.application.id);
+      final success = await ref.read(applicationCVAnalysisProvider.notifier).requestCVAnalysis(widget.application.id);
       
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

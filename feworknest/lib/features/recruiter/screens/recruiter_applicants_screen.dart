@@ -19,6 +19,7 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
   final TextEditingController _searchController = TextEditingController();
   String _selectedFilter = 'all';
   int? _selectedJobId;
+  bool _isStatisticsExpanded = true; // Track expand/collapse state
 
   @override
   void initState() {
@@ -243,7 +244,6 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
 
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.blue[50],
         borderRadius: BorderRadius.circular(12),
@@ -252,32 +252,79 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Thống kê tổng quan',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          // Header with collapse/expand button
+          InkWell(
+            onTap: () {
+              setState(() {
+                _isStatisticsExpanded = !_isStatisticsExpanded;
+              });
+            },
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Text(
+                    'Thống kê tổng quan',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  AnimatedRotation(
+                    turns: _isStatisticsExpanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      color: Colors.blue[700],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildStatCard('Tổng cộng', totalApplications.toString(), Colors.blue),
+          
+          // Expandable content
+          AnimatedCrossFade(
+            firstChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildCompactStat('$totalApplications', 'Tổng', Colors.blue),
+                  _buildCompactStat('$pendingCount', 'Chờ', Colors.orange),
+                  _buildCompactStat('$acceptedCount', 'Chấp nhận', Colors.green),
+                  _buildCompactStat('$rejectedCount', 'Từ chối', Colors.red),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildStatCard('Chờ xem xét', pendingCount.toString(), Colors.orange),
+            ),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard('Tổng cộng', totalApplications.toString(), Colors.blue),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildStatCard('Chờ xem xét', pendingCount.toString(), Colors.orange),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildStatCard('Đã chấp nhận', acceptedCount.toString(), Colors.green),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildStatCard('Từ chối', rejectedCount.toString(), Colors.red),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildStatCard('Đã chấp nhận', acceptedCount.toString(), Colors.green),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildStatCard('Từ chối', rejectedCount.toString(), Colors.red),
-              ),
-            ],
+            ),
+            crossFadeState: _isStatisticsExpanded 
+                ? CrossFadeState.showSecond 
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 200),
           ),
         ],
       ),
@@ -314,6 +361,31 @@ class _RecruiterApplicantsScreenState extends ConsumerState<RecruiterApplicantsS
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCompactStat(String value, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: color.withOpacity(0.8),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 

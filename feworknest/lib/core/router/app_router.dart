@@ -8,11 +8,11 @@ import '../../features/admin/screens/admin_jobs_screen.dart';
 import '../../features/admin/screens/admin_users_screen.dart';
 import '../../features/applications/screens/application_detail_screen.dart';
 import '../../features/applications/screens/my_applications_screen.dart';
-import '../../features/auth/screens/forgot_password_screen.dart';
+import '../../features/auth/screens/forgot_password_screen_old.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/reset_password_screen.dart';
-import '../../features/auth/screens/verify_otp_screen.dart';
+import '../../features/auth/screens/verify_otp_screen_old.dart';
 import '../../features/candidate/screens/candidate_home_screen.dart';
 import '../../features/candidate/screens/cv_analysis_screen.dart';
 import '../../features/candidate/screens/following_companies_screen.dart';
@@ -42,28 +42,33 @@ import '../../features/settings/screens/admin_settings_screen.dart';
 import '../../features/settings/screens/candidate_settings_screen.dart';
 import '../../features/settings/screens/recruiter_settings_screen.dart';
 import '../../shared/screens/company_screen.dart';
-import '../providers/auth_provider.dart';
+import 'auth_notifier.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
+  final authNotifier = ref.watch(authRouterNotifierProvider);
   
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/',
+    refreshListenable: authNotifier, // Use listenable instead of rebuilding entire router
     redirect: (context, state) {
-      final isLoggedIn = authState.isAuthenticated;
-      final isLoading = authState.isLoading;
-      final user = authState.user;
+      // Read auth state from notifier without causing rebuild
+      final isLoggedIn = authNotifier.isAuthenticated;
+      final isLoading = authNotifier.isLoading;
+      final user = authNotifier.user;
       final location = state.uri.toString();
 
       print('DEBUG Router: location=$location, isLoggedIn=$isLoggedIn, isLoading=$isLoading, user=${user?.fullName}');
 
-      // If loading, stay on current page
+      // CRITICAL: If loading, MUST stay on current page to prevent premature redirects
       if (isLoading) {
         print('DEBUG Router: Still loading, staying on current page');
         return null;
       }
 
-      // Public routes that don't require authentication (but exclude auth pages)
+      // Auth pages - these should be accessible when NOT logged in
+      final authPages = ['/login', '/register', '/forgot-password', '/verify-otp', '/reset-password'];
+      
+      // Public routes that anyone can access
       final publicRoutes = [
         '/',
         '/jobs',
@@ -72,7 +77,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         '/company',
       ];
 
-      // Protected routes that require authentication
+      // Protected routes that REQUIRE authentication
       final protectedRoutes = [
         '/home',
         '/favorites',
@@ -83,57 +88,54 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         '/notifications',
       ];
 
-      // PRIORITY 1: If logged in and trying to access auth pages, redirect to appropriate home
-      if (isLoggedIn && user != null && (location == '/login' || location == '/register' || 
-          location == '/forgot-password' || location == '/verify-otp' || location == '/reset-password')) {
-        print('DEBUG Router: User is authenticated, redirecting from auth page');
-        print('DEBUG Router: user.role = ${user.role}');
-        print('DEBUG Router: user.isRecruiter = ${user.isRecruiter}');
-        print('DEBUG Router: Checking redirect logic...');
-        
-        if (user.role == 'Admin') {
-          print('DEBUG Router: Admin user, redirecting to /admin-dashboard');
-          return '/admin-dashboard';
-        } else if (user.isRecruiter == true) {
-          print('DEBUG Router: Logged in recruiter accessing auth page, redirecting to /recruiter/home');
-          return '/recruiter/home';
+      // PRIORITY 1: If on auth page and NOT loading
+      if (authPages.contains(location)) {
+        if (isLoggedIn && user != null) {
+          // User is logged in, redirect away from auth pages to appropriate home
+          print('DEBUG Router: User authenticated on auth page, redirecting to home');
+          if (user.role == 'Admin') {
+            return '/admin-dashboard';
+          } else if (user.isRecruiter == true) {
+            return '/recruiter/home';
+          } else {
+            return '/home';
+          }
         } else {
-          print('DEBUG Router: Logged in user accessing auth page, redirecting to /home');
-          return '/home';
+          // User NOT logged in on auth page - THIS IS CORRECT, stay here
+          print('DEBUG Router: User not authenticated on auth page, staying');
+          return null;
         }
       }
 
-      // PRIORITY 2: Allow job detail and company pages for everyone
-      if (location.startsWith('/job-detail/') || 
+      // PRIORITY 2: Allow public routes for everyone
+      if (publicRoutes.contains(location) || 
+          location.startsWith('/job-detail/') || 
           location.startsWith('/company/') ||
-          location.startsWith('/jobs/') ||
-          publicRoutes.contains(location)) {
-        print('DEBUG Router: Public route allowed');
+          location.startsWith('/jobs/')) {
+        print('DEBUG Router: Public route, allowing access');
         return null;
       }
 
-      // PRIORITY 3: If not logged in and trying to access protected routes, redirect to /login
-      if (!isLoggedIn && (protectedRoutes.contains(location) || 
-          location.startsWith('/recruiter') || 
-          location.startsWith('/edit-job'))) {
-        print('DEBUG Router: Not logged in, redirecting to /login');
-        return '/login';
+      // PRIORITY 3: Protect restricted routes - redirect to login if not authenticated
+      if (protectedRoutes.contains(location) || location.startsWith('/admin')) {
+        if (!isLoggedIn) {
+          print('DEBUG Router: Protected route without auth, redirecting to /login');
+          return '/login';
+        }
+        return null;
       }
 
       // PRIORITY 4: Protect recruiter routes - only allow recruiters
-      if ((location.startsWith('/recruiter') || location.startsWith('/edit-job')) && 
-          (!isLoggedIn || user?.isRecruiter != true)) {
-        print('DEBUG Router: Recruiter route protection, redirecting to /login');
-        return '/login';
+      if (location.startsWith('/recruiter') || location.startsWith('/edit-job')) {
+        if (!isLoggedIn || user?.isRecruiter != true) {
+          print('DEBUG Router: Recruiter route protection, redirecting to /login');
+          return '/login';
+        }
+        return null;
       }
 
-      // PRIORITY 5: If not logged in and on root, redirect to login
-      if (!isLoggedIn && location == '/') {
-        print('DEBUG Router: Not logged in on root page, redirecting to /login');
-        return '/login';
-      }
-
-      print('DEBUG Router: No redirect needed');
+      // Default: allow navigation
+      print('DEBUG Router: No redirect needed, allowing navigation');
       return null;
     },
     routes: [

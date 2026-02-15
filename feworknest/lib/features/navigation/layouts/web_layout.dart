@@ -81,7 +81,7 @@ class _WebLayoutState extends ConsumerState<WebLayout> {
                 Expanded(
                   child: Container(
                     width: double.infinity,
-                    color: Colors.grey[50],
+                    color: Theme.of(context).scaffoldBackgroundColor,
                     child: widget.child,
                   ),
                 ),
@@ -97,18 +97,17 @@ class _WebLayoutState extends ConsumerState<WebLayout> {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final isAuthenticated = authState.isAuthenticated;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       height: 64,
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+        color: isDark ? const Color(0xFF1F2937) : Colors.white,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? const Color(0xFF374151) : Colors.grey[200]!,
           ),
-        ],
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),

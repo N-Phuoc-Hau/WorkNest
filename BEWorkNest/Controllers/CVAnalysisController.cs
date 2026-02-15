@@ -433,6 +433,65 @@ namespace BEWorkNest.Controllers
         }
 
         /// <summary>
+        /// Lấy danh sách CV đã phân tích có thể sử dụng để ứng tuyển
+        /// </summary>
+        [HttpGet("saved-cvs")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetSavedCVsFromAnalysis()
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Không tìm thấy thông tin người dùng trong token",
+                        errorCode = "AUTHENTICATION_REQUIRED"
+                    });
+                }
+
+                if (userRole != "candidate")
+                {
+                    return Forbid();
+                }
+
+                // Lấy danh sách CV từ lịch sử phân tích có CVUrl
+                var savedCVs = await _context.CVAnalysisHistories
+                    .Where(h => h.UserId == userId && !string.IsNullOrEmpty(h.CVUrl))
+                    .OrderByDescending(h => h.CreatedAt)
+                    .Select(h => new
+                    {
+                        id = h.Id,
+                        analysisId = h.AnalysisId,
+                        fileName = h.CVFileName ?? "CV.pdf",
+                        cvUrl = h.CVUrl,
+                        overallScore = h.OverallScore,
+                        analyzedAt = h.CreatedAt,
+                        fileSize = h.CVFileSize,
+                        displayName = $"CV phân tích ngày {h.CreatedAt:dd/MM/yyyy HH:mm} - Điểm: {h.OverallScore}"
+                    })
+                    .ToListAsync();
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Lấy danh sách CV thành công",
+                    data = savedCVs
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi lấy danh sách CV đã lưu");
+                return StatusCode(500, new { 
+                    success = false,
+                    message = "Lỗi hệ thống khi lấy danh sách CV",
+                    error = ex.Message 
+                });
+            }
+        }
+
+        /// <summary>
         /// Phân tích CV với job cụ thể (cho recruiter)
         /// </summary>
         [HttpPost("analyze-for-job/{jobId}")]

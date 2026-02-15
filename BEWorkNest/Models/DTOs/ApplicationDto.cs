@@ -14,6 +14,20 @@ namespace BEWorkNest.Models.DTOs
         public IFormFile CvFile { get; set; } = null!; // PDF file only
     }
 
+    public class CreateApplicationWithSavedCVDto
+    {
+        [Required]
+        public int JobId { get; set; }
+        
+        [Required]
+        public string CoverLetter { get; set; } = string.Empty;
+        
+        [Required]
+        public string CvUrl { get; set; } = string.Empty;
+        
+        public string? CvFileName { get; set; }
+    }
+
     public class UpdateApplicationDto
     {
         public string? CoverLetter { get; set; }

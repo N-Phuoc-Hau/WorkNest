@@ -2,26 +2,36 @@
 Tìm kiếm việc làm: cho nhà tuyển dụng và ứng viên: Web, Mobile. Flutter, mysql, C#
 WorkNest – Nơi tìm kiếm việc làm
 1.	Chức năng:
-a.	Đăng nhập, Đăng ký
+a.	Đăng nhập, Đăng ký X
 b.	Đăng nhập bằng Google(Đang xem xét)
-c.	Đăng tin tuyển dụng
-i.	Đăng bài viết
-d.	Ứng tuyển
-i.	Tìm kiếm công việc phù hợp và gửi hồ sơ có sẵn hoặc thêm mới
-e.	Quản lý hồ sơ ứng viên
-i.	Cho phép lưu hồ sơ để ứng tuyển
-f.	Yêu thích công việc
-i.	Đưa vào trang yêu thích để có thể mọi lúc
-g.	Theo dõi, thông báo
-i.	Khi người dùng theo dõi HR thì khi đăng tin sẽ được gửi thông báo về mail
-h.	Chat thời gian thực
-i.	Dùng Firebase
-i.	Tìm kiếm hồ sơ, công việc
-i.	Gợi ý những công việc phù hợp với ứng viên
-ii.	Gợi ý những nhân sự phù hợp cho HR
-j.	Đánh giá 
-i.	Đánh giá hồ sơ ứng viên
-ii.	Đánh giá chất lượng của công ty
+c.	Đăng tin tuyển dung X
+d.	Ứng tuyển X
+i.	Tìm kiếm công việc phù hợp và gửi hồ sơ có sẵn hoặc thêm mới X
+e.	Quản lý hồ sơ ứng viên X
+i.	Cho phép lưu hồ sơ để ứng tuyển X
+f.	Yêu thích công việc X
+i.	Đưa vào trang yêu thích để có thể mọi lúc X
+g.	Theo dõi, thông báo X
+i.	Khi người dùng theo dõi HR thì khi đăng tin sẽ được gửi thông báo về mail X
+h.	Chat thời gian thực X 
+i.	Dùng Firebase X
+i.	Tìm kiếm hồ sơ, công việc X
+i.	Gợi ý những công việc phù hợp với ứng viên X
+ii.	Gợi ý những nhân sự phù hợp cho HR X
+j.	Đánh giá X
+i.	Đánh giá hồ sơ ứng viên X
+ii.	Đánh giá chất lượng của công ty X
 2.	Công nghệ:
 BackEnd C#: ASP.NET Core Web API, Entity Framework Core, JWT Token, MySQL
 FrontEnd Flutter: MultiPlatform, JWT Token, GoRouter, Material 3, Responsive UI, Firebase Cloud Messaging (FCM), Firebase + Firebase Firestore
+
+
+
+i.	Gợi ý những công việc phù hợp với ứng viên X
+HIện tại chưa có trang gợi ý riêng cho ứng viên từ CVAnalysist hãy làm thêm 1 cái là phân tích hồ sơ không có application 
+để phân tích CV Điểm yếu của họ từ đó gợi ý ra công việc trong DB tôi có
+ii.	Gợi ý những nhân sự phù hợp cho HR X
+Từ đó hãy làm thêm gợi ý công việc với User phù hợp với công việc trả ngược về cho Role Recruiter
+
+
+Những tính năng đã có 

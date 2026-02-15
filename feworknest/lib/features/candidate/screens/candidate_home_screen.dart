@@ -3,9 +3,625 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/providers/theme_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/language_toggle_widget.dart';
 
 class CandidateHomeScreen extends ConsumerWidget {
   const CandidateHomeScreen({super.key});
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'good_morning';
+    if (hour < 18) return 'good_afternoon';
+    return 'good_evening';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    final l10n = ref.watch(localizationsProvider);
+    final isDark = ref.watch(themeModeProvider) == ThemeMode.dark;
+    final isWide = MediaQuery.of(context).size.width > 1024;
+
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.all(isWide ? AppSpacing.spacing32 : AppSpacing.spacing20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with theme and language toggles
+              _buildHeader(context, ref, l10n, isDark),
+              SizedBox(height: AppSpacing.spacing32),
+
+              // Greeting
+              _buildGreeting(context, ref, user, l10n),
+              SizedBox(height: AppSpacing.spacing32),
+
+              // Stats Cards
+              _buildStatsSection(context, l10n, isWide),
+              SizedBox(height: AppSpacing.spacing32),
+
+              // Recent Applications
+              _buildRecentApplications(context, l10n, isWide),
+              SizedBox(height: AppSpacing.spacing32),
+
+              // Quick Actions
+              _buildQuickActions(context, l10n, isWide),
+              
+              SizedBox(height: AppSpacing.spacing64),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, WidgetRef ref, dynamic l10n, bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          l10n.dashboard,
+          style: AppTypography.h2.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Row(
+          children: [
+            // Theme toggle
+            IconButton(
+              onPressed: () {
+                ref.read(themeModeProvider.notifier).toggleTheme();
+              },
+              icon: Icon(
+                isDark ? Icons.light_mode : Icons.dark_mode,
+                color: AppColors.neutral700,
+              ),
+              tooltip: isDark ? 'Light Mode' : 'Dark Mode',
+            ),
+            SizedBox(width: AppSpacing.spacing8),
+            
+            // Language toggle
+            const LanguageToggleButton(),
+            
+            SizedBox(width: AppSpacing.spacing8),
+            
+            // Notifications
+            IconButton(
+              onPressed: () => context.push('/notifications'),
+              icon: Badge(
+                label: const Text('3'),
+                child: Icon(
+                  Icons.notifications_outlined,
+                  color: AppColors.neutral700,
+                ),
+              ),
+              tooltip: 'Notifications',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGreeting(BuildContext context, WidgetRef ref, dynamic user, dynamic l10n) {
+    final greeting = _getGreeting();
+    final greetingText = greeting == 'good_morning'
+        ? l10n.goodMorning
+        : greeting == 'good_afternoon'
+            ? l10n.goodAfternoon
+            : l10n.goodEvening;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$greetingText, ${user?.firstName ?? 'User'}',
+          style: AppTypography.h3.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: AppSpacing.spacing8),
+        Text(
+          l10n.welcomeDashboard,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.neutral600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatsSection(BuildContext context, dynamic l10n, bool isWide) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (isWide) {
+          return Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: _buildStatCard(
+                  context,
+                  l10n.totalJobsApplied,
+                  '12',
+                  Icons.work_outline,
+                  AppColors.primary,
+                ),
+              ),
+              SizedBox(width: AppSpacing.spacing16),
+              Expanded(
+                flex: 1,
+                child: _buildStatCard(
+                  context,
+                  l10n.interviewed,
+                  '5',
+                  Icons.people_outline,
+                  AppColors.success,
+                ),
+              ),
+              SizedBox(width: AppSpacing.spacing16),
+              Expanded(
+                flex: 1,
+                child: _buildStatusCard(context, l10n),
+              ),
+            ],
+          );
+        } else {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatCard(
+                      context,
+                      l10n.totalJobsApplied,
+                      '12',
+                      Icons.work_outline,
+                      AppColors.primary,
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.spacing16),
+                  Expanded(
+                    child: _buildStatCard(
+                      context,
+                      l10n.interviewed,
+                      '5',
+                      Icons.people_outline,
+                      AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: AppSpacing.spacing16),
+              _buildStatusCard(context, l10n),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildStatCard(
+    BuildContext context,
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.neutral800
+              : AppColors.neutral200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(AppSpacing.spacing12),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          Text(
+            title,
+            style: AppTypography.bodyMedium.copyWith(
+              color: AppColors.neutral600,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing8),
+          Text(
+            value,
+            style: AppTypography.h2.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(BuildContext context, dynamic l10n) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing24),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.neutral800
+              : AppColors.neutral200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.jobsAppliedStatus,
+            style: AppTypography.bodyLarge.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing24),
+          
+          // Status items
+          _buildStatusItem(l10n.reviewed, 5, Colors.blue),
+          SizedBox(height: AppSpacing.spacing12),
+          _buildStatusItem(l10n.shortlisted, 3, Colors.green),
+          SizedBox(height: AppSpacing.spacing12),
+          _buildStatusItem(l10n.inReview, 2, Colors.orange),
+          SizedBox(height: AppSpacing.spacing12),
+          _buildStatusItem(l10n.declined, 2, Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusItem(String label, int count, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        SizedBox(width: AppSpacing.spacing12),
+        Expanded(
+          child: Text(
+            label,
+            style: AppTypography.bodyMedium,
+          ),
+        ),
+        Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.spacing12,
+            vertical: AppSpacing.spacing4,
+          ),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            count.toString(),
+            style: AppTypography.bodySmall.copyWith(
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentApplications(BuildContext context, dynamic l10n, bool isWide) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              l10n.recentApplications,
+              style: AppTypography.h4.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.go('/applications'),
+              child: Text(l10n.viewAllApplications),
+            ),
+          ],
+        ),
+        SizedBox(height: AppSpacing.spacing16),
+        
+        // Mock applications
+        _buildApplicationItem(
+          context,
+          'Senior UI/UX Designer',
+          'Nomad',
+          'Paris, France',
+          '24 July 2024',
+          l10n.inReview,
+          Colors.orange,
+          'https://via.placeholder.com/40',
+        ),
+        SizedBox(height: AppSpacing.spacing12),
+        _buildApplicationItem(
+          context,
+          'Social Media Assistant',
+          'Udacity',
+          'New York, USA',
+          '23 July 2024',
+          l10n.shortlisted,
+          Colors.green,
+          'https://via.placeholder.com/40',
+        ),
+        SizedBox(height: AppSpacing.spacing12),
+        _buildApplicationItem(
+          context,
+          'Marketing Manager',
+          'Packer',
+          'Madrid, Spain',
+          '22 July 2024',
+          l10n.declined,
+          Colors.red,
+          'https://via.placeholder.com/40',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildApplicationItem(
+    BuildContext context,
+    String jobTitle,
+    String company,
+    String location,
+    String dateApplied,
+    String status,
+    Color statusColor,
+    String logoUrl,
+  ) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.neutral800
+              : AppColors.neutral200,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Company logo
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.neutral100,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.business,
+                color: AppColors.primary,
+                size: 24,
+              ),
+            ),
+          ),
+          SizedBox(width: AppSpacing.spacing16),
+          
+          // Job info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  jobTitle,
+                  style: AppTypography.bodyLarge.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: AppSpacing.spacing4),
+                Text(
+                  '$company • $location',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.neutral600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                SizedBox(height: AppSpacing.spacing4),
+                Text(
+                  dateApplied,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.neutral500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          SizedBox(width: AppSpacing.spacing12),
+          
+          // Status badge
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.spacing12,
+              vertical: AppSpacing.spacing6,
+            ),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: statusColor.withOpacity(0.3),
+              ),
+            ),
+            child: Text(
+              status,
+              style: AppTypography.bodySmall.copyWith(
+                color: statusColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context, dynamic l10n, bool isWide) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.quickActions,
+          style: AppTypography.h4.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: AppSpacing.spacing16),
+        
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = isWide ? 4 : 2;
+            
+            return GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: AppSpacing.spacing16,
+              mainAxisSpacing: AppSpacing.spacing16,
+              childAspectRatio: 1.3,
+              children: [
+                _buildQuickActionCard(
+                  context,
+                  l10n.findJobs,
+                  l10n.exploreJobs,
+                  Icons.search,
+                  AppColors.primary,
+                  () => context.go('/jobs'),
+                ),
+                _buildQuickActionCard(
+                  context,
+                  l10n.myApplications,
+                  l10n.trackApplications,
+                  Icons.work_outline,
+                  Colors.orange,
+                  () => context.go('/applications'),
+                ),
+                _buildQuickActionCard(
+                  context,
+                  l10n.favorites,
+                  l10n.savedJobs,
+                  Icons.favorite_outline,
+                  Colors.red,
+                  () => context.go('/favorites'),
+                ),
+                _buildQuickActionCard(
+                  context,
+                  l10n.browseCompanies,
+                  l10n.followedCompanies,
+                  Icons.business_outlined,
+                  Colors.green,
+                  () => context.go('/following-companies'),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuickActionCard(
+    BuildContext context,
+    String title,
+    String subtitle,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.all(AppSpacing.spacing16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.neutral800
+                : AppColors.neutral200,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: EdgeInsets.all(AppSpacing.spacing12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: color,
+                size: 28,
+              ),
+            ),
+            SizedBox(height: AppSpacing.spacing12),
+            Text(
+              title,
+              style: AppTypography.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            SizedBox(height: AppSpacing.spacing4),
+            Text(
+              subtitle,
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.neutral600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -374,4 +990,3 @@ class CandidateHomeScreen extends ConsumerWidget {
       ),
     );
   }
-}

@@ -1,0 +1,496 @@
+=============================================================================
+                    LƯỢC ĐỒ CƠ SỞ DỮ LIỆU HỆ THỐNG WORKNEST
+=============================================================================
+
+Ngày tạo: 14/09/2025
+Hệ thống: WorkNest - Nền tảng tuyển dụng và tìm việc làm
+Database: MySQL/SQL Server
+Framework: ASP.NET Core Identity + Entity Framework Core
+
+=============================================================================
+                              TỔNG QUAN HỆ THỐNG
+=============================================================================
+
+WorkNest là một hệ thống tuyển dụng trực tuyến bao gồm:
+- Quản lý người dùng (Ứng viên, Nhà tuyển dụng, Admin)
+- Đăng tin tuyển dụng và ứng tuyển
+- Phân tích CV tự động bằng AI
+- Hệ thống gợi ý công việc
+- Chat và phỏng vấn trực tuyến
+- Theo dõi và đánh giá
+- Phân tích hành vi người dùng
+
+=============================================================================
+                            DANH SÁCH CÁC BẢNG CHÍNH
+=============================================================================
+
+1. QUẢN LÝ NGƯỜI DÙNG VÀ XÁC THỰC
+   - AspNetUsers (Identity Users)
+   - AspNetRoles (Identity Roles)
+   - companies
+   - companyimages
+   - userprofiles
+   - refreshtokens
+   - forgotpasswordotps
+   - userdevices
+
+2. QUẢN LÝ CÔNG VIỆC VÀ ỨNG TUYỂN
+   - jobposts
+   - applications
+   - interviews
+
+3. TƯƠNG TÁC XÃ HỘI
+   - follows
+   - reviews
+   - favoritejobs
+   - notifications
+
+4. PHÂN TÍCH CV VÀ AI
+   - cvanalysishistories
+   - jobmatchanalytics
+   - cvanalysisstats
+   - savedcvs
+   - cvanalysisresults
+   - jobrecommendationlogs
+
+5. THEO DÕI HÀNH VI NGƯỜI DÙNG
+   - searchhistories
+   - jobviewhistories
+   - applicationhistories
+   - analytics
+
+=============================================================================
+                          CHI TIẾT CÁC BẢNG DỮ LIỆU
+=============================================================================
+
+1. BẢNG AspNetUsers (Người dùng chính)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Bảng người dùng chính kế thừa từ ASP.NET Core Identity           │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (string, PK): User ID                                              │
+   │ - UserName (string): Tên đăng nhập                                      │
+   │ - Email (string): Email                                                 │
+   │ - FirstName (string): Họ                                                │
+   │ - LastName (string): Tên                                                │
+   │ - Role (string): Vai trò (candidate/recruiter/admin)                    │
+   │ - Avatar (string): URL ảnh đại diện                                     │
+   │ - IsActive (bool): Trạng thái hoạt động                                 │
+   │ - CreatedAt (datetime): Ngày tạo                                        │
+   │ - UpdatedAt (datetime): Ngày cập nhật                                   │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - 1:1 với companies (nếu là recruiter)                                  │
+   │ - 1:N với jobposts (nếu là recruiter)                                   │
+   │ - 1:N với applications (nếu là candidate)                               │
+   │ - 1:N với reviews (cả reviewer và reviewed)                             │
+   │ - 1:N với follows (cả follower và được follow)                          │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+2. BẢNG companies (Công ty)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Thông tin các công ty/nhà tuyển dụng                             │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Company ID                                              │
+   │ - UserId (string, FK): Liên kết với AspNetUsers                         │
+   │ - Name (string): Tên công ty                                            │
+   │ - TaxCode (string, Unique): Mã số thuế                                  │
+   │ - Description (string): Mô tả công ty                                    │
+   │ - Location (string): Địa chỉ                                            │
+   │ - IsVerified (bool): Đã xác thực                                        │
+   │ - IsActive (bool): Trạng thái hoạt động                                 │
+   │ - CreatedAt (datetime): Ngày tạo                                        │
+   │ - UpdatedAt (datetime): Ngày cập nhật                                   │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - 1:1 với AspNetUsers                                                   │
+   │ - 1:N với companyimages                                                 │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+3. BẢNG jobposts (Tin tuyển dụng)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Các tin tuyển dụng được đăng bởi nhà tuyển dụng                  │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Job Post ID                                             │
+   │ - RecruiterId (string, FK): ID nhà tuyển dụng                           │
+   │ - Title (string): Tiêu đề công việc                                     │
+   │ - Description (string): Mô tả công việc                                 │
+   │ - Requirements (string): Yêu cầu                                        │
+   │ - Benefits (string): Quyền lợi                                          │
+   │ - Salary (decimal): Mức lương                                           │
+   │ - Location (string): Địa điểm làm việc                                  │
+   │ - Specialized (string): Chuyên ngành                                    │
+   │ - JobType (string): Loại hình (fulltime/parttime/contract)              │
+   │ - WorkingHours (string): Giờ làm việc                                   │
+   │ - ExpiryDate (datetime): Ngày hết hạn                                   │
+   │ - IsActive (bool): Trạng thái                                           │
+   │ - CreatedAt (datetime): Ngày tạo                                        │
+   │ - UpdatedAt (datetime): Ngày cập nhật                                   │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers (recruiter)                                       │
+   │ - 1:N với applications                                                  │
+   │ - 1:N với favoritejobs                                                  │
+   │ - 1:N với jobmatchanalytics                                             │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+4. BẢNG applications (Đơn ứng tuyển)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Các đơn ứng tuyển của ứng viên                                   │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Application ID                                          │
+   │ - ApplicantId (string, FK): ID ứng viên                                 │
+   │ - JobId (int, FK): ID công việc                                         │
+   │ - CoverLetter (string): Thư xin việc                                    │
+   │ - CvUrl (string): URL file CV                                           │
+   │ - Status (int): Trạng thái (Pending/Accepted/Rejected)                  │
+   │ - RejectionReason (string): Lý do từ chối                               │
+   │ - CreatedAt (datetime): Ngày ứng tuyển                                  │
+   │ - IsActive (bool): Trạng thái hoạt động                                 │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers (applicant)                                       │
+   │ - N:1 với jobposts                                                      │
+   │ - 1:N với interviews                                                    │
+   │ - Unique constraint: (ApplicantId, JobId)                               │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+5. BẢNG cvanalysishistories (Lịch sử phân tích CV)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Lưu trữ kết quả phân tích CV bằng AI                             │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Analysis ID                                             │
+   │ - UserId (string, FK): ID người dùng                                    │
+   │ - AnalysisId (string, Unique): ID phân tích duy nhất                    │
+   │ - CVUrl (string): URL file CV trên Cloudinary                           │
+   │ - CVFileName (string): Tên file CV                                      │
+   │ - CVPublicId (string): Public ID Cloudinary                             │
+   │ - CVFileSize (int): Kích thước file                                     │
+   │ - ExtractedText (string): Text trích xuất từ CV                         │
+   │ - OverallScore (int): Điểm tổng thể                                     │
+   │ - TechnicalScore (int): Điểm kỹ thuật                                   │
+   │ - ExperienceScore (int): Điểm kinh nghiệm                               │
+   │ - EducationScore (int): Điểm học vấn                                    │
+   │ - SkillsScore (int): Điểm kỹ năng                                       │
+   │ - LanguageScore (int): Điểm ngoại ngữ                                   │
+   │ - SoftSkillsScore (int): Điểm kỹ năng mềm                               │
+   │ - CertificationScore (int): Điểm chứng chỉ                              │
+   │ - Skills (string): Danh sách kỹ năng (JSON)                             │
+   │ - Experience (string): Kinh nghiệm (JSON)                               │
+   │ - Education (string): Học vấn (JSON)                                    │
+   │ - Strengths (string): Điểm mạnh (JSON)                                  │
+   │ - Weaknesses (string): Điểm yếu (JSON)                                  │
+   │ - Suggestions (string): Gợi ý cải thiện (JSON)                          │
+   │ - RecommendedJobs (string): Công việc gợi ý (JSON)                      │
+   │ - CreatedAt (datetime): Ngày phân tích                                  │
+   │ - IsActive (bool): Trạng thái                                           │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers                                                   │
+   │ - Unique index: AnalysisId                                              │
+   │ - Index: UserId, CreatedAt                                              │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+6. BẢNG savedcvs (CV đã lưu)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Quản lý CV đã lưu của ứng viên để tái sử dụng                    │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Saved CV ID                                             │
+   │ - UserId (string, FK): ID ứng viên                                      │
+   │ - Name (string): Tên CV                                                 │
+   │ - Description (string): Mô tả                                           │
+   │ - FilePath (string): Đường dẫn file                                     │
+   │ - FileName (string): Tên file                                           │
+   │ - FileExtension (string): Phần mở rộng (.pdf)                           │
+   │ - FileSize (int): Kích thước file                                       │
+   │ - ExtractedText (string): Text trích xuất                               │
+   │ - Skills (string): Kỹ năng (JSON)                                       │
+   │ - WorkExperience (string): Kinh nghiệm (JSON)                           │
+   │ - Education (string): Học vấn (JSON)                                    │
+   │ - Projects (string): Dự án (JSON)                                       │
+   │ - Certifications (string): Chứng chỉ (JSON)                             │
+   │ - Languages (string): Ngôn ngữ (JSON)                                   │
+   │ - ExperienceYears (int): Số năm kinh nghiệm                             │
+   │ - CurrentPosition (string): Vị trí hiện tại                             │
+   │ - OverallScore (int): Điểm đánh giá                                     │
+   │ - AnalysisResult (string): Kết quả phân tích (JSON)                     │
+   │ - LastAnalyzedAt (datetime): Lần phân tích cuối                         │
+   │ - UsageCount (int): Số lần sử dụng                                      │
+   │ - LastUsedAt (datetime): Lần sử dụng cuối                               │
+   │ - IsDefault (bool): CV mặc định                                         │
+   │ - IsActive (bool): Trạng thái hoạt động                                 │
+   │ - CreatedAt (datetime): Ngày tạo                                        │
+   │ - UpdatedAt (datetime): Ngày cập nhật                                   │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers                                                   │
+   │ - Index: UserId, IsDefault, IsActive, CreatedAt                         │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+7. BẢNG follows (Theo dõi)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Quan hệ theo dõi giữa ứng viên và nhà tuyển dụng                 │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Follow ID                                               │
+   │ - FollowerId (string, FK): ID người theo dõi                            │
+   │ - RecruiterId (string, FK): ID nhà tuyển dụng                           │
+   │ - CreatedAt (datetime): Ngày theo dõi                                   │
+   │ - IsActive (bool): Trạng thái                                           │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers (follower)                                        │
+   │ - N:1 với AspNetUsers (recruiter)                                       │
+   │ - Unique constraint: (FollowerId, RecruiterId)                          │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+8. BẢNG reviews (Đánh giá)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Đánh giá qua lại giữa ứng viên và nhà tuyển dụng                 │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Review ID                                               │
+   │ - ReviewerId (string, FK): ID người đánh giá                            │
+   │ - ReviewedUserId (string, FK): ID người được đánh giá                   │
+   │ - Rating (int): Điểm đánh giá (1-5)                                     │
+   │ - Comment (string): Bình luận                                           │
+   │ - ReviewType (string): Loại đánh giá                                    │
+   │ - CreatedAt (datetime): Ngày đánh giá                                   │
+   │ - IsActive (bool): Trạng thái                                           │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers (reviewer)                                        │
+   │ - N:1 với AspNetUsers (reviewed)                                        │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+9. BẢNG interviews (Phỏng vấn)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Quản lý lịch phỏng vấn                                           │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Interview ID                                            │
+   │ - ApplicationId (int, FK): ID đơn ứng tuyển                             │
+   │ - InterviewDate (datetime): Ngày phỏng vấn                              │
+   │ - Location (string): Địa điểm                                           │
+   │ - MeetingUrl (string): Link họp online                                  │
+   │ - Notes (string): Ghi chú                                               │
+   │ - Status (string): Trạng thái                                           │
+   │ - Result (string): Kết quả                                              │
+   │ - CreatedAt (datetime): Ngày tạo                                        │
+   │ - UpdatedAt (datetime): Ngày cập nhật                                   │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với applications                                                  │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+10. BẢNG notifications (Thông báo)
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │ Mô tả: Hệ thống thông báo cho người dùng                                │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Trường chính:                                                           │
+   │ - Id (int, PK): Notification ID                                         │
+   │ - UserId (string, FK): ID người nhận                                    │
+   │ - Title (string): Tiêu đề                                               │
+   │ - Message (string): Nội dung                                            │
+   │ - Type (string): Loại thông báo                                         │
+   │ - IsRead (bool): Đã đọc                                                 │
+   │ - CreatedAt (datetime): Ngày tạo                                        │
+   │ - ReadAt (datetime): Ngày đọc                                           │
+   ├─────────────────────────────────────────────────────────────────────────┤
+   │ Quan hệ:                                                                │
+   │ - N:1 với AspNetUsers                                                   │
+   └─────────────────────────────────────────────────────────────────────────┘
+
+=============================================================================
+                           CÁC BẢNG PHÂN TÍCH VÀ THỐNG KÊ
+=============================================================================
+
+11. BẢNG analytics (Phân tích chung)
+    - Lưu trữ dữ liệu phân tích tổng quát
+    - Theo dõi hoạt động người dùng
+    - Thống kê hệ thống
+
+12. BẢNG searchhistories (Lịch sử tìm kiếm)
+    - Lưu trữ từ khóa tìm kiếm
+    - Phân tích xu hướng tìm kiếm
+    - Cải thiện kết quả tìm kiếm
+
+13. BẢNG jobviewhistories (Lịch sử xem công việc)
+    - Theo dõi công việc được xem
+    - Thời gian xem
+    - Phân tích hành vi người dùng
+
+14. BẢNG applicationhistories (Lịch sử ứng tuyển)
+    - Theo dõi quá trình ứng tuyển
+    - Thống kê tỷ lệ thành công
+    - Phân tích hiệu quả
+
+15. BẢNG jobmatchanalytics (Phân tích khớp công việc)
+    - Điểm khớp giữa CV và công việc
+    - Thuật toán gợi ý
+    - Đánh giá độ phù hợp
+
+16. BẢNG cvanalysisstats (Thống kê phân tích CV)
+    - Thống kê tổng quan về CV
+    - Điểm trung bình
+    - Xu hướng cải thiện
+
+=============================================================================
+                              QUAN HỆ CHÍNH
+=============================================================================
+
+1. USER RELATIONSHIPS (Quan hệ người dùng)
+   AspNetUsers (1) ←→ (1) companies [recruiter có công ty]
+   AspNetUsers (1) ←→ (N) jobposts [recruiter đăng nhiều job]
+   AspNetUsers (1) ←→ (N) applications [candidate ứng tuyển nhiều job]
+   AspNetUsers (1) ←→ (N) cvanalysishistories [user có nhiều lần phân tích CV]
+   AspNetUsers (1) ←→ (N) savedcvs [user có nhiều CV đã lưu]
+
+2. JOB APPLICATION FLOW (Luồng ứng tuyển)
+   jobposts (1) ←→ (N) applications
+   applications (1) ←→ (N) interviews
+   cvanalysishistories → applications [CV được phân tích có thể dùng để ứng tuyển]
+
+3. SOCIAL FEATURES (Tính năng xã hội)
+   AspNetUsers (N) ←→ (N) follows [many-to-many qua bảng follows]
+   AspNetUsers (N) ←→ (N) reviews [many-to-many qua bảng reviews]
+   AspNetUsers (N) ←→ (N) favoritejobs [many-to-many qua bảng favoritejobs]
+
+4. AI & ANALYTICS (AI và phân tích)
+   cvanalysishistories (1) ←→ (N) jobmatchanalytics
+   AspNetUsers (1) ←→ (N) searchhistories
+   AspNetUsers (1) ←→ (N) jobviewhistories
+   AspNetUsers (1) ←→ (N) applicationhistories
+
+=============================================================================
+                              INDEXES VÀ CONSTRAINTS
+=============================================================================
+
+1. UNIQUE CONSTRAINTS
+   - companies.TaxCode (Mã số thuế duy nhất)
+   - cvanalysishistories.AnalysisId (ID phân tích duy nhất)
+   - applications(ApplicantId, JobId) (Một user chỉ ứng tuyển một job một lần)
+   - follows(FollowerId, RecruiterId) (Một user chỉ follow một recruiter một lần)
+   - refreshtokens.Token (Token duy nhất)
+
+2. FOREIGN KEY CONSTRAINTS
+   - Tất cả FK đều có ON DELETE CASCADE hoặc RESTRICT
+   - Đảm bảo tính toàn vẹn dữ liệu
+   - Tránh orphan records
+
+3. PERFORMANCE INDEXES
+   - AspNetUsers: Email, Role, IsActive
+   - jobposts: RecruiterId, IsActive, CreatedAt, ExpiryDate
+   - applications: ApplicantId, JobId, Status, CreatedAt
+   - cvanalysishistories: UserId, AnalysisId, CreatedAt
+   - notifications: UserId, IsRead, CreatedAt
+   - analytics: UserId, Type, CreatedAt
+
+=============================================================================
+                           TÍNH NĂNG ĐẶC BIỆT
+=============================================================================
+
+1. CV ANALYSIS & REUSE SYSTEM (Hệ thống phân tích và tái sử dụng CV)
+   - Phân tích CV tự động bằng AI
+   - Lưu trữ CV trên Cloudinary
+   - Cho phép tái sử dụng CV đã phân tích
+   - Điểm đánh giá chi tiết theo nhiều tiêu chí
+
+2. JOB MATCHING ALGORITHM (Thuật toán khớp công việc)
+   - So khớp CV với yêu cầu công việc
+   - Tính điểm phù hợp
+   - Gợi ý công việc phù hợp
+
+3. BEHAVIOR TRACKING (Theo dõi hành vi)
+   - Lịch sử tìm kiếm, xem job, ứng tuyển
+   - Phân tích xu hướng người dùng
+   - Cải thiện trải nghiệm
+
+4. SOCIAL FEATURES (Tính năng xã hội)
+   - Follow nhà tuyển dụng
+   - Đánh giá qua lại
+   - Yêu thích công việc
+
+5. NOTIFICATION SYSTEM (Hệ thống thông báo)
+   - Thông báo real-time
+   - Push notification
+   - Email notification
+
+=============================================================================
+                              BẢO MẬT VÀ PHÂN QUYỀN
+=============================================================================
+
+1. AUTHENTICATION (Xác thực)
+   - ASP.NET Core Identity
+   - JWT Token
+   - Refresh Token
+   - Password hashing
+
+2. AUTHORIZATION (Phân quyền)
+   - Role-based: candidate, recruiter, admin
+   - Resource-based: chỉ được truy cập dữ liệu của mình
+   - API endpoint protection
+
+3. DATA SECURITY (Bảo mật dữ liệu)
+   - Soft delete (IsActive flag)
+   - Data encryption cho thông tin nhạy cảm
+   - Audit logging
+
+=============================================================================
+                              KẾT LUẬN
+=============================================================================
+
+Hệ thống cơ sở dữ liệu WorkNest được thiết kế với:
+- Kiến trúc modular, dễ mở rộng
+- Tối ưu hiệu suất với indexes hợp lý
+- Tính toàn vẹn dữ liệu với constraints
+- Hỗ trợ AI và machine learning
+- Theo dõi hành vi người dùng chi tiết
+- Bảo mật và phân quyền chặt chẽ
+
+Tổng số bảng: 20+ bảng chính
+Tổng số quan hệ: 30+ foreign keys
+Hỗ trợ: Millions of records với performance tốt
+
+=============================================================================
+                              TÍCH HỢP NGOÀI
+=============================================================================
+
+1. CLOUDINARY INTEGRATION
+   - Lưu trữ file CV, ảnh đại diện
+   - Auto-backup và CDN
+   - URL-based access
+
+2. AI SERVICES
+   - CV parsing và analysis
+   - Job matching algorithms
+   - Natural language processing
+
+3. NOTIFICATION SERVICES
+   - Firebase Cloud Messaging
+   - Email services (SendGrid/SMTP)
+   - Real-time SignalR
+
+4. AUTHENTICATION PROVIDERS
+   - Google OAuth
+   - Facebook Login
+   - LinkedIn Integration
+
+=============================================================================
+                              PHIÊN BẢN VÀ MIGRATION
+=============================================================================
+
+Current Migration: 20250101000001_AddAnalyticsTable
+- Hỗ trợ Entity Framework Migrations
+- Backward compatibility
+- Database versioning
+- Rollback capabilities
+
+=============================================================================
+END OF DOCUMENT
+=============================================================================

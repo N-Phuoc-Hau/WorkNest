@@ -253,5 +253,37 @@ namespace BEWorkNest.Controllers
             
             return Ok(new { devices });
         }
+
+        [HttpDelete("{notificationId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DeleteNotification(int notificationId)
+        {
+            // Get user info from JWT token
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new { 
+                    message = "Token không hợp lệ hoặc đã hết hạn",
+                    errorCode = "INVALID_TOKEN"
+                });
+            }
+            
+            var notification = await _context.Notifications
+                .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId);
+            
+            if (notification == null)
+            {
+                return NotFound(new { message = "Không tìm thấy thông báo" });
+            }
+            
+            _context.Notifications.Remove(notification);
+            await _context.SaveChangesAsync();
+            
+            return Ok(new { 
+                success = true,
+                message = "Đã xóa thông báo thành công" 
+            });
+        }
     }
 }

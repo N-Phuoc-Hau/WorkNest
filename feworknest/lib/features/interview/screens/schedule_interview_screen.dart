@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/models/application_model.dart';
-import '../services/interview_service.dart';
+import '../../../core/services/interview_service.dart';
 
 class ScheduleInterviewScreen extends ConsumerStatefulWidget {
   final ApplicationModel application;

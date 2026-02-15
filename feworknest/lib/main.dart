@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/app/app.dart';
 import 'core/config/firebase_web_config.dart';
-import 'core/services/notification_service.dart';
 import 'core/services/signalr_notification_service.dart';
 
 void main() async {
@@ -17,11 +16,7 @@ void main() async {
       // 🔧 Khởi tạo Firebase
       await FirebaseWebConfig.initializeFirebase();
 
-      // 🔔 Khởi tạo dịch vụ thông báo
-      final notificationService = NotificationService();
-      await notificationService.initialize();
-
-      // 🔄 Khởi tạo SignalR service
+      //  Khởi tạo SignalR service
       final signalRService = SignalRNotificationService();
       await signalRService.initialize();
 

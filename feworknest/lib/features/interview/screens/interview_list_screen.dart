@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../models/interview_model.dart';
-import '../services/interview_service.dart';
+import '../../../core/models/interview_model.dart';
+import '../../../core/services/interview_service.dart';
 
 class InterviewListScreen extends ConsumerStatefulWidget {
   const InterviewListScreen({super.key});

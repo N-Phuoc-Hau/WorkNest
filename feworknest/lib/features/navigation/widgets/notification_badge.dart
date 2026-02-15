@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/providers/notification_provider.dart';
+
 import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/unified_notification_provider.dart';
 
 class NotificationBadge extends ConsumerWidget {
   final Widget child;
@@ -17,14 +18,13 @@ class NotificationBadge extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authProvider);
     
-    if (user?.user == null) {
+    if (user.user == null) {
       return child;
     }
 
-    final notificationState = ref.watch(notificationProvider(user!.user!.id));
-    final unreadCount = count ?? notificationState.unreadCount;
+    final unreadCount = count ?? ref.watch(unreadCountProvider);
 
-    if (unreadCount <= 0) {
+    if ((unreadCount ?? 0) <= 0) {
       return child;
     }
 
@@ -46,7 +46,7 @@ class NotificationBadge extends ConsumerWidget {
               minHeight: 20,
             ),
             child: Text(
-              unreadCount > 99 ? '99+' : unreadCount.toString(),
+              (unreadCount ?? 0) > 99 ? '99+' : (unreadCount ?? 0).toString(),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 12,

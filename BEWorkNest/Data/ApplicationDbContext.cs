@@ -37,6 +37,9 @@ namespace BEWorkNest.Data
         public DbSet<CVAnalysisHistory> CVAnalysisHistories { get; set; }
         public DbSet<JobMatchAnalytics> JobMatchAnalytics { get; set; }
         public DbSet<CVAnalysisStats> CVAnalysisStats { get; set; }
+        
+        // Saved CV Tables
+        public DbSet<SavedCV> SavedCVs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -201,6 +204,25 @@ namespace BEWorkNest.Data
 
             builder.Entity<CVAnalysisStats>()
                 .HasIndex(cas => cas.UpdatedAt);
+
+            // Configure SavedCV entity
+            builder.Entity<SavedCV>()
+                .HasOne(scv => scv.User)
+                .WithMany()
+                .HasForeignKey(scv => scv.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<SavedCV>()
+                .HasIndex(scv => scv.UserId);
+
+            builder.Entity<SavedCV>()
+                .HasIndex(scv => scv.IsDefault);
+
+            builder.Entity<SavedCV>()
+                .HasIndex(scv => scv.IsActive);
+
+            builder.Entity<SavedCV>()
+                .HasIndex(scv => scv.CreatedAt);
 
             // Ignore unused ASP.NET Identity tables to clean up database
             builder.Ignore<IdentityUserClaim<string>>();

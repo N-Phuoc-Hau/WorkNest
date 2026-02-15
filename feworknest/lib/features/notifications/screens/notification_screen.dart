@@ -4,8 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/models/notification_model.dart';
 import '../../../core/providers/auth_provider.dart';
-import '../../../core/services/signalr_notification_service.dart';
-import '../providers/notification_list_provider.dart';
+import '../../../core/providers/notification_provider.dart';
 
 class NotificationScreen extends ConsumerWidget {
   const NotificationScreen({super.key});
@@ -22,7 +21,7 @@ class NotificationScreen extends ConsumerWidget {
       );
     }
 
-    final notificationState = ref.watch(notificationListProvider);
+    final notificationState = ref.watch(notificationProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -49,14 +48,14 @@ class NotificationScreen extends ConsumerWidget {
         actions: [
           // Test Notification Button (for development)
           IconButton(
-            onPressed: () => _showTestNotificationDialog(context),
+            onPressed: () => _showTestNotificationDialog(context, ref),
             icon: const Icon(Icons.bug_report),
             tooltip: 'Test Notifications',
           ),
           if (notificationState.unreadCount > 0)
             TextButton(
               onPressed: () {
-                ref.read(notificationListProvider.notifier).markAllAsRead();
+                ref.read(notificationProvider.notifier).markAllAsRead();
               },
               child: const Text(
                 'Đánh dấu tất cả',
@@ -97,7 +96,8 @@ class NotificationScreen extends ConsumerWidget {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          ref.read(notificationListProvider.notifier).clearError();
+                          ref.read(notificationProvider.notifier).clearError();
+                          ref.read(notificationProvider.notifier).refresh();
                         },
                         child: const Text('Thử lại'),
                       ),
@@ -136,12 +136,26 @@ class NotificationScreen extends ConsumerWidget {
                     )
                   : RefreshIndicator(
                       onRefresh: () async {
-                        ref.read(notificationListProvider.notifier).refresh();
+                        ref.read(notificationProvider.notifier).refresh();
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.all(8),
-                        itemCount: notificationState.notifications.length,
+                        itemCount: notificationState.notifications.length + (notificationState.hasReachedEnd ? 0 : 1),
                         itemBuilder: (context, index) {
+                          // If we're at the end and haven't reached the final page, show loading indicator
+                          if (index == notificationState.notifications.length) {
+                            if (!notificationState.hasReachedEnd && !notificationState.isLoading) {
+                              // Trigger load more
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                ref.read(notificationProvider.notifier).loadMoreNotifications();
+                              });
+                            }
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          
                           final notification = notificationState.notifications[index];
                           return _buildNotificationTile(context, ref, notification);
                         },
@@ -203,7 +217,7 @@ class NotificationScreen extends ConsumerWidget {
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
             if (value == 'mark_read' && !isRead) {
-              ref.read(notificationListProvider.notifier)
+              ref.read(notificationProvider.notifier)
                   .markAsRead(notification.id);
             } else if (value == 'delete') {
               _showDeleteConfirmation(context, ref, notification.id);
@@ -236,7 +250,7 @@ class NotificationScreen extends ConsumerWidget {
         onTap: () {
           _handleNotificationTap(context, notification);
           if (!isRead) {
-            ref.read(notificationListProvider.notifier)
+            ref.read(notificationProvider.notifier)
                 .markAsRead(notification.id);
           }
         },
@@ -344,7 +358,7 @@ class NotificationScreen extends ConsumerWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ref.read(notificationListProvider.notifier).deleteNotification(notificationId);
+              ref.read(notificationProvider.notifier).deleteNotification(notificationId);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Đã xóa thông báo'),
@@ -372,7 +386,7 @@ class NotificationScreen extends ConsumerWidget {
     } else {
       return 'Vừa xong';
     }
-  }  void _showTestNotificationDialog(BuildContext context) {
+  }  void _showTestNotificationDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -385,7 +399,7 @@ class NotificationScreen extends ConsumerWidget {
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
-                _testLocalNotification('Chat Message', 'You have a new message from John Doe', context);
+                _testLocalNotification('Chat Message', 'You have a new message from John Doe', context, ref);
               },
               icon: const Icon(Icons.chat),
               label: const Text('Chat Notification'),
@@ -395,7 +409,7 @@ class NotificationScreen extends ConsumerWidget {
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
-                _testLocalNotification('New Job Posted', 'A new "Flutter Developer" position has been posted', context);
+                _testLocalNotification('New Job Posted', 'A new "Flutter Developer" position has been posted', context, ref);
               },
               icon: const Icon(Icons.work),
               label: const Text('Job Notification'),
@@ -405,7 +419,7 @@ class NotificationScreen extends ConsumerWidget {
             ElevatedButton.icon(
               onPressed: () {
                 Navigator.pop(context);
-                _testLocalNotification('Interview Scheduled', 'Your interview has been scheduled for tomorrow at 2:00 PM', context);
+                _testLocalNotification('Interview Scheduled', 'Your interview has been scheduled for tomorrow at 2:00 PM', context, ref);
               },
               icon: const Icon(Icons.event),
               label: const Text('Interview Notification'),
@@ -423,21 +437,19 @@ class NotificationScreen extends ConsumerWidget {
     );
   }
 
-  void _testLocalNotification(String title, String body, BuildContext context) async {
+  void _testLocalNotification(String title, String body, BuildContext context, WidgetRef ref) async {
     try {
-      // Import SignalRNotificationService at the top
-      final signalRService = SignalRNotificationService();
-      await signalRService.showLocalNotification(
-        title: title,
-        body: body,
-      );
-      
+      // Create a fake notification for testing
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Test notification sent: $title'),
+          content: Text('Test notification: $title - $body'),
           backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
         ),
       );
+      
+      // Refresh the notification list to simulate new notifications
+      ref.read(notificationProvider.notifier).refresh();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

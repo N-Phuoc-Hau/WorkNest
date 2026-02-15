@@ -5,35 +5,115 @@ import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../constants/api_constants.dart';
+import '../interceptors/auth_interceptor.dart';
 import '../models/application_model.dart';
+import '../services/auth_service.dart';
 import '../utils/token_storage.dart';
 
 class ApplicationService {
   final Dio _dio;
+  final AuthService _authService;
 
-  ApplicationService({Dio? dio}) : _dio = dio ?? Dio() {
+  ApplicationService({Dio? dio, AuthService? authService}) 
+    : _authService = authService ?? AuthService(),
+      _dio = dio ?? Dio() {
     _dio.options.baseUrl = ApiConstants.baseUrl;
+    
+    // Thêm AuthInterceptor để tự động refresh token
+    _dio.interceptors.add(AuthInterceptor(_authService));
+    
+    // Thêm logging interceptor
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
+        print('DEBUG ApplicationService: Request to ${options.path}');
         final token = await TokenStorage.getAccessToken();
-        print('DEBUG ApplicationService: Token from storage: ${token != null ? "EXISTS" : "NULL"}');
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer $token';
-          print('DEBUG ApplicationService: Authorization header set');
-        } else {
-          print('DEBUG ApplicationService: No token found, request will fail');
-        }
+        print('DEBUG ApplicationService: Token available: ${token != null ? "YES" : "NO"}');
         handler.next(options);
       },
+      onResponse: (response, handler) async {
+        print('DEBUG ApplicationService: Response ${response.statusCode} from ${response.requestOptions.path}');
+        handler.next(response);
+      },
       onError: (error, handler) async {
-        print('DEBUG ApplicationService: HTTP Error: ${error.response?.statusCode}');
-        print('DEBUG ApplicationService: Error data: ${error.response?.data}');
+        print('DEBUG ApplicationService: Error ${error.response?.statusCode} from ${error.requestOptions.path}');
+        print('DEBUG ApplicationService: Error message: ${error.response?.data}');
         handler.next(error);
       },
     ));
   }
 
-  /// Submit job application with PDF CV file
+  /// Submit job application with saved CV URL
+  /// 
+  /// [jobId] - ID của job post cần ứng tuyển
+  /// [coverLetter] - Thư xin việc
+  /// [savedCVUrl] - URL của CV đã lưu từ Cloudinary
+  /// [savedCVFileName] - Tên file CV đã lưu
+  Future<ApplicationModel> submitApplicationWithSavedCV({
+    required int jobId,
+    required String coverLetter,
+    required String savedCVUrl,
+    required String savedCVFileName,
+  }) async {
+    // Validate inputs
+    if (coverLetter.trim().isEmpty) {
+      throw Exception('Cover letter không được để trống');
+    }
+
+    if (savedCVUrl.trim().isEmpty) {
+      throw Exception('URL CV không hợp lệ');
+    }
+
+    return await createApplicationWithSavedCV(
+      jobId: jobId,
+      coverLetter: coverLetter,
+      savedCVUrl: savedCVUrl,
+      savedCVFileName: savedCVFileName,
+    );
+  }
+
+  /// Create application with saved CV URL
+  Future<ApplicationModel> createApplicationWithSavedCV({
+    required int jobId,
+    required String coverLetter,
+    required String savedCVUrl,
+    required String savedCVFileName,
+  }) async {
+    try {
+      final data = {
+        'jobId': jobId,
+        'coverLetter': coverLetter,
+        'cvUrl': savedCVUrl,
+        'cvFileName': savedCVFileName,
+      };
+
+      print('DEBUG ApplicationService: Creating application with saved CV for jobId: $jobId');
+      print('DEBUG ApplicationService: Cover letter length: ${coverLetter.length}');
+      print('DEBUG ApplicationService: Saved CV URL: $savedCVUrl');
+      print('DEBUG ApplicationService: Saved CV FileName: $savedCVFileName');
+
+      final response = await _dio.post(
+        '/api/Application/with-saved-cv',
+        data: data,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        ),
+      );
+
+      print('DEBUG ApplicationService: Application with saved CV created successfully');
+      return ApplicationModel.fromJson(response.data);
+    } on DioException catch (e) {
+      print('DEBUG ApplicationService: Error creating application with saved CV: ${e.message}');
+      if (e.response != null) {
+        print('DEBUG ApplicationService: Response data: ${e.response?.data}');
+        print('DEBUG ApplicationService: Status code: ${e.response?.statusCode}');
+      }
+      throw _handleError(e);
+    }
+  }
+
+  /// Submit job application with file upload
   /// 
   /// [jobId] - ID của job post cần ứng tuyển
   /// [coverLetter] - Thư xin việc
@@ -52,18 +132,6 @@ class ApplicationService {
 
     if (cvFile == null && cvXFile == null) {
       throw Exception('Vui lòng chọn file CV');
-    }
-
-    // Validate file type (PDF only)
-    String? fileName;
-    if (cvFile != null) {
-      fileName = cvFile.path.split('/').last.toLowerCase();
-    } else if (cvXFile != null) {
-      fileName = cvXFile.name.toLowerCase();
-    }
-
-    if (fileName != null && !fileName.endsWith('.pdf')) {
-      throw Exception('Chỉ chấp nhận file PDF cho CV');
     }
 
     return await createApplication(

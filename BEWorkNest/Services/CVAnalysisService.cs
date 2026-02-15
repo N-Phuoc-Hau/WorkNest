@@ -11,17 +11,20 @@ namespace BEWorkNest.Services
         private readonly ApplicationDbContext _context;
         private readonly AiService _aiService;
         private readonly CVProcessingService _cvProcessingService;
+        private readonly CloudinaryService _cloudinaryService;
         private readonly ILogger<CVAnalysisService> _logger;
 
         public CVAnalysisService(
             ApplicationDbContext context,
             AiService aiService,
             CVProcessingService cvProcessingService,
+            CloudinaryService cloudinaryService,
             ILogger<CVAnalysisService> logger)
         {
             _context = context;
             _aiService = aiService;
             _cvProcessingService = cvProcessingService;
+            _cloudinaryService = cloudinaryService;
             _logger = logger;
         }
 
@@ -40,6 +43,20 @@ namespace BEWorkNest.Services
                     throw new ArgumentException("Invalid CV file format or size");
                 }
 
+                // Upload CV to Cloudinary
+                string cvUrl = "";
+                string cvPublicId = "";
+                try
+                {
+                    cvUrl = await _cloudinaryService.UploadPdfAsync(cvFile, "cvs");
+                    cvPublicId = _cloudinaryService.GetPublicIdFromUrl(cvUrl);
+                    _logger.LogInformation("CV uploaded to Cloudinary: {CVUrl}", cvUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to upload CV to Cloudinary, continuing with analysis");
+                }
+
                 // Extract text from CV file
                 var cvText = await _cvProcessingService.ExtractTextFromCVAsync(cvFile);
                 if (string.IsNullOrWhiteSpace(cvText))
@@ -50,8 +67,8 @@ namespace BEWorkNest.Services
                 // Clean extracted text
                 var cleanedText = _cvProcessingService.CleanExtractedText(cvText);
 
-                // Perform analysis
-                return await AnalyzeCVTextAsync(userId, cleanedText);
+                // Perform analysis with CV file info
+                return await AnalyzeCVTextAsync(userId, cleanedText, cvUrl, cvFile.FileName, cvPublicId, cvFile.Length);
             }
             catch (Exception ex)
             {
@@ -64,6 +81,14 @@ namespace BEWorkNest.Services
         /// Phân tích CV từ text
         /// </summary>
         public async Task<CVAnalysisResponse> AnalyzeCVTextAsync(string userId, string cvText)
+        {
+            return await AnalyzeCVTextAsync(userId, cvText, null, null, null, null);
+        }
+
+        /// <summary>
+        /// Phân tích CV từ text với thông tin file CV
+        /// </summary>
+        public async Task<CVAnalysisResponse> AnalyzeCVTextAsync(string userId, string cvText, string? cvUrl, string? cvFileName, string? cvPublicId, long? cvFileSize)
         {
             try
             {
@@ -129,7 +154,7 @@ namespace BEWorkNest.Services
                 };
 
                 // Save analysis history
-                await SaveAnalysisHistoryAsync(response, cvText);
+                await SaveAnalysisHistoryAsync(response, cvText, cvUrl, cvFileName, cvPublicId, cvFileSize);
 
                 // Save job match analytics
                 await SaveJobMatchAnalyticsAsync(userId, jobRecommendations);
@@ -398,6 +423,11 @@ namespace BEWorkNest.Services
 
         private async Task SaveAnalysisHistoryAsync(CVAnalysisResponse response, string cvText)
         {
+            await SaveAnalysisHistoryAsync(response, cvText, null, null, null, null);
+        }
+
+        private async Task SaveAnalysisHistoryAsync(CVAnalysisResponse response, string cvText, string? cvUrl, string? cvFileName, string? cvPublicId, long? cvFileSize)
+        {
             var history = new CVAnalysisHistory
             {
                 AnalysisId = response.AnalysisId,
@@ -406,7 +436,11 @@ namespace BEWorkNest.Services
                 AnalysisResult = JsonSerializer.Serialize(response),
                 OverallScore = response.Scores.OverallScore,
                 JobRecommendationsCount = response.RecommendedJobs.Count,
-                CreatedAt = response.AnalyzedAt
+                CreatedAt = response.AnalyzedAt,
+                CVUrl = cvUrl,
+                CVFileName = cvFileName,
+                CVPublicId = cvPublicId,
+                CVFileSize = cvFileSize
             };
 
             _context.CVAnalysisHistories.Add(history);

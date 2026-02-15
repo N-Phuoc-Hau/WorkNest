@@ -226,6 +226,146 @@ namespace BEWorkNest.Controllers
             });
         }
 
+        [HttpPost("with-saved-cv")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CreateApplicationWithSavedCV([FromBody] CreateApplicationWithSavedCVDto createDto)
+        {
+            var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+            if (!isAuthenticated || string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized(new
+                {
+                    message = "Không tìm thấy thông tin người dùng trong token",
+                    errorCode = "AUTHENTICATION_REQUIRED"
+                });
+            }
+
+            // Check if user has candidate role
+            if (userRole != "candidate")
+            {
+                return BadRequest(new
+                {
+                    message = "Không có quyền truy cập. Chỉ ứng viên mới có thể nộp đơn ứng tuyển.",
+                    errorCode = "INSUFFICIENT_PERMISSIONS",
+                    userRole = userRole ?? "unknown"
+                });
+            }
+
+            // Validate input
+            if (string.IsNullOrEmpty(createDto.CoverLetter))
+            {
+                return BadRequest(new { message = "Cover letter không được để trống" });
+            }
+
+            if (string.IsNullOrEmpty(createDto.CvUrl))
+            {
+                return BadRequest(new { message = "CV URL không được để trống" });
+            }
+
+            // Validate job exists
+            var jobPost = await _context.JobPosts.FirstOrDefaultAsync(j => j.Id == createDto.JobId && j.IsActive);
+            if (jobPost == null)
+            {
+                return NotFound(new { message = "Không tìm thấy bài đăng tuyển dụng" });
+            }
+
+            // Check if user already applied for this job
+            var existingApplication = await _context.Applications
+                .FirstOrDefaultAsync(a => a.JobId == createDto.JobId && a.ApplicantId == userId && a.IsActive);
+
+            if (existingApplication != null)
+            {
+                return BadRequest(new { message = "Bạn đã ứng tuyển cho công việc này rồi" });
+            }
+
+            // Create new application with saved CV URL
+            var application = new Application
+            {
+                JobId = createDto.JobId,
+                ApplicantId = userId,
+                CoverLetter = createDto.CoverLetter,
+                CvUrl = createDto.CvUrl,
+                Status = ApplicationStatus.Pending,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            _context.Applications.Add(application);
+            await _context.SaveChangesAsync();
+
+            // Background CV analysis from saved URL
+            _ = Task.Run(async () => await AnalyzeCVFromUrlAsync(application.Id, createDto.CvUrl, jobPost));
+
+            // Log user behavior
+            _ = Task.Run(async () => await _userBehaviorService.TrackApplicationAsync(userId, createDto.JobId, jobPost.Title, "applied"));
+
+            // Return the created application with full details
+            var savedApplication = await _context.Applications
+                .Include(a => a.Applicant)
+                .Include(a => a.Job)
+                .ThenInclude(j => j.Recruiter)
+                .ThenInclude(r => r.Company)
+                .FirstOrDefaultAsync(a => a.Id == application.Id);
+
+            if (savedApplication == null)
+            {
+                return StatusCode(500, new { message = "Lỗi khi tạo đơn ứng tuyển" });
+            }
+
+            return Ok(new
+            {
+                id = savedApplication.Id,
+                applicantId = savedApplication.ApplicantId,
+                jobId = savedApplication.JobId,
+                cvUrl = savedApplication.CvUrl,
+                coverLetter = savedApplication.CoverLetter,
+                status = savedApplication.Status.ToString(),
+                createdAt = savedApplication.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                isActive = savedApplication.IsActive,
+                appliedAt = savedApplication.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                applicant = savedApplication.Applicant != null ? new
+                {
+                    id = savedApplication.Applicant.Id,
+                    userName = savedApplication.Applicant.UserName,
+                    email = savedApplication.Applicant.Email,
+                    fullName = $"{savedApplication.Applicant.FirstName} {savedApplication.Applicant.LastName}".Trim(),
+                    avatar = savedApplication.Applicant.Avatar,
+                    role = savedApplication.Applicant.Role
+                } : null,
+                job = savedApplication.Job != null ? new
+                {
+                    id = savedApplication.Job.Id,
+                    title = savedApplication.Job.Title,
+                    description = savedApplication.Job.Description,
+                    salary = savedApplication.Job.Salary,
+                    location = savedApplication.Job.Location,
+                    specialized = savedApplication.Job.Specialized,
+                    jobType = savedApplication.Job.JobType,
+                    workingHours = savedApplication.Job.WorkingHours,
+                    isActive = savedApplication.Job.IsActive,
+                    createdAt = savedApplication.Job.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    applicationCount = _context.Applications.Count(a => a.JobId == savedApplication.Job.Id && a.IsActive),
+                    recruiter = savedApplication.Job.Recruiter != null ? new
+                    {
+                        id = savedApplication.Job.Recruiter.Id,
+                        userName = savedApplication.Job.Recruiter.UserName,
+                        email = savedApplication.Job.Recruiter.Email,
+                        fullName = $"{savedApplication.Job.Recruiter.FirstName} {savedApplication.Job.Recruiter.LastName}".Trim(),
+                        avatar = savedApplication.Job.Recruiter.Avatar,
+                        role = savedApplication.Job.Recruiter.Role,
+                        company = savedApplication.Job.Recruiter.Company != null ? new
+                        {
+                            id = savedApplication.Job.Recruiter.Company.Id,
+                            name = savedApplication.Job.Recruiter.Company.Name,
+                            description = savedApplication.Job.Recruiter.Company.Description,
+                            isVerified = savedApplication.Job.Recruiter.Company.IsVerified
+                        } : null
+                    } : null
+                } : null
+            });
+        }
+
         [HttpGet("{id}")]
         [AllowAnonymous]
         public async Task<IActionResult> GetApplication(int id)
@@ -913,7 +1053,7 @@ namespace BEWorkNest.Controllers
                 Status = application.Status.ToString().ToLower(),
                 CreatedAt = application.CreatedAt,
                 IsActive = application.IsActive,
-                RejectionReason = application.RejectionReason,
+                RejectionReason = application.RejectionReason ?? string.Empty,
                 AppliedAt = application.AppliedAt,
                 Job = application.Job != null ? new JobPostDto
                 {

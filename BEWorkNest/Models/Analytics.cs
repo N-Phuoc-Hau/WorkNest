@@ -366,6 +366,12 @@ namespace BEWorkNest.Models
         public int JobRecommendationsCount { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         
+        // CV File Information
+        public string? CVUrl { get; set; } // Cloudinary URL
+        public string? CVFileName { get; set; } // Original filename
+        public string? CVPublicId { get; set; } // Cloudinary public ID for management
+        public long? CVFileSize { get; set; } // File size in bytes
+        
         // Navigation property
         public User User { get; set; } = null!;
     }

@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://localhost:7777/api'; // Updated to match backend port
+  static const String baseUrl = 'http://192.168.1.4:7777/api'; // Updated to match backend port
   late final Dio _dio;
 
   AuthService() {

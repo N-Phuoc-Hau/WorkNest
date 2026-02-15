@@ -326,7 +326,7 @@ namespace BEWorkNest.Services
                                     job.Requirements.Split(',', ';').Select(s => s.Trim()).Take(5).ToList() : 
                                     new List<string>(),
                                 MatchPercentage = cvAnalysis.MatchScore,
-                                Reason = cvAnalysis.DetailedAnalysis,
+                                Reason = cvAnalysis.DetailedAnalysis ?? string.Empty,
                                 JobType = job.JobType ?? "Full-time",
                                 ExperienceLevel = job.ExperienceLevel ?? "",
                                 Category = job.Specialized ?? "",

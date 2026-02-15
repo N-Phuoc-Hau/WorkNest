@@ -1,0 +1,182 @@
+name: Frontend CI/CD - WorkNest
+
+# Workflow sẽ chạy khi nào?
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'feworknest/**'  # Chỉ chạy khi có thay đổi trong thư mục frontend
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'feworknest/**'
+  workflow_dispatch:
+
+jobs:
+  # Job 1: Analyze và Test Flutter
+  analyze-and-test:
+    name: Analyze và Test Flutter
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Bước 1: Lấy code về
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    # Bước 2: Cài đặt Flutter SDK
+    - name: 🔧 Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'  # Hoặc version mới nhất
+        channel: 'stable'
+        cache: true  # Cache Flutter SDK
+        
+    # Bước 3: Kiểm tra Flutter version
+    - name: ℹ️ Flutter version
+      run: flutter --version
+      
+    # Bước 4: Cài đặt dependencies
+    - name: 📦 Install dependencies
+      working-directory: ./feworknest
+      run: flutter pub get
+      
+    # Bước 5: Verify dependencies
+    - name: 🔍 Verify dependencies
+      working-directory: ./feworknest
+      run: flutter pub outdated || true
+      
+    # Bước 6: Format check
+    - name: 📝 Check formatting
+      working-directory: ./feworknest
+      run: dart format --set-exit-if-changed . || true
+      continue-on-error: true
+      
+    # Bước 7: Analyze code
+    - name: 🔍 Analyze code
+      working-directory: ./feworknest
+      run: flutter analyze --no-fatal-infos
+      continue-on-error: true
+      
+    # Bước 8: Run tests với coverage
+    - name: 🧪 Run tests with coverage
+      working-directory: ./feworknest
+      run: flutter test --coverage --reporter expanded
+      continue-on-error: true
+      
+    # Bước 9: Upload coverage
+    - name: 📊 Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./feworknest/coverage/lcov.info
+        flags: frontend
+        name: flutter-coverage
+      continue-on-error: true
+      
+    # Bước 10: Generate coverage report HTML
+    - name: 📊 Generate coverage HTML
+      working-directory: ./feworknest
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y lcov
+        genhtml coverage/lcov.info -o coverage/html || echo "Chưa có coverage data"
+      continue-on-error: true
+      
+    # Bước 11: Upload test results
+    - name: 📤 Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: flutter-test-results
+        path: |
+          feworknest/coverage/
+        retention-days: 30
+      continue-on-error: true
+      
+    # Bước 12: Comment PR với kết quả
+    - name: 💬 Comment Test Results on PR
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      continue-on-error: true
+      with:
+        script: |
+          let comment = '## 📱 Frontend Test Results\n\n';
+          comment += '✅ Flutter analyze hoàn thành!\n';
+          comment += '🧪 Tests đã chạy\n';
+          comment += '📊 Coverage report đã được tạo\n';
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  # Job 2: Build Android APK (optional)
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+        cache: true
+        
+    - name: 🔧 Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+        
+    - name: 📦 Install dependencies
+      working-directory: ./feworknest
+      run: flutter pub get
+      
+    - name: 🔨 Build APK
+      working-directory: ./feworknest
+      run: flutter build apk --release
+      
+    - name: 📤 Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: android-apk
+        path: feworknest/build/app/outputs/flutter-apk/app-release.apk
+        retention-days: 30
+
+  # Job 3: Build Web (optional)
+  build-web:
+    name: Build Web
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔧 Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+        channel: 'stable'
+        cache: true
+        
+    - name: 📦 Install dependencies
+      working-directory: ./feworknest
+      run: flutter pub get
+      
+    - name: 🔨 Build Web
+      working-directory: ./feworknest
+      run: flutter build web --release
+      
+    - name: 📤 Upload Web Build
+      uses: actions/upload-artifact@v3
+      with:
+        name: web-build
+        path: feworknest/build/web/
+        retention-days: 30

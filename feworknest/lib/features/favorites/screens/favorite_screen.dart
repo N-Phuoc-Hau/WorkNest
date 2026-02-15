@@ -273,7 +273,7 @@ class FavoriteJobCard extends StatelessWidget {
             if (value == 'remove') {
               _showRemoveDialog(context);
             } else if (value == 'view') {
-              context.go('/job-detail/${favorite.jobId}');
+              context.push('/job-detail/${favorite.jobId}');
             }
           },
           itemBuilder: (context) => [
@@ -295,7 +295,7 @@ class FavoriteJobCard extends StatelessWidget {
             ),
           ],
         ),
-        onTap: () => context.go('/job-detail/${favorite.jobId}'),
+        onTap: () => context.push('/job-detail/${favorite.jobId}'),
       ),
     );
   }

@@ -4,7 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_provider.dart';
-import '../../../core/providers/notification_provider.dart';
+import '../../../core/providers/unified_notification_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/worknest_logo.dart';
 
 class WebSidebar extends ConsumerStatefulWidget {
   final bool isCollapsed;
@@ -40,7 +44,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         if (authState.user?.id != null) {
           try {
             ref
-                .read(notificationProvider(authState.user!.id).notifier)
+                .read(unifiedNotificationProvider.notifier)
                 .refreshUnreadCount();
           } catch (e) {
             print('Error loading notification count in sidebar: $e');
@@ -55,43 +59,43 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final isAuthenticated = authState.isAuthenticated;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 6,
-            offset: const Offset(2, 0),
+        color: isDark ? AppColors.neutral900 : Colors.white,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? AppColors.neutral800 : AppColors.neutral200,
+            width: 1,
           ),
-        ],
+        ),
       ),
       child: Column(
         children: [
           // Header
-          _buildSidebarHeader(),
+          _buildSidebarHeader(isDark),
 
           // Navigation Menu
           Expanded(
-            child: _buildNavigationMenu(isAuthenticated, user),
+            child: _buildNavigationMenu(isAuthenticated, user, isDark),
           ),
 
           // Footer
-          _buildSidebarFooter(isAuthenticated, user),
+          _buildSidebarFooter(isAuthenticated, user, isDark),
         ],
       ),
     );
   }
 
-  Widget _buildSidebarHeader() {
+  Widget _buildSidebarHeader(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSpacing.spacing16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Colors.blue,
-            Colors.blue.withValues(alpha: 0.8),
+            AppColors.primary,
+            AppColors.primary.withOpacity(0.85),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -100,40 +104,40 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       child: widget.isCollapsed
           ? Center(
               child: Container(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(AppSpacing.spacing8),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.work,
-                  color: Colors.white,
-                  size: 24,
+                child: const WorkNestLogo(
+                  size: 28,
+                  showName: false,
+
                 ),
               ),
             )
           : Row(
-              children: [
+               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(AppSpacing.spacing8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
-                    Icons.work,
-                    color: Colors.white,
-                    size: 24,
+                  child: const WorkNestLogo(
+                    size: 28,
+                    showName: false,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: AppSpacing.spacing12),
                 const Flexible(
                   child: Text(
                     'WorkNest',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -143,7 +147,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     );
   }
 
-  Widget _buildNavigationMenu(bool isAuthenticated, dynamic user) {
+  Widget _buildNavigationMenu(bool isAuthenticated, dynamic user, bool isDark) {
     return Consumer(
       builder: (context, ref, child) {
         final chatState = ref.watch(chatProvider);
@@ -152,8 +156,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         // Chỉ load notification count nếu user đã đăng nhập và có userId
         if (isAuthenticated && user?.id != null) {
           try {
-            final notificationState = ref.watch(notificationProvider(user.id));
-            notificationUnreadCount = notificationState.unreadCount;
+            notificationUnreadCount = ref.watch(unreadCountProvider);
           } catch (e) {
             print('Error loading notification count: $e');
           }
@@ -167,8 +170,26 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         );
 
         return ListView(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          children: menuItems.map((item) => _buildMenuItem(item)).toList(),
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.spacing12),
+          children: [
+            // Settings section header (only in expanded mode)
+            if (!widget.isCollapsed && menuItems.isNotEmpty)
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.spacing16,
+                  vertical: AppSpacing.spacing8,
+                ),
+                child: Text(
+                  'MENU',
+                  style: AppTypography.labelSmall.copyWith(
+                    color: isDark ? AppColors.neutral500 : AppColors.neutral600,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+            ...menuItems.map((item) => _buildMenuItem(item, isDark)).toList(),
+          ],
         );
       },
     );
@@ -178,14 +199,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       int chatUnreadCount, int notificationUnreadCount) {
     final List<SidebarMenuItem> items = [
       SidebarMenuItem(
-        icon: Icons.home,
+        icon: Icons.home_rounded,
         title: 'Trang chủ',
         route: isAuthenticated
             ? (user?.isRecruiter == true ? '/recruiter/home' : '/home')
             : '/',
       ),
       SidebarMenuItem(
-        icon: Icons.work,
+        icon: Icons.work_rounded,
         title: 'Việc làm',
         route: isAuthenticated
             ? (user?.isRecruiter == true ? '/jobs' : '/jobs')
@@ -197,17 +218,17 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       if (user?.role == 'admin') {
         items.addAll([
           SidebarMenuItem(
-            icon: Icons.people,
+            icon: Icons.people_rounded,
             title: 'Quản lý người dùng',
             route: '/admin/users',
           ),
           SidebarMenuItem(
-            icon: Icons.work,
+            icon: Icons.work_history_rounded,
             title: 'Quản lý tin tuyển dụng',
             route: '/admin/jobs',
           ),
           SidebarMenuItem(
-            icon: Icons.business,
+            icon: Icons.business_rounded,
             title: 'Duyệt công ty',
             route: '/admin/companies',
           ),
@@ -215,22 +236,22 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       } else if (user?.isRecruiter == true) {
         items.addAll([
           SidebarMenuItem(
-            icon: Icons.add_business,
+            icon: Icons.add_business_rounded,
             title: 'Đăng tin tuyển dụng',
             route: '/recruiter/post-job',
           ),
           SidebarMenuItem(
-            icon: Icons.manage_accounts,
+            icon: Icons.manage_accounts_rounded,
             title: 'Quản lý tin đăng',
             route: '/recruiter/jobs',
           ),
           SidebarMenuItem(
-            icon: Icons.people,
+            icon: Icons.people_alt_rounded,
             title: 'Ứng viên',
             route: '/recruiter/applicants',
           ),
           SidebarMenuItem(
-            icon: Icons.business,
+            icon: Icons.apartment_rounded,
             title: 'Công ty',
             route: '/recruiter/company',
           ),
@@ -238,22 +259,22 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       } else {
         items.addAll([
           SidebarMenuItem(
-            icon: Icons.description,
+            icon: Icons.description_rounded,
             title: 'Đơn ứng tuyển',
             route: '/applications',
           ),
           SidebarMenuItem(
-            icon: Icons.analytics,
+            icon: Icons.analytics_rounded,
             title: 'Phân tích CV',
             route: '/cv-analysis',
           ),
           SidebarMenuItem(
-            icon: Icons.favorite,
+            icon: Icons.favorite_rounded,
             title: 'Việc làm đã lưu',
             route: '/favorites',
           ),
           SidebarMenuItem(
-            icon: Icons.business,
+            icon: Icons.business_center_rounded,
             title: 'Công ty theo dõi',
             route: '/following-companies',
           ),
@@ -263,7 +284,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       // Chỉ hiển thị tin nhắn và thông báo với số lượng thật, bỏ search
       items.addAll([
         SidebarMenuItem(
-          icon: Icons.chat,
+          icon: Icons.chat_bubble_rounded,
           title: 'Tin nhắn',
           route: isAuthenticated
               ? (user?.isRecruiter == true ? '/recruiter/chat' : '/chat')
@@ -271,7 +292,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           badge: chatUnreadCount > 0 ? chatUnreadCount.toString() : null,
         ),
         SidebarMenuItem(
-          icon: Icons.notifications,
+          icon: Icons.notifications_rounded,
           title: 'Thông báo',
           route: '/notifications',
           badge: notificationUnreadCount > 0
@@ -284,12 +305,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     return items;
   }
 
-  Widget _buildMenuItem(SidebarMenuItem item) {
+  Widget _buildMenuItem(SidebarMenuItem item, bool isDark) {
     final isSelected = _selectedRoute == item.route;
 
     return Container(
       margin: EdgeInsets.symmetric(
-          horizontal: widget.isCollapsed ? 8 : 12, vertical: 2),
+        horizontal: widget.isCollapsed ? AppSpacing.spacing8 : AppSpacing.spacing12,
+        vertical: AppSpacing.spacing2,
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -302,15 +325,21 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           },
           child: Container(
             padding: EdgeInsets.symmetric(
-                horizontal: widget.isCollapsed ? 8 : 16, vertical: 12),
+              horizontal: widget.isCollapsed ? AppSpacing.spacing8 : AppSpacing.spacing16,
+              vertical: AppSpacing.spacing12,
+            ),
             decoration: BoxDecoration(
               color: isSelected
-                  ? Theme.of(context).primaryColor.withOpacity(0.1)
+                  ? (isDark
+                      ? AppColors.primary.withOpacity(0.15)
+                      : AppColors.primary.withOpacity(0.1))
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               border: isSelected
                   ? Border.all(
-                      color: Theme.of(context).primaryColor.withOpacity(0.3))
+                      color: AppColors.primary.withOpacity(0.3),
+                      width: 1,
+                    )
                   : null,
             ),
             child: widget.isCollapsed
@@ -318,9 +347,9 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                     child: Icon(
                       item.icon,
                       color: isSelected
-                          ? Theme.of(context).primaryColor
-                          : Colors.grey[600],
-                      size: 20,
+                          ? AppColors.primary
+                          : (isDark ? AppColors.neutral400 : AppColors.neutral600),
+                      size: 22,
                     ),
                   )
                 : Row(
@@ -328,38 +357,38 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                       Icon(
                         item.icon,
                         color: isSelected
-                            ? Theme.of(context).primaryColor
-                            : Colors.grey[600],
-                        size: 20,
+                            ? AppColors.primary
+                            : (isDark ? AppColors.neutral400 : AppColors.neutral600),
+                        size: 22,
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: AppSpacing.spacing12),
                       Expanded(
                         child: Text(
                           item.title,
-                          style: TextStyle(
+                          style: AppTypography.bodyMedium.copyWith(
                             color: isSelected
-                                ? Theme.of(context).primaryColor
-                                : Colors.grey[700],
+                                ? AppColors.primary
+                                : (isDark ? AppColors.neutral300 : AppColors.neutral700),
                             fontWeight: isSelected
                                 ? FontWeight.w600
                                 : FontWeight.normal,
-                            fontSize: 14,
                           ),
                         ),
                       ),
                       if (item.badge != null) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.spacing8,
+                            vertical: AppSpacing.spacing4,
+                          ),
                           decoration: BoxDecoration(
-                            color: Colors.red,
-                            borderRadius: BorderRadius.circular(10),
+                            color: AppColors.error,
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             item.badge!,
-                            style: const TextStyle(
+                            style: AppTypography.labelSmall.copyWith(
                               color: Colors.white,
-                              fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -373,78 +402,92 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     );
   }
 
-  Widget _buildSidebarFooter(bool isAuthenticated, dynamic user) {
+  Widget _buildSidebarFooter(bool isAuthenticated, dynamic user, bool isDark) {
     if (!isAuthenticated) {
       if (widget.isCollapsed) {
         return Padding(
-          padding: const EdgeInsets.all(8),
+          padding: EdgeInsets.all(AppSpacing.spacing8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
                 onPressed: () => context.go('/login'),
-                icon: const Icon(Icons.login, color: Colors.blue, size: 20),
-                tooltip: 'Đăng nhập',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
+                icon: Icon(
+                  Icons.login_rounded,
+                  color: AppColors.primary,
+                  size: 22,
                 ),
+                tooltip: 'Đăng nhập',
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: AppSpacing.spacing4),
               IconButton(
                 onPressed: () => context.go('/register'),
-                icon:
-                    const Icon(Icons.person_add, color: Colors.green, size: 20),
-                tooltip: 'Đăng ký',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 32,
-                  minHeight: 32,
+                icon: Icon(
+                  Icons.person_add_rounded,
+                  color: AppColors.success,
+                  size: 22,
                 ),
+                tooltip: 'Đăng ký',
               ),
             ],
           ),
         );
       }
 
-      return Padding(
-        padding: const EdgeInsets.all(16),
+      return Container(
+        padding: EdgeInsets.all(AppSpacing.spacing16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primary.withOpacity(0.05),
+              Colors.transparent,
+            ],
+            begin: Alignment.bottomCenter,
+            end: Alignment.topCenter,
+          ),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => context.go('/login'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  minimumSize: const Size(0, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+            ElevatedButton.icon(
+              onPressed: () => context.go('/login'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.spacing12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text('Đăng nhập', style: TextStyle(fontSize: 14)),
+                elevation: 0,
+              ),
+              icon: const Icon(Icons.login_rounded, size: 20),
+              label: Text(
+                'Đăng nhập',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () => context.go('/register'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).primaryColor,
-                  side: BorderSide(color: Theme.of(context).primaryColor),
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  minimumSize: const Size(0, 36),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+            SizedBox(height: AppSpacing.spacing12),
+            OutlinedButton.icon(
+              onPressed: () => context.go('/register'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary, width: 1.5),
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.spacing12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text('Đăng ký', style: TextStyle(fontSize: 14)),
+              ),
+              icon: const Icon(Icons.person_add_rounded, size: 20),
+              label: Text(
+                'Đăng ký',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -452,11 +495,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
       );
     }
 
+    // Authenticated user footer
     return Container(
-      padding: EdgeInsets.all(widget.isCollapsed ? 8 : 16),
+      padding: EdgeInsets.all(widget.isCollapsed ? AppSpacing.spacing8 : AppSpacing.spacing16),
       decoration: BoxDecoration(
         border: Border(
-          top: BorderSide(color: Colors.grey[200]!),
+          top: BorderSide(
+            color: isDark ? AppColors.neutral800 : AppColors.neutral200,
+          ),
         ),
       ),
       child: widget.isCollapsed
@@ -464,9 +510,9 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
-                  radius: 12,
+                  radius: 16,
                   backgroundColor: user?.avatar == null
-                      ? Theme.of(context).primaryColor
+                      ? AppColors.primary
                       : null,
                   backgroundImage:
                       user?.avatar != null ? NetworkImage(user!.avatar!) : null,
@@ -477,17 +523,19 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                               : 'U',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
                         )
                       : null,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: AppSpacing.spacing8),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 16),
-                  iconSize: 16,
-                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 20,
+                    color: isDark ? AppColors.neutral400 : AppColors.neutral600,
+                  ),
                   tooltip: 'Menu',
                   onSelected: (value) {
                     if (value == 'profile') {
@@ -501,20 +549,40 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                       }
                     } else if (value == 'logout') {
                       ref.read(authProvider.notifier).logout();
+                      context.go('/');
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'profile',
-                      child: Text('Hồ sơ'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_rounded, size: 20, color: AppColors.neutral600),
+                          SizedBox(width: AppSpacing.spacing12),
+                          const Text('Hồ sơ'),
+                        ],
+                      ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'settings',
-                      child: Text('Cài đặt'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.settings_rounded, size: 20, color: AppColors.neutral600),
+                          SizedBox(width: AppSpacing.spacing12),
+                          const Text('Cài đặt'),
+                        ],
+                      ),
                     ),
-                    const PopupMenuItem(
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
                       value: 'logout',
-                      child: Text('Đăng xuất'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout_rounded, size: 20, color: AppColors.error),
+                          SizedBox(width: AppSpacing.spacing12),
+                          Text('Đăng xuất', style: TextStyle(color: AppColors.error)),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -523,9 +591,9 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           : Row(
               children: [
                 CircleAvatar(
-                  radius: 12,
+                  radius: 20,
                   backgroundColor: user?.avatar == null
-                      ? Theme.of(context).primaryColor
+                      ? AppColors.primary
                       : null,
                   backgroundImage:
                       user?.avatar != null ? NetworkImage(user!.avatar!) : null,
@@ -536,13 +604,13 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                               : 'U',
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         )
                       : null,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: AppSpacing.spacing12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -550,19 +618,18 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                     children: [
                       Text(
                         user?.fullName ?? 'User',
-                        style: const TextStyle(
+                        style: AppTypography.bodyMedium.copyWith(
                           fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                          color: isDark ? AppColors.neutral200 : AppColors.neutral900,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: AppSpacing.spacing4),
                       Text(
                         user?.email ?? '',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
+                        style: AppTypography.bodySmall.copyWith(
+                          color: isDark ? AppColors.neutral500 : AppColors.neutral600,
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
@@ -570,11 +637,13 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                     ],
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: AppSpacing.spacing8),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, size: 18),
-                  iconSize: 18,
-                  padding: EdgeInsets.zero,
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    size: 20,
+                    color: isDark ? AppColors.neutral400 : AppColors.neutral600,
+                  ),
                   onSelected: (value) {
                     if (value == 'profile') {
                       context.go('/profile');
@@ -587,20 +656,40 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                       }
                     } else if (value == 'logout') {
                       ref.read(authProvider.notifier).logout();
+                      context.go('/');
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'profile',
-                      child: Text('Hồ sơ'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_rounded, size: 20, color: AppColors.neutral600),
+                          SizedBox(width: AppSpacing.spacing12),
+                          const Text('Hồ sơ'),
+                        ],
+                      ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'settings',
-                      child: Text('Cài đặt'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.settings_rounded, size: 20, color: AppColors.neutral600),
+                          SizedBox(width: AppSpacing.spacing12),
+                          const Text('Cài đặt'),
+                        ],
+                      ),
                     ),
-                    const PopupMenuItem(
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
                       value: 'logout',
-                      child: Text('Đăng xuất'),
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout_rounded, size: 20, color: AppColors.error),
+                          SizedBox(width: AppSpacing.spacing12),
+                          Text('Đăng xuất', style: TextStyle(color: AppColors.error)),
+                        ],
+                      ),
                     ),
                   ],
                 ),

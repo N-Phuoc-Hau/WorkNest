@@ -139,23 +139,29 @@ class AuthNotifier extends StateNotifier<AuthState> {
         print('DEBUG AuthProvider: Login SUCCESS, returning user: ${user.fullName}');
         return user;
       } else {
+        // Login failed - explicitly set authenticated to FALSE
         state = state.copyWith(
           isLoading: false,
           isAuthenticated: false,
+          user: null, // Clear user
+          accessToken: null, // Clear token
           error: result['message'] ?? 'Đăng nhập thất bại',
         );
         print('DEBUG AuthProvider: Login FAILED, returning null. Error: ${result['message']}');
-        print('DEBUG AuthProvider: isAuthenticated set to FALSE');
+        print('DEBUG AuthProvider: isAuthenticated set to FALSE, user cleared');
         return null;
       }
     } catch (e) {
       print('DEBUG AuthProvider: Exception caught: $e');
+      // Exception - explicitly set authenticated to FALSE
       state = state.copyWith(
         isLoading: false,
         isAuthenticated: false,
+        user: null, // Clear user
+        accessToken: null, // Clear token
         error: 'Đã có lỗi xảy ra, vui lòng thử lại.',
       );
-      print('DEBUG AuthProvider: isAuthenticated set to FALSE (exception)');
+      print('DEBUG AuthProvider: isAuthenticated set to FALSE (exception), user cleared');
       return null;
     }
   }
