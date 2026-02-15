@@ -79,7 +79,7 @@ jobs:
     # Bước 8: Upload test results
     - name: 📤 Upload Test Results
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: test-results
         path: |
@@ -158,7 +158,7 @@ jobs:
       
     - name: 📤 Upload Security Report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-report
         path: reports/
