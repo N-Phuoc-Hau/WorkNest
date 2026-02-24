@@ -1,0 +1,80 @@
+# Codecov Configuration for WorkNest
+# https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    after_n_builds: 2  # Wait for both backend and frontend if needed
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...100"  # Green if > 60%
+  
+  status:
+    project:
+      default:
+        target: 80%  # Mục tiêu: 80% coverage
+        threshold: 2%  # Cho phép giảm 2% so với commit trước
+        base: auto
+        flags:
+          - backend
+        paths:
+          - "BEWorkNest/"
+          
+    patch:
+      default:
+        target: 70%  # Code mới cần ít nhất 70% coverage
+        threshold: 5%
+        
+    changes:
+      default:
+        target: 60%
+
+# Cấu hình flags để tách coverage backend/frontend
+flags:
+  backend:
+    paths:
+      - BEWorkNest/
+    carryforward: true
+    
+  unittests:
+    paths:
+      - BEWorkNest/
+    carryforward: true
+
+# Ignore files không cần đo coverage
+ignore:
+  - "BEWorkNest/Migrations/**"
+  - "BEWorkNest/obj/**"
+  - "BEWorkNest/bin/**"
+  - "**/*.Designer.cs"
+  - "BEWorkNest/Program.cs"
+  - "BEWorkNest/Startup.cs"
+  - "BEWorkNest/wwwroot/**"
+  - "BEWorkNest.Tests/**"
+  - "feworknest/**"
+  - "Giaodien/**"
+  - "**/*.md"
+  - "**/*.txt"
+
+# Comment template cho Pull Requests
+comment:
+  layout: "header, diff, flags, components, footer"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+  
+  # Template cho comment
+  after_n_builds: 1
+  
+# Cấu hình GitHub Checks
+github_checks:
+  annotations: true
+
+# Cấu hình Slack notification (optional)
+# slack:
+#   url: "secret:SLACK_WEBHOOK_URL"
+#   threshold: 1%
+#   message: "Coverage changed for {{owner}}/{{repo}}"

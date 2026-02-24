@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
-import '../../../core/models/company_model.dart' as standalone_company;
 import '../../../core/models/follow_model.dart';
 import '../../../core/models/job_model.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/favorite_provider.dart';
 import '../../../core/providers/follow_provider.dart';
 import '../../../core/providers/job_provider.dart';
-import '../../../core/providers/review_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../../core/utils/application_utils.dart';
 import '../../../core/utils/auth_guard.dart';
-import '../../reviews/screens/company_reviews_screen.dart';
-import '../../reviews/widgets/review_card.dart';
+import '../../../shared/widgets/language_toggle_widget.dart';
+import '../widgets/job_card.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -28,8 +31,6 @@ class JobDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
-  bool _reviewsLoaded = false;
-
   @override
   void initState() {
     super.initState();
@@ -37,41 +38,16 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       final jobIdInt = int.tryParse(widget.jobId) ?? 0;
       ref.read(jobProvider.notifier).getJobPost(jobIdInt);
       
-      // Load recent jobs for related jobs section
+      // Load recent jobs for similar jobs section
       ref.read(jobProvider.notifier).getJobPosts(page: 1, pageSize: 20);
       
       // Load following list to check follow status
       final authState = ref.read(authProvider);
       if (authState.isAuthenticated && authState.user?.role == 'candidate') {
         ref.read(followProvider.notifier).getMyFollowing();
+        ref.read(favoriteProvider.notifier).getMyFavorites();
       }
     });
-  }
-
-  void _loadCompanyReviews(int companyId) {
-    if (!_reviewsLoaded) {
-      print('🔍 JobDetail: Loading company reviews for companyId: $companyId');
-      ref.read(reviewProvider.notifier).getCompanyReviews(companyId);
-      _reviewsLoaded = true;
-    } else {
-      print('🔍 JobDetail: Reviews already loaded, skipping');
-    }
-  }
-
-  // Convert UserModel CompanyModel to standalone CompanyModel
-  standalone_company.CompanyModel _convertToCompanyModel(dynamic userCompany) {
-    return standalone_company.CompanyModel(
-      id: userCompany.id,
-      name: userCompany.name,
-      taxCode: userCompany.taxCode,
-      description: userCompany.description ?? '',
-      location: userCompany.location ?? '',
-      isVerified: userCompany.isVerified,
-      isActive: true, // Default value
-      images: userCompany.images,
-      createdAt: DateTime.now(), // Default value
-      updatedAt: DateTime.now(), // Default value
-    );
   }
 
   @override
@@ -80,16 +56,26 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     final job = jobsState.selectedJob;
     final isLoading = jobsState.isLoading;
     final error = jobsState.error;
+    final l10n = ref.watch(localizationsProvider);
+    final themeMode = Theme.of(context).brightness;
+    final isDark = themeMode == Brightness.dark;
 
     if (isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.neutral900 : AppColors.neutral50,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
       );
     }
 
     if (error != null || job == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Chi tiết công việc')),
+        backgroundColor: isDark ? AppColors.neutral900 : AppColors.neutral50,
+        appBar: AppBar(
+          title: Text(l10n.jobDetail),
+          backgroundColor: isDark ? AppColors.neutral800 : AppColors.white,
+        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -97,18 +83,24 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               Icon(
                 Icons.error_outline,
                 size: 64,
-                color: Colors.grey[400],
+                color: AppColors.neutral400,
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: AppSpacing.spacing16),
               Text(
                 error ?? 'Không tìm thấy công việc',
-                style: Theme.of(context).textTheme.bodyLarge,
+                style: AppTypography.bodyLarge.copyWith(
+                  color: isDark ? AppColors.white : AppColors.neutral900,
+                ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: AppSpacing.spacing16),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Quay lại'),
+                onPressed: () => context.pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                ),
+                child: Text(l10n.back),
               ),
             ],
           ),
@@ -117,916 +109,591 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              expandedHeight: 200,
-              floating: false,
-              pinned: true,
-              elevation: 0,
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black87,
-              flexibleSpace: FlexibleSpaceBar(
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Color(0xFF6C63FF),
-                        Color(0xFF4FACFE),
-                      ],
-                    ),
+      backgroundColor: isDark ? AppColors.neutral900 : AppColors.neutral50,
+      body: CustomScrollView(
+        slivers: [
+          // App Bar with gradient
+          _buildAppBar(job, l10n, isDark),
+          
+          // Content
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.spacing20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Company info card with action buttons
+                  _buildCompanyInfoCard(job, l10n, isDark),
+                  
+                  SizedBox(height: AppSpacing.spacing20),
+                  
+                  // About this role section
+                  _buildAboutThisRoleCard(job, l10n, isDark),
+                  
+                  SizedBox(height: AppSpacing.spacing20),
+                  
+                  // Categories
+                  if (job.specialized.isNotEmpty)
+                    _buildCategoriesCard(job, l10n, isDark),
+                  
+                  if (job.specialized.isNotEmpty)
+                    SizedBox(height: AppSpacing.spacing20),
+                  
+                  // Description
+                  _buildSectionCard(
+                    title: l10n.description,
+                    content: job.description,
+                    icon: Icons.description_rounded,
+                    isDark: isDark,
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withOpacity(0.2),
-                        ],
-                      ),
+                  
+                  SizedBox(height: AppSpacing.spacing20),
+                  
+                  // About Company
+                  if (job.recruiter.company?.description != null)
+                    _buildSectionCard(
+                      title: l10n.aboutCompany,
+                      content: job.recruiter.company!.description!,
+                      icon: Icons.business_rounded,
+                      isDark: isDark,
                     ),
-                    padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          job.title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        GestureDetector(
-                          onTap: () {
-                            print('🔍 Company header tapped! Company ID: ${job.recruiter.company?.id}');
-                            if (job.recruiter.company?.id != null) {
-                              print('🔍 Navigating to /company/${job.recruiter.company!.id}');
-                              context.push('/company/${job.recruiter.company!.id}');
-                            } else {
-                              print('❌ Company ID is null, cannot navigate');
-                            }
-                          },
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: job.recruiter.company?.images.isNotEmpty == true
-                                    ? ClipRRect(
-                                        borderRadius: BorderRadius.circular(10),
-                                        child: Image.network(
-                                          job.recruiter.company!.images.first,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              const Icon(Icons.business, color: Colors.grey),
-                                        ),
-                                      )
-                                    : const Icon(Icons.business, color: Colors.grey),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      job.recruiter.company?.name ?? 'Unknown Company',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        decoration: job.recruiter.company?.id != null 
-                                            ? TextDecoration.underline 
-                                            : null,
-                                      ),
-                                    ),
-                                    if (job.recruiter.company?.isVerified == true)
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.verified,
-                                            size: 14,
-                                            color: Colors.white70,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            'Đã xác minh',
-                                            style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                  
+                  if (job.recruiter.company?.description != null)
+                    SizedBox(height: AppSpacing.spacing20),
+                  
+                  // Similar Jobs
+                  _buildSimilarJobsSection(job, jobsState, l10n, isDark),
+                  
+                  SizedBox(height: AppSpacing.spacing96), // Space for FAB
+                ],
               ),
             ),
-          ];
-        },
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          ),
+        ],
+      ),
+      floatingActionButton: _buildApplyButton(job, l10n),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+    );
+  }
+
+  Widget _buildAppBar(JobModel job, dynamic l10n, bool isDark) {
+    return SliverAppBar(
+      expandedHeight: 200,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primary,
+              AppColors.primaryLight,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: FlexibleSpaceBar(
+          titlePadding: EdgeInsets.only(
+            left: AppSpacing.spacing64,
+            bottom: AppSpacing.spacing16,
+          ),
+          title: Text(
+            job.title,
+            style: AppTypography.h5.copyWith(
+              color: AppColors.white,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+      leading: IconButton(
+        onPressed: () => context.pop(),
+        icon: Container(
+          padding: EdgeInsets.all(AppSpacing.spacing8),
+          decoration: BoxDecoration(
+            color: AppColors.white.withOpacity(0.2),
+            borderRadius: AppSpacing.borderRadiusMd,
+          ),
+          child: Icon(
+            Icons.arrow_back_rounded,
+            color: AppColors.white,
+          ),
+        ),
+      ),
+      actions: [
+        // Share button
+        IconButton(
+          onPressed: () {
+            // TODO: Implement share functionality
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Tính năng chia sẻ đang được phát triển'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          icon: Container(
+            padding: EdgeInsets.all(AppSpacing.spacing8),
+            decoration: BoxDecoration(
+              color: AppColors.white.withOpacity(0.2),
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
+            child: Icon(
+              Icons.share_rounded,
+              color: AppColors.white,
+            ),
+          ),
+        ),
+        // Language toggle
+        Padding(
+          padding: EdgeInsets.only(right: AppSpacing.spacing16),
+          child: const LanguageToggleButton(isDarkBg: true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompanyInfoCard(JobModel job, dynamic l10n, bool isDark) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    final showActions = !authState.isAuthenticated || user?.role == 'candidate';
+    
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.neutral800 : AppColors.white,
+        borderRadius: AppSpacing.borderRadiusXl,
+        border: Border.all(
+          color: isDark ? AppColors.neutral700 : AppColors.neutral200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Company logo and info
+          Row(
             children: [
-              // Quick Action Buttons
-              Consumer(
-                builder: (context, ref, child) {
-                  final authState = ref.watch(authProvider);
-                  final user = authState.user;
-                  
-                  // Only show buttons for candidates or unauthenticated users
-                  if (authState.isAuthenticated && user?.role != 'candidate') {
-                    return const SizedBox.shrink();
+              // Company logo
+              GestureDetector(
+                onTap: () {
+                  if (job.recruiter.company?.id != null) {
+                    context.push('/company/${job.recruiter.company!.id}');
                   }
-                  
-                  if (job.recruiter.company?.id == null) {
-                    return const SizedBox.shrink();
-                  }
-                  
-                  final followState = ref.watch(followProvider);
-                  final isFollowing = followState.followingCompanies.any(
-                    (company) => company.id == job.recruiter.company!.id
-                  );
-
-                  final favoriteState = ref.watch(favoriteProvider);
-                  final isFavorited = favoriteState.favoriteJobs
-                      .any((favorite) => favorite.jobId == job.id);
-                  
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    child: Row(
-                      children: [
-                        // Follow button
-                        Expanded(
-                          child: Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: isFollowing 
-                                    ? [Colors.grey[400]!, Colors.grey[500]!]
-                                    : [const Color(0xFF6C63FF), const Color(0xFF4FACFE)],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                if (!AuthGuard.requireAuth(context, ref, 
-                                    message: 'Bạn cần đăng nhập để theo dõi công ty.')) {
-                                  return;
-                                }
-                                _toggleFollowCompany(ref, job.recruiter.company!.id);
-                              },
-                              icon: Icon(
-                                isFollowing ? Icons.person_remove : Icons.person_add,
-                                color: Colors.white,
-                              ),
-                              label: Text(
-                                isFollowing ? 'Bỏ theo dõi' : 'Theo dõi',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        
-                        // Favorite button
-                        Expanded(
-                          child: Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: isFavorited 
-                                    ? [Colors.red[400]!, Colors.red[600]!]
-                                    : [Colors.orange[400]!, Colors.orange[600]!],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                if (!AuthGuard.requireAuth(context, ref, 
-                                    message: 'Bạn cần đăng nhập để lưu việc làm yêu thích.')) {
-                                  return;
-                                }
-                                _toggleFavorite(ref, job.id);
-                              },
-                              icon: Icon(
-                                isFavorited ? Icons.favorite : Icons.favorite_border,
-                                color: Colors.white,
-                              ),
-                              label: Text(
-                                isFavorited ? 'Đã lưu' : 'Lưu việc',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
                 },
-              ),
-
-              // Job Details Card
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 0,
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Job Tags
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          _buildChip(context, job.specialized, Icons.work),
-                          if (job.jobType != null)
-                            _buildChip(context, job.jobType!, Icons.schedule),
-                          _buildChip(
-                            context,
-                            '${job.salary.toStringAsFixed(0)} VNĐ',
-                            Icons.attach_money,
-                            color: Colors.green,
-                          ),
-                          _buildChip(context, job.location, Icons.location_on, color: Colors.orange),
-                          _buildChip(context, job.workingHours, Icons.access_time, color: Colors.blue),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Job Description
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.grey.withOpacity(0.1),
-                      spreadRadius: 0,
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF4FACFE).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.description,
-                              color: Color(0xFF4FACFE),
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          const Text(
-                            'Mô tả công việc',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        job.description,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 1.6,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Company Description
-              if (job.recruiter.company?.description != null)
-                Container(
-                  width: double.infinity,
+                child: Container(
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 0,
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                    color: AppColors.neutral100,
+                    borderRadius: AppSpacing.borderRadiusMd,
+                    border: Border.all(
+                      color: isDark ? AppColors.neutral700 : AppColors.neutral200,
+                    ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.business,
-                                color: Colors.green,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            const Text(
-                              'Về công ty',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
+                  child: job.recruiter.company?.images.isNotEmpty == true
+                      ? ClipRRect(
+                          borderRadius: AppSpacing.borderRadiusMd,
+                          child: Image.network(
+                            job.recruiter.company!.images.first,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(
+                                Icons.business_rounded,
+                                color: AppColors.primary,
+                                size: 36,
+                              );
+                            },
+                          ),
+                        )
+                      : Icon(
+                          Icons.business_rounded,
+                          color: AppColors.primary,
+                          size: 36,
                         ),
-                        const SizedBox(height: 16),
+                ),
+              ),
+              SizedBox(width: AppSpacing.spacing16),
+              
+              // Company info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            job.recruiter.company?.name ?? 'Unknown Company',
+                            style: AppTypography.h6.copyWith(
+                              color: isDark ? AppColors.white : AppColors.neutral900,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (job.recruiter.company?.isVerified == true)
+                          Container(
+                            margin: EdgeInsets.only(left: AppSpacing.spacing8),
+                            padding: EdgeInsets.all(AppSpacing.spacing4),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withOpacity(0.1),
+                              borderRadius: AppSpacing.borderRadiusSm,
+                            ),
+                            child: Icon(
+                              Icons.verified_rounded,
+                              size: 16,
+                              color: AppColors.info,
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: AppSpacing.spacing4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.location_on_rounded,
+                          size: 16,
+                          color: AppColors.neutral500,
+                        ),
+                        SizedBox(width: AppSpacing.spacing4),
                         Text(
-                          job.recruiter.company!.description!,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.6,
-                            color: Colors.black87,
+                          job.location,
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.neutral500,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
-
-              const SizedBox(height: 20),
-
-            // Company Reviews Section
+              ),
+            ],
+          ),
+          
+          // Action buttons (Follow & Save)
+          if (showActions) ...[
+            SizedBox(height: AppSpacing.spacing16),
             Consumer(
               builder: (context, ref, child) {
-                // Load reviews when company is available (only once)
-                if (job.recruiter.company != null && !_reviewsLoaded) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _loadCompanyReviews(job.recruiter.company!.id);
-                  });
+                if (job.recruiter.company?.id == null) {
+                  return const SizedBox.shrink();
                 }
-
-                final reviewState = ref.watch(reviewProvider);
-                final reviews = reviewState.reviews.take(3).toList();
                 
-                print('🔍 JobDetail Consumer: reviewState.isLoading: ${reviewState.isLoading}');
-                print('🔍 JobDetail Consumer: reviewState.error: ${reviewState.error}');
-                print('🔍 JobDetail Consumer: reviewState.reviews.length: ${reviewState.reviews.length}');
-                print('🔍 JobDetail Consumer: reviews.length (first 3): ${reviews.length}');
+                final followState = ref.watch(followProvider);
+                final isFollowing = followState.followingCompanies.any(
+                  (company) => company.id == job.recruiter.company!.id
+                );
 
-                return Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 0,
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF6C63FF).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.star_rate,
-                                color: Color(0xFF6C63FF),
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Text(
-                                'Đánh giá công ty',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                            ),
-                            if (reviewState.reviews.isNotEmpty)
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).primaryColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  '${reviewState.reviews.length} đánh giá',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Theme.of(context).primaryColor,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                          ],
+                final favoriteState = ref.watch(favoriteProvider);
+                final isFavorited = favoriteState.favoriteJobs
+                    .any((favorite) => favorite.jobId == job.id);
+                
+                return Row(
+                  children: [
+                    // Follow button
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          if (!AuthGuard.requireAuth(context, ref, 
+                              message: 'Bạn cần đăng nhập để theo dõi công ty.')) {
+                            return;
+                          }
+                          _toggleFollowCompany(ref, job.recruiter.company!.id);
+                        },
+                        icon: Icon(
+                          isFollowing ? Icons.person_remove_rounded : Icons.person_add_rounded,
+                          size: 20,
                         ),
-                        
-                        if (reviewState.isLoading)
-                          const Padding(
-                            padding: EdgeInsets.all(20),
-                            child: Center(child: CircularProgressIndicator()),
-                          )
-                        else if (reviews.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          
-                          // Display up to 3 reviews
-                          ...reviews.map((review) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: ReviewCard(review: review),
-                          )),
-                          
-                          // Show more button if there are more than 3 reviews
-                          if (reviewState.reviews.length > 3)
-                            Center(
-                              child: TextButton.icon(
-                                onPressed: () {
-                                  if (job.recruiter.company != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => CompanyReviewsScreen(
-                                          company: _convertToCompanyModel(job.recruiter.company!),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.arrow_forward),
-                                label: Text('Xem thêm ${reviewState.reviews.length - 3} đánh giá'),
-                              ),
-                            ),
-                        ] else ...[
-                          const SizedBox(height: 12),
-                          Center(
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.rate_review_outlined,
-                                  size: 48,
-                                  color: Colors.grey[400],
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Chưa có đánh giá nào',
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Colors.grey[600],
-                                  ),
-                                ),
-                              ],
-                            ),
+                        label: Text(isFollowing ? l10n.unfollowCompany : l10n.followCompany),
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.spacing12,
                           ),
-                        ],
-                        
-                        const SizedBox(height: 16),
-                        
-                        Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: () {
-                                  if (job.recruiter.company != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => CompanyReviewsScreen(
-                                          company: _convertToCompanyModel(job.recruiter.company!),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.star_outline),
-                                label: const Text('Xem tất cả'),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: () {
-                                  if (!AuthGuard.requireAuth(context, ref, 
-                                      message: 'Bạn cần đăng nhập để viết đánh giá công ty.')) {
-                                    return;
-                                  }
-                                  if (job.recruiter.company != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => CompanyReviewsScreen(
-                                          company: _convertToCompanyModel(job.recruiter.company!),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
-                                icon: const Icon(Icons.rate_review),
-                                label: const Text('Viết đánh giá'),
-                              ),
-                            ),
-                          ],
+                          side: BorderSide(
+                            color: isFollowing ? AppColors.warning : AppColors.primary,
+                          ),
+                          foregroundColor: isFollowing ? AppColors.warning : AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppSpacing.borderRadiusMd,
+                          ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    SizedBox(width: AppSpacing.spacing12),
+                    
+                    // Save button
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          if (!AuthGuard.requireAuth(context, ref, 
+                              message: 'Bạn cần đăng nhập để lưu việc làm.')) {
+                            return;
+                          }
+                          _toggleFavorite(ref, job.id);
+                        },
+                        icon: Icon(
+                          isFavorited ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          size: 20,
+                        ),
+                        label: Text(isFavorited ? l10n.unsaveJob : l10n.saveJob),
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.spacing12,
+                          ),
+                          backgroundColor: isFavorited ? AppColors.error : AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppSpacing.borderRadiusMd,
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
-            const SizedBox(height: 16),
-
-            // Job Stats
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.people,
-                              color: Colors.blue.shade600,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${job.applicationCount}',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade600,
-                            ),
-                          ),
-                          Text(
-                            'Ứng tuyển',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 60,
-                      color: Colors.grey[200],
-                    ),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.calendar_today,
-                              color: Colors.green.shade600,
-                              size: 24,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _formatDate(job.createdAt),
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green.shade600,
-                            ),
-                          ),
-                          Text(
-                            'Ngày đăng',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Related Jobs Section
-            Consumer(
-              builder: (context, ref, child) {
-                final jobsState = ref.watch(jobProvider);
-                final relatedJobs = jobsState.jobs.where((relatedJob) => 
-                  relatedJob.id != job.id &&
-                  (relatedJob.location.toLowerCase().contains(job.location.toLowerCase()) ||
-                   relatedJob.jobType == job.jobType ||
-                   relatedJob.recruiter.company?.name == job.recruiter.company?.name)
-                ).take(3).toList();
-
-                if (relatedJobs.isNotEmpty) {
-                  return Card(
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Công việc liên quan',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          
-                          ...relatedJobs.map((relatedJob) => Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: InkWell(
-                              onTap: () {
-                                context.push('/job-detail/${relatedJob.id}');
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.shade200),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Company Logo
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(8),
-                                        color: Colors.grey.shade100,
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: relatedJob.recruiter.company != null && relatedJob.recruiter.company!.images.isNotEmpty
-                                            ? Image.network(
-                                                relatedJob.recruiter.company!.images.first,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (context, error, stackTrace) => 
-                                                    Center(
-                                                      child: Text(
-                                                        (relatedJob.recruiter.company?.name ?? 'C')[0].toUpperCase(),
-                                                        style: const TextStyle(
-                                                          fontWeight: FontWeight.bold,
-                                                          fontSize: 18,
-                                                        ),
-                                                      ),
-                                                    ),
-                                              )
-                                            : Center(
-                                                child: Text(
-                                                  (relatedJob.recruiter.company?.name ?? 'C')[0].toUpperCase(),
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 18,
-                                                  ),
-                                                ),
-                                              ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    
-                                    // Job Info
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            relatedJob.title,
-                                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            relatedJob.recruiter.company?.name ?? 'Không rõ công ty',
-                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                              color: Colors.grey[600],
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.location_on_outlined,
-                                                size: 14,
-                                                color: Colors.grey[600],
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Expanded(
-                                                child: Text(
-                                                  relatedJob.location,
-                                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                    color: Colors.grey[600],
-                                                  ),
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    
-                                    // Arrow Icon
-                                    Icon(
-                                      Icons.arrow_forward_ios,
-                                      size: 16,
-                                      color: Colors.grey[400],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          )),
-                          
-                          const SizedBox(height: 8),
-                          Center(
-                            child: TextButton(
-                              onPressed: () {
-                                // Navigate to search with similar criteria
-                                context.push('/search?location=${Uri.encodeComponent(job.location)}&jobType=${Uri.encodeComponent(job.jobType ?? '')}');
-                              },
-                              child: const Text('Xem thêm công việc tương tự'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            
-            const SizedBox(height: 100), // Space for floating button
           ],
-        ),
-      ),
-    ),
-      floatingActionButton: Consumer(
-        builder: (context, ref, child) {
-          final authState = ref.watch(authProvider);
-          final user = authState.user;
-          
-          // Show apply button for both authenticated candidates and unauthenticated users
-          if (authState.isAuthenticated && user?.role != 'candidate') {
-            return const SizedBox.shrink();
-          }
-
-          return FloatingActionButton.extended(
-            heroTag: "apply_job_${job.id}", // Add unique hero tag
-            onPressed: () {
-              if (!AuthGuard.requireAuth(context, ref, 
-                  message: 'Bạn cần đăng nhập để ứng tuyển vào vị trí này.')) {
-                return;
-              }
-              _showApplyDialog(context, job);
-            },
-            label: const Text('Ứng tuyển'),
-            icon: const Icon(Icons.send),
-          );
-        },
+        ],
       ),
     );
   }
 
-  Widget _buildChip(BuildContext context, String label, IconData icon, {Color? color}) {
-    final chipColor = color ?? Theme.of(context).primaryColor;
-    
+  Widget _buildAboutThisRoleCard(JobModel job, dynamic l10n, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.all(AppSpacing.spacing20),
       decoration: BoxDecoration(
-        color: chipColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(25),
+        color: isDark ? AppColors.neutral800 : AppColors.white,
+        borderRadius: AppSpacing.borderRadiusXl,
         border: Border.all(
-          color: chipColor.withOpacity(0.3),
-          width: 1,
+          color: isDark ? AppColors.neutral700 : AppColors.neutral200,
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: chipColor,
-          ),
-          const SizedBox(width: 6),
           Text(
+            l10n.aboutThisRole,
+            style: AppTypography.h6.copyWith(
+              color: isDark ? AppColors.white : AppColors.neutral900,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          
+          // Info rows
+          _buildInfoRow(
+            icon: Icons.people_rounded,
+            label: l10n.applicants,
+            value: '${job.applicationCount}',
+            isDark: isDark,
+          ),
+          SizedBox(height: AppSpacing.spacing12),
+          
+          _buildInfoRow(
+            icon: Icons.calendar_today_rounded,
+            label: l10n.postedDate,
+            value: _formatDate(job.createdAt),
+            isDark: isDark,
+          ),
+          SizedBox(height: AppSpacing.spacing12),
+          
+          _buildInfoRow(
+            icon: Icons.work_rounded,
+            label: l10n.jobType,
+            value: job.jobType ?? l10n.fullTime,
+            isDark: isDark,
+          ),
+          SizedBox(height: AppSpacing.spacing12),
+          
+          _buildInfoRow(
+            icon: Icons.attach_money_rounded,
+            label: l10n.salary,
+            value: '${NumberFormat('#,###').format(job.salary)} VNĐ',
+            isDark: isDark,
+            valueColor: AppColors.success,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required bool isDark,
+    Color? valueColor,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(AppSpacing.spacing8),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: AppSpacing.borderRadiusSm,
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: AppColors.primary,
+          ),
+        ),
+        SizedBox(width: AppSpacing.spacing12),
+        Expanded(
+          child: Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: chipColor,
-              fontWeight: FontWeight.w600,
+            style: AppTypography.bodyMedium.copyWith(
+              color: isDark ? AppColors.neutral300 : AppColors.neutral600,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: AppTypography.bodyMedium.copyWith(
+            color: valueColor ?? (isDark ? AppColors.white : AppColors.neutral900),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoriesCard(JobModel job, dynamic l10n, bool isDark) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.neutral800 : AppColors.white,
+        borderRadius: AppSpacing.borderRadiusXl,
+        border: Border.all(
+          color: isDark ? AppColors.neutral700 : AppColors.neutral200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(AppSpacing.spacing8),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withOpacity(0.1),
+                  borderRadius: AppSpacing.borderRadiusSm,
+                ),
+                child: Icon(
+                  Icons.category_rounded,
+                  size: 20,
+                  color: AppColors.warning,
+                ),
+              ),
+              SizedBox(width: AppSpacing.spacing12),
+              Text(
+                l10n.categories,
+                style: AppTypography.h6.copyWith(
+                  color: isDark ? AppColors.white : AppColors.neutral900,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          
+          Wrap(
+            spacing: AppSpacing.spacing8,
+            runSpacing: AppSpacing.spacing8,
+            children: [
+              _buildCategoryChip(job.specialized, AppColors.warning, isDark),
+              if (job.jobType != null)
+                _buildCategoryChip(job.jobType!, AppColors.info, isDark),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String label, Color color, bool isDark) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.spacing16,
+        vertical: AppSpacing.spacing8,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: AppSpacing.borderRadiusLg,
+        border: Border.all(
+          color: color.withOpacity(0.3),
+        ),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.bodyMedium.copyWith(
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required String content,
+    required IconData icon,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.neutral800 : AppColors.white,
+        borderRadius: AppSpacing.borderRadiusXl,
+        border: Border.all(
+          color: isDark ? AppColors.neutral700 : AppColors.neutral200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(AppSpacing.spacing8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: AppSpacing.borderRadiusSm,
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: AppColors.primary,
+                ),
+              ),
+              SizedBox(width: AppSpacing.spacing12),
+              Text(
+                title,
+                style: AppTypography.h6.copyWith(
+                  color: isDark ? AppColors.white : AppColors.neutral900,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          
+          Text(
+            content,
+            style: AppTypography.bodyMedium.copyWith(
+              color: isDark ? AppColors.neutral300 : AppColors.neutral700,
+              height: 1.6,
             ),
           ),
         ],
@@ -1034,19 +701,166 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     );
   }
 
+  Widget _buildSimilarJobsSection(JobModel job, dynamic jobsState, dynamic l10n, bool isDark) {
+    final similarJobs = jobsState.jobs.where((relatedJob) => 
+      relatedJob.id != job.id &&
+      (relatedJob.location.toLowerCase().contains(job.location.toLowerCase()) ||
+       relatedJob.jobType == job.jobType ||
+       relatedJob.specialized == job.specialized)
+    ).take(3).toList();
+
+    if (similarJobs.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(AppSpacing.spacing8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withOpacity(0.1),
+                borderRadius: AppSpacing.borderRadiusSm,
+              ),
+              child: Icon(
+                Icons.work_outline_rounded,
+                size: 20,
+                color: AppColors.success,
+              ),
+            ),
+            SizedBox(width: AppSpacing.spacing12),
+            Text(
+              l10n.similarJobs,
+              style: AppTypography.h6.copyWith(
+                color: isDark ? AppColors.white : AppColors.neutral900,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            TextButton(
+              onPressed: () => context.push('/jobs'),
+              child: Row(
+                children: [
+                  Text(
+                    l10n.showAll,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.spacing4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: AppSpacing.spacing16),
+        
+        ...similarJobs.map((relatedJob) => Padding(
+          padding: EdgeInsets.only(bottom: AppSpacing.spacing16),
+          child: GestureDetector(
+            onTap: () => context.push('/jobs/${relatedJob.id}'),
+            child: JobCard(job: relatedJob),
+          ),
+        )),
+      ],
+    );
+  }
+
+  Widget _buildApplyButton(JobModel job, dynamic l10n) {
+    final authState = ref.watch(authProvider);
+    final user = authState.user;
+    
+    // Only show for candidates or unauthenticated users
+    if (authState.isAuthenticated && user?.role != 'candidate') {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.spacing20),
+      child: ElevatedButton(
+        onPressed: () {
+          if (!AuthGuard.requireAuth(context, ref, 
+              message: 'Bạn cần đăng nhập để ứng tuyển vào vị trí này.')) {
+            return;
+          }
+          _showApplyDialog(context, job);
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.white,
+          padding: EdgeInsets.symmetric(vertical: AppSpacing.spacing16),
+          shape: RoundedRectangleBorder(
+            borderRadius: AppSpacing.borderRadiusXl,
+          ),
+          elevation: 4,
+          shadowColor: AppColors.primary.withOpacity(0.3),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.send_rounded, size: 20),
+            SizedBox(width: AppSpacing.spacing8),
+            Text(
+              l10n.applyNow,
+              style: AppTypography.labelLarge.copyWith(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    return DateFormat('dd/MM/yyyy').format(date);
   }
 
   Future<void> _toggleFavorite(WidgetRef ref, int jobId) async {
+    final l10n = ref.read(localizationsProvider);
     final favoriteNotifier = ref.read(favoriteProvider.notifier);
-    final isFavorited = ref.read(favoriteProvider).favoriteJobs
+    final favoriteState = ref.read(favoriteProvider);
+    final isFavorited = favoriteState.favoriteJobs
         .any((favorite) => favorite.jobId == jobId);
-
+    
     if (isFavorited) {
-      await favoriteNotifier.removeFromFavorite(jobId);
+      final success = await favoriteNotifier.removeFromFavorite(jobId);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.removedFromFavorites),
+            backgroundColor: AppColors.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
+          ),
+        );
+      }
     } else {
-      await favoriteNotifier.addToFavorite(jobId);
+      final success = await favoriteNotifier.addToFavorite(jobId);
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.addedToFavorites),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -1061,21 +875,28 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       final success = await followNotifier.unfollowCompany(companyId);
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã bỏ theo dõi công ty'),
-            backgroundColor: Colors.orange,
+          SnackBar(
+            content: const Text('Đã bỏ theo dõi công ty'),
+            backgroundColor: AppColors.warning,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
           ),
         );
       }
     } else {
-      // Create follow request
       final createFollow = CreateFollowModel(companyId: companyId);
       final success = await followNotifier.followCompany(createFollow);
       if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Đã theo dõi công ty'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: const Text('Đã theo dõi công ty'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
           ),
         );
       }

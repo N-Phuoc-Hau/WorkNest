@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/chat_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 import '../../profile/screens/user_profile_screen.dart';
 import 'chat_detail_screen.dart';
 
@@ -13,6 +16,9 @@ class ChatListScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatListScreenState extends ConsumerState<ChatListScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -38,112 +44,238 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Tin nhắn',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          'Messages',
+          style: AppTypography.h4.copyWith(
+            color: AppColors.neutral900,
+          ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.neutral900,
         elevation: 0,
+        centerTitle: false,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
             height: 1,
-            color: Colors.grey.shade200,
+            color: AppColors.neutral200,
           ),
         ),
       ),
-      backgroundColor: Colors.grey.shade50,
-      body: Consumer(
-        builder: (context, ref, child) {
-          final chatState = ref.watch(chatProvider);
+      backgroundColor: AppColors.white,
+      body: Column(
+        children: [
+          // Search bar
+          _buildSearchBar(),
           
-          if (chatState.isLoading && chatState.chatRooms.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          // Divider
+          Container(
+            height: 1,
+            color: AppColors.neutral200,
+          ),
+          
+          // Messages list
+          Expanded(
+            child: Consumer(
+              builder: (context, ref, child) {
+                final chatState = ref.watch(chatProvider);
+                
+                if (chatState.isLoading && chatState.chatRooms.isEmpty) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                    ),
+                  );
+                }
 
-          if (chatState.error != null) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Lỗi tải tin nhắn',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
+                if (chatState.error != null) {
+                  return Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.spacing32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.error_outline_rounded,
+                            size: 64,
+                            color: AppColors.neutral300,
+                          ),
+                          SizedBox(height: AppSpacing.spacing16),
+                          Text(
+                            'Lỗi tải tin nhắn',
+                            style: AppTypography.h5.copyWith(
+                              color: AppColors.neutral700,
+                            ),
+                          ),
+                          SizedBox(height: AppSpacing.spacing8),
+                          Text(
+                            chatState.error!,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.neutral500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          SizedBox(height: AppSpacing.spacing24),
+                          ElevatedButton(
+                            onPressed: () => ref.read(chatProvider.notifier).loadChatRooms(),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: AppColors.white,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: AppSpacing.spacing24,
+                                vertical: AppSpacing.spacing12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: AppSpacing.borderRadiusLg,
+                              ),
+                            ),
+                            child: const Text('Thử lại'),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    chatState.error!,
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => ref.read(chatProvider.notifier).loadChatRooms(),
-                    child: const Text('Thử lại'),
-                  ),
-                ],
-              ),
-            );
-          }
+                  );
+                }
 
-          if (chatState.chatRooms.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.chat_bubble_outline,
-                    size: 64,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Chưa có tin nhắn nào',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Bắt đầu trò chuyện với nhà tuyển dụng hoặc ứng viên',
-                    style: TextStyle(
-                      color: Colors.grey.shade500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            );
-          }
+                // Filter chat rooms based on search query
+                final filteredChatRooms = _searchQuery.isEmpty
+                    ? chatState.chatRooms
+                    : chatState.chatRooms.where((chatRoom) {
+                        final recruiterInfo = chatRoom['recruiterInfo'] ?? {};
+                        final candidateInfo = chatRoom['candidateInfo'] ?? {};
+                        final jobInfo = chatRoom['jobInfo'] ?? {};
+                        
+                        final otherUserName = (recruiterInfo['fullName'] ?? candidateInfo['fullName'] ?? '').toString().toLowerCase();
+                        final jobTitle = (jobInfo['title'] ?? '').toString().toLowerCase();
+                        final query = _searchQuery.toLowerCase();
+                        
+                        return otherUserName.contains(query) || jobTitle.contains(query);
+                      }).toList();
 
-          return RefreshIndicator(
-            onRefresh: () => ref.read(chatProvider.notifier).loadChatRooms(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: chatState.chatRooms.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final chatRoom = chatState.chatRooms[index];
-                return _buildChatRoomCard(chatRoom);
+                if (filteredChatRooms.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.spacing32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _searchQuery.isEmpty 
+                                ? Icons.chat_bubble_outline_rounded
+                                : Icons.search_off_rounded,
+                            size: 64,
+                            color: AppColors.neutral300,
+                          ),
+                          SizedBox(height: AppSpacing.spacing16),
+                          Text(
+                            _searchQuery.isEmpty 
+                                ? 'Chưa có tin nhắn nào'
+                                : 'Không tìm thấy kết quả',
+                            style: AppTypography.h5.copyWith(
+                              color: AppColors.neutral700,
+                            ),
+                          ),
+                          SizedBox(height: AppSpacing.spacing8),
+                          Text(
+                            _searchQuery.isEmpty
+                                ? 'Bắt đầu trò chuyện với nhà tuyển dụng hoặc ứng viên'
+                                : 'Thử tìm kiếm với từ khóa khác',
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: AppColors.neutral500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () => ref.read(chatProvider.notifier).loadChatRooms(),
+                  color: AppColors.primary,
+                  child: ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: filteredChatRooms.length,
+                    separatorBuilder: (context, index) => Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.neutral100,
+                      indent: AppSpacing.spacing64,
+                    ),
+                    itemBuilder: (context, index) {
+                      final chatRoom = filteredChatRooms[index];
+                      return _buildChatRoomCard(chatRoom);
+                    },
+                  ),
+                );
               },
             ),
-          );
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing16),
+      color: AppColors.white,
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) {
+          setState(() {
+            _searchQuery = value;
+          });
         },
+        decoration: InputDecoration(
+          hintText: 'Search messages',
+          hintStyle: AppTypography.bodyMedium.copyWith(
+            color: AppColors.neutral400,
+          ),
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            color: AppColors.neutral400,
+            size: 20,
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    color: AppColors.neutral400,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = '';
+                    });
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: AppColors.neutral50,
+          border: OutlineInputBorder(
+            borderRadius: AppSpacing.borderRadiusLg,
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: AppSpacing.borderRadiusLg,
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppSpacing.borderRadiusLg,
+            borderSide: BorderSide(
+              color: AppColors.primary,
+              width: 1.5,
+            ),
+          ),
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.spacing16,
+            vertical: AppSpacing.spacing12,
+          ),
+          isDense: true,
+        ),
       ),
     );
   }
@@ -157,20 +289,19 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final int unreadCount = chatRoom['unreadCount'] ?? 0;
     final String lastMessageTime = chatRoom['lastMessageTime']?.toString() ?? '';
 
-    // Xác định thông tin người chat (dựa vào role của user hiện tại)
-    // TODO: Lấy từ user provider thực tê
+    // Xác định thông tin người chat
     final bool isRecruiter = recruiterInfo.isNotEmpty && candidateInfo.isNotEmpty 
-        ? true  // Mặc định là recruiter, có thể thay đổi dựa trên context
+        ? true
         : recruiterInfo.isNotEmpty;
     final Map<String, dynamic> otherUserInfo = isRecruiter ? candidateInfo : recruiterInfo;
     final String otherUserName = (otherUserInfo['fullName'] ?? otherUserInfo['name'] ?? 'Người dùng').toString();
     final String otherUserAvatar = (otherUserInfo['avatar'] ?? '').toString();
+    final String otherUserRole = isRecruiter 
+        ? (candidateInfo['role'] ?? 'Candidate').toString()
+        : 'Recruiter at ${recruiterInfo['company'] ?? 'Company'}';
 
-    return Card(
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return Material(
+      color: AppColors.white,
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -187,48 +318,53 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSpacing.spacing16,
+            vertical: AppSpacing.spacing16,
+          ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
+              // Avatar with online indicator
               Stack(
                 children: [
-                  _buildAvatar(otherUserAvatar, otherUserName, radius: 28),
-                  // Online status indicator
+                  _buildAvatar(otherUserAvatar, otherUserName, radius: 24),
                   Positioned(
-                    bottom: 2,
-                    right: 2,
+                    bottom: 0,
+                    right: 0,
                     child: Container(
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: Colors.green,
+                        color: AppColors.success,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
+                        border: Border.all(
+                          color: AppColors.white,
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.spacing12),
               
-              // Thông tin chat
+              // Message info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Tên và thời gian
+                    // Name and time
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
                           child: Text(
                             otherUserName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
+                            style: AppTypography.bodyLarge.copyWith(
+                              fontWeight: AppTypography.semiBold,
+                              color: AppColors.neutral900,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -236,84 +372,80 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                         if (lastMessageTime.isNotEmpty)
                           Text(
                             _formatTime(lastMessageTime),
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
+                            style: AppTypography.caption.copyWith(
+                              color: unreadCount > 0 
+                                  ? AppColors.primary
+                                  : AppColors.neutral500,
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: AppSpacing.spacing2),
                     
-                    // Công việc (nếu có)
-                    if (jobInfo.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          (jobInfo['title'] ?? 'Vị trí tuyển dụng').toString(),
-                          style: TextStyle(
-                            color: Colors.blue.shade700,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                    // Role/Company
+                    Text(
+                      otherUserRole,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.neutral500,
                       ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    SizedBox(height: AppSpacing.spacing8),
                     
-                    // Tin nhắn cuối và số tin nhắn chưa đọc
+                    // Last message and unread badge
                     Row(
                       children: [
                         Expanded(
                           child: Text(
                             _getLastMessageText(lastMessageData),
-                            style: TextStyle(
-                              color: unreadCount > 0 
-                                  ? Colors.black87 
-                                  : Colors.grey.shade600,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: unreadCount > 0
+                                  ? AppColors.neutral900
+                                  : AppColors.neutral500,
                               fontWeight: unreadCount > 0 
-                                  ? FontWeight.w500 
-                                  : FontWeight.normal,
+                                  ? AppTypography.medium
+                                  : AppTypography.regular,
                             ),
-                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
                           ),
                         ),
-                        if (unreadCount > 0)
+                        if (unreadCount > 0) ...[
+                          SizedBox(width: AppSpacing.spacing8),
                           Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.spacing8,
+                              vertical: AppSpacing.spacing2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(10),
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               unreadCount > 99 ? '99+' : unreadCount.toString(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.white,
+                                fontWeight: AppTypography.semiBold,
                               ),
                             ),
                           ),
+                        ],
                       ],
                     ),
                   ],
                 ),
               ),
               
-              // Menu options
+              // More options
               PopupMenuButton<String>(
                 icon: Icon(
-                  Icons.more_vert,
-                  color: Colors.grey.shade400,
+                  Icons.more_horiz_rounded,
+                  color: AppColors.neutral400,
+                  size: 20,
+                ),
+                offset: const Offset(0, 40),
+                shape: RoundedRectangleBorder(
+                  borderRadius: AppSpacing.borderRadiusLg,
                 ),
                 onSelected: (value) {
                   switch (value) {
@@ -326,23 +458,41 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   }
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'profile',
                     child: Row(
                       children: [
-                        Icon(Icons.person_outline),
-                        SizedBox(width: 8),
-                        Text('Xem hồ sơ'),
+                        Icon(
+                          Icons.person_outline_rounded,
+                          size: 20,
+                          color: AppColors.neutral700,
+                        ),
+                        SizedBox(width: AppSpacing.spacing12),
+                        Text(
+                          'Xem hồ sơ',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.neutral700,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'delete',
                     child: Row(
                       children: [
-                        Icon(Icons.delete_outline, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Xóa cuộc trò chuyện', style: TextStyle(color: Colors.red)),
+                        Icon(
+                          Icons.delete_outline_rounded,
+                          size: 20,
+                          color: AppColors.error,
+                        ),
+                        SizedBox(width: AppSpacing.spacing12),
+                        Text(
+                          'Xóa cuộc trò chuyện',
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: AppColors.error,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -355,25 +505,24 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
-  Widget _buildAvatar(String avatarUrl, String name, {double radius = 28}) {
+  Widget _buildAvatar(String avatarUrl, String name, {double radius = 24}) {
     if (avatarUrl.isNotEmpty) {
       return CircleAvatar(
         radius: radius,
         backgroundImage: NetworkImage(avatarUrl),
-        backgroundColor: Colors.grey.shade300,
+        backgroundColor: AppColors.neutral200,
       );
     } else {
       // Use first letter of name as avatar
       String initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
       return CircleAvatar(
         radius: radius,
-        backgroundColor: Colors.blue.shade100,
+        backgroundColor: AppColors.primaryLighter,
         child: Text(
           initial,
-          style: TextStyle(
-            color: Colors.blue.shade700,
-            fontWeight: FontWeight.w600,
-            fontSize: radius * 0.6, // Scale font size with radius
+          style: AppTypography.bodyLarge.copyWith(
+            color: AppColors.primary,
+            fontWeight: AppTypography.semiBold,
           ),
         ),
       );
@@ -472,5 +621,11 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }

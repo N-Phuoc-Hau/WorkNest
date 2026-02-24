@@ -18,6 +18,7 @@ import '../../features/candidate/screens/cv_analysis_screen.dart';
 import '../../features/candidate/screens/following_companies_screen.dart';
 import '../../features/chat/screens/chat_detail_screen.dart';
 import '../../features/chat/screens/chat_list_screen.dart';
+import '../../features/chat/screens/chat_screen.dart';
 import '../../features/dashboard/screens/admin_dashboard_screen.dart';
 import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/interview/screens/schedule_interview_screen.dart';
@@ -269,7 +270,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat',
         builder: (context, state) => _buildWithLayout(
           context, 
-          const ChatListScreen(),
+          const ChatScreen(),
           'candidate',
         ),
         routes: [
@@ -436,7 +437,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/recruiter/chat',
         builder: (context, state) => _buildWithLayout(
           context, 
-          const ChatListScreen(),
+          const ChatScreen(),
           'recruiter',
         ),
         routes: [

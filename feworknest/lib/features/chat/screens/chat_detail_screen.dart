@@ -4,6 +4,9 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
 
 class ChatDetailScreen extends ConsumerStatefulWidget {
   final String roomId;
@@ -45,14 +48,16 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get role info
+    final String otherUserRole = widget.recruiterInfo.isNotEmpty
+        ? 'Recruiter at ${widget.recruiterInfo['company'] ?? 'Company'}'
+        : widget.candidateInfo['role'] ?? 'Candidate';
+
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: _buildAppBar(),
+      backgroundColor: AppColors.neutral50,
+      appBar: _buildAppBar(otherUserRole),
       body: Column(
         children: [
-          // Job info banner (nếu có)
-          if (widget.jobInfo.isNotEmpty) _buildJobInfoBanner(),
-          
           // Messages
           Expanded(child: _buildMessagesArea()),
           
@@ -63,33 +68,37 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
+  PreferredSizeWidget _buildAppBar(String otherUserRole) {
     return AppBar(
-      backgroundColor: Colors.white,
-      foregroundColor: Colors.black,
+      backgroundColor: AppColors.white,
+      foregroundColor: AppColors.neutral900,
       elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_rounded),
+        onPressed: () => Navigator.pop(context),
+      ),
       title: Row(
         children: [
-          _buildAvatar(widget.otherUserAvatar, widget.otherUserName, radius: 18),
-          const SizedBox(width: 12),
+          _buildAvatar(widget.otherUserAvatar, widget.otherUserName, radius: 20),
+          SizedBox(width: AppSpacing.spacing12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   widget.otherUserName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
+                  style: AppTypography.bodyLarge.copyWith(
+                    fontWeight: AppTypography.semiBold,
+                    color: AppColors.neutral900,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
-                  'Đang hoạt động',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.green.shade600,
-                    fontWeight: FontWeight.w400,
+                  otherUserRole,
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.neutral500,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -98,22 +107,23 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.phone),
+          icon: Icon(
+            Icons.star_outline_rounded,
+            color: AppColors.neutral600,
+          ),
           onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng gọi điện sẽ sớm có')),
-            );
-          },
-        ),
-        IconButton(
-          icon: const Icon(Icons.videocam),
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng video call sẽ sớm có')),
-            );
+            // TODO: Favorite chat
           },
         ),
         PopupMenuButton<String>(
+          icon: Icon(
+            Icons.more_vert_rounded,
+            color: AppColors.neutral600,
+          ),
+          offset: const Offset(0, 45),
+          shape: RoundedRectangleBorder(
+            borderRadius: AppSpacing.borderRadiusLg,
+          ),
           onSelected: (value) {
             switch (value) {
               case 'info':
@@ -125,23 +135,41 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
             }
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'info',
               child: Row(
                 children: [
-                  Icon(Icons.info_outline),
-                  SizedBox(width: 8),
-                  Text('Thông tin'),
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 20,
+                    color: AppColors.neutral700,
+                  ),
+                  SizedBox(width: AppSpacing.spacing12),
+                  Text(
+                    'Thông tin',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.neutral700,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const PopupMenuItem(
+            PopupMenuItem(
               value: 'clear',
               child: Row(
                 children: [
-                  Icon(Icons.clear_all_outlined),
-                  SizedBox(width: 8),
-                  Text('Xóa tin nhắn'),
+                  Icon(
+                    Icons.delete_sweep_rounded,
+                    size: 20,
+                    color: AppColors.error,
+                  ),
+                  SizedBox(width: AppSpacing.spacing12),
+                  Text(
+                    'Xóa tin nhắn',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.error,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -150,63 +178,10 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       ],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Container(height: 1, color: Colors.grey.shade200),
-      ),
-    );
-  }
-
-  Widget _buildJobInfoBanner() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      color: Colors.blue.shade50,
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.work_outline,
-              color: Colors.blue.shade700,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.jobInfo['title'] ?? 'Vị trí tuyển dụng',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade800,
-                  ),
-                ),
-                if (widget.jobInfo['company'] != null)
-                  Text(
-                    widget.jobInfo['company'],
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade600,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              // TODO: Navigate to job detail
-            },
-            child: Text(
-              'Xem',
-              style: TextStyle(color: Colors.blue.shade700),
-            ),
-          ),
-        ],
+        child: Container(
+          height: 1,
+          color: AppColors.neutral200,
+        ),
       ),
     );
   }
@@ -217,35 +192,58 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         final chatState = ref.watch(chatProvider);
         
         if (chatState.isLoading && chatState.currentMessages.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primary,
+            ),
+          );
         }
 
         if (chatState.error != null) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  'Lỗi tải tin nhắn',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.spacing32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline_rounded,
+                    size: 64,
+                    color: AppColors.neutral300,
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  chatState.error!,
-                  style: TextStyle(color: Colors.grey.shade500),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => ref.read(chatProvider.notifier).loadMessages(widget.roomId),
-                  child: const Text('Thử lại'),
-                ),
-              ],
+                  SizedBox(height: AppSpacing.spacing16),
+                  Text(
+                    'Lỗi tải tin nhắn',
+                    style: AppTypography.h5.copyWith(
+                      color: AppColors.neutral700,
+                    ),
+                  ),
+                  SizedBox(height: AppSpacing.spacing8),
+                  Text(
+                    chatState.error!,
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: AppSpacing.spacing24),
+                  ElevatedButton(
+                    onPressed: () => ref.read(chatProvider.notifier).loadMessages(widget.roomId),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.spacing24,
+                        vertical: AppSpacing.spacing12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppSpacing.borderRadiusLg,
+                      ),
+                    ),
+                    child: const Text('Thử lại'),
+                  ),
+                ],
+              ),
             ),
           );
         }
@@ -254,41 +252,130 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         
         if (messages.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  'Chưa có tin nhắn',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.spacing32),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 64,
+                    color: AppColors.neutral300,
                   ),
-                ),
-                Text(
-                  'Gửi tin nhắn đầu tiên để bắt đầu trò chuyện',
-                  style: TextStyle(color: Colors.grey.shade500),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  SizedBox(height: AppSpacing.spacing16),
+                  Text(
+                    'This is the very beginning of your direct message with ${widget.otherUserName}',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           );
         }
 
+        // Group messages by date
+        final groupedMessages = _groupMessagesByDate(messages);
+
         return ListView.builder(
           controller: _scrollController,
-          reverse: false, // Tin nhắn hiển thị từ trên xuống dưới tự nhiên
-          padding: const EdgeInsets.all(16),
-          itemCount: messages.length,
+          reverse: false,
+          padding: EdgeInsets.all(AppSpacing.spacing16),
+          itemCount: groupedMessages.length,
           itemBuilder: (context, index) {
-            // Hiển thị tin nhắn theo thứ tự tự nhiên
-            final message = messages[index];
-            return _buildMessageBubble(message);
+            final group = groupedMessages[index];
+            return Column(
+              children: [
+                // Date divider
+                _buildDateDivider(group['date'] as String),
+                SizedBox(height: AppSpacing.spacing16),
+                // Messages
+                ...((group['messages'] as List).map((message) => _buildMessageBubble(message as Map<String, dynamic>))),
+              ],
+            );
           },
         );
       },
     );
+  }
+
+  Widget _buildDateDivider(String date) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.spacing12,
+        vertical: AppSpacing.spacing4,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.neutral100,
+        borderRadius: AppSpacing.borderRadiusLg,
+      ),
+      child: Text(
+        date,
+        style: AppTypography.caption.copyWith(
+          color: AppColors.neutral600,
+          fontWeight: AppTypography.medium,
+        ),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _groupMessagesByDate(List messages) {
+    final grouped = <Map<String, dynamic>>[];
+    String? currentDate;
+    List currentMessages = [];
+
+    for (var message in messages) {
+      final timestamp = message['timestamp']?.toString() ?? '';
+      if (timestamp.isEmpty) continue;
+
+      try {
+        final messageDate = DateTime.parse(timestamp);
+        final dateKey = _getDateLabel(messageDate);
+
+        if (dateKey != currentDate) {
+          if (currentMessages.isNotEmpty) {
+            grouped.add({
+              'date': currentDate!,
+              'messages': List.from(currentMessages),
+            });
+            currentMessages.clear();
+          }
+          currentDate = dateKey;
+        }
+        currentMessages.add(message);
+      } catch (e) {
+        // Skip invalid timestamps
+      }
+    }
+
+    if (currentMessages.isNotEmpty && currentDate != null) {
+      grouped.add({
+        'date': currentDate,
+        'messages': currentMessages,
+      });
+    }
+
+    return grouped;
+  }
+
+  String _getDateLabel(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(date.year, date.month, date.day);
+
+    if (messageDate == today) {
+      return 'Today';
+    } else if (messageDate == yesterday) {
+      return 'Yesterday';
+    } else if (now.difference(messageDate).inDays < 7) {
+      final weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      return weekdays[date.weekday - 1];
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 
   Widget _buildMessageBubble(Map<String, dynamic> message) {
@@ -322,75 +409,75 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       }
     }
     
-    return Align(
-      alignment: isMyMessage ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: Row(
-          mainAxisAlignment: isMyMessage 
-              ? MainAxisAlignment.end 
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            // Avatar for other user's messages (left side)
-            if (!isMyMessage) ...[
-              _buildAvatar(senderAvatar, senderName),
-              const SizedBox(width: 8),
-            ],
-            
-            // Message bubble
-            Flexible(
-              child: Column(
-                crossAxisAlignment: isMyMessage 
-                    ? CrossAxisAlignment.end 
-                    : CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.70,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isMyMessage 
-                          ? Colors.blue.shade500 
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(20).copyWith(
-                        bottomRight: isMyMessage 
-                            ? const Radius.circular(4) 
-                            : const Radius.circular(20),
-                        bottomLeft: !isMyMessage 
-                            ? const Radius.circular(4) 
-                            : const Radius.circular(20),
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.08),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: _buildMessageContent(type, content, imageUrl, isMyMessage),
-                  ),
-                  if (timestamp.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-                      child: Text(
-                        _formatMessageTime(timestamp),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            
-            // Space for my messages (right side) to balance layout
-            if (isMyMessage) const SizedBox(width: 8),
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.spacing12),
+      child: Row(
+        mainAxisAlignment: isMyMessage 
+            ? MainAxisAlignment.end 
+            : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Avatar for other user's messages (left side)
+          if (!isMyMessage) ...[
+            _buildAvatar(senderAvatar, senderName, radius: 16),
+            SizedBox(width: AppSpacing.spacing8),
           ],
-        ),
+          
+          // Message bubble
+          Flexible(
+            child: Column(
+              crossAxisAlignment: isMyMessage 
+                  ? CrossAxisAlignment.end 
+                  : CrossAxisAlignment.start,
+              children: [
+                Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.65,
+                  ),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.spacing16,
+                    vertical: AppSpacing.spacing12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isMyMessage 
+                        ? AppColors.primary 
+                        : AppColors.white,
+                    borderRadius: BorderRadius.circular(16).copyWith(
+                      bottomRight: isMyMessage 
+                          ? const Radius.circular(4) 
+                          : const Radius.circular(16),
+                      bottomLeft: !isMyMessage 
+                          ? const Radius.circular(4) 
+                          : const Radius.circular(16),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.shadowColor.withOpacity(0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: _buildMessageContent(type, content, imageUrl, isMyMessage),
+                ),
+                if (timestamp.isNotEmpty)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: AppSpacing.spacing4,
+                      left: AppSpacing.spacing4,
+                      right: AppSpacing.spacing4,
+                    ),
+                    child: Text(
+                      _formatMessageTime(timestamp),
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.neutral500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -400,20 +487,20 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       return CircleAvatar(
         radius: radius,
         backgroundImage: NetworkImage(avatarUrl),
-        backgroundColor: Colors.grey.shade300,
+        backgroundColor: AppColors.neutral200,
       );
     } else {
       // Use first letter of name as avatar
       String initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
       return CircleAvatar(
         radius: radius,
-        backgroundColor: Colors.blue.shade100,
+        backgroundColor: AppColors.primaryLighter,
         child: Text(
           initial,
           style: TextStyle(
-            color: Colors.blue.shade700,
-            fontWeight: FontWeight.w600,
-            fontSize: radius * 0.875, // Scale font size with radius
+            color: AppColors.primary,
+            fontWeight: AppTypography.semiBold,
+            fontSize: radius * 0.875,
           ),
         ),
       );
@@ -428,7 +515,7 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
           children: [
             if (fileUrl != null && fileUrl.isNotEmpty)
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: AppSpacing.borderRadiusLg,
                 child: Image.network(
                   fileUrl,
                   width: 200,
@@ -439,21 +526,24 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                       width: 200,
                       height: 200,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.neutral200,
+                        borderRadius: AppSpacing.borderRadiusLg,
                       ),
-                      child: const Icon(Icons.broken_image, size: 40),
+                      child: Icon(
+                        Icons.broken_image_rounded,
+                        size: 40,
+                        color: AppColors.neutral400,
+                      ),
                     );
                   },
                 ),
               ),
             if (content.isNotEmpty) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: AppSpacing.spacing8),
               Text(
                 content,
-                style: TextStyle(
-                  color: isMyMessage ? Colors.white : Colors.black87,
-                  fontSize: 15,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: isMyMessage ? AppColors.white : AppColors.neutral900,
                 ),
               ),
             ],
@@ -463,9 +553,8 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
       default:
         return Text(
           content,
-          style: TextStyle(
-            color: isMyMessage ? Colors.white : Colors.black87,
-            fontSize: 15,
+          style: AppTypography.bodyMedium.copyWith(
+            color: isMyMessage ? AppColors.white : AppColors.neutral900,
             height: 1.4,
           ),
         );
@@ -474,42 +563,69 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
 
   Widget _buildInputArea() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSpacing.spacing16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+        color: AppColors.white,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.neutral200,
+            width: 1,
           ),
-        ],
+        ),
       ),
       child: SafeArea(
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             IconButton(
-              icon: const Icon(Icons.image_outlined),
+              icon: Icon(
+                Icons.add_circle_outline_rounded,
+                color: AppColors.neutral500,
+                size: 24,
+              ),
               onPressed: _pickImage,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
             ),
+            SizedBox(width: AppSpacing.spacing12),
             Expanded(
               child: TextField(
                 controller: _messageController,
                 decoration: InputDecoration(
-                  hintText: 'Nhập tin nhắn...',
+                  hintText: 'Reply message',
+                  hintStyle: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.neutral400,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
+                    borderRadius: AppSpacing.borderRadiusLg,
+                    borderSide: BorderSide(
+                      color: AppColors.neutral200,
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: AppSpacing.borderRadiusLg,
+                    borderSide: BorderSide(
+                      color: AppColors.neutral200,
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: AppSpacing.borderRadiusLg,
+                    borderSide: BorderSide(
+                      color: AppColors.primary,
+                      width: 1.5,
+                    ),
                   ),
                   filled: true,
-                  fillColor: Colors.grey.shade100,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
+                  fillColor: AppColors.white,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.spacing16,
+                    vertical: AppSpacing.spacing12,
                   ),
+                  isDense: true,
                 ),
                 maxLines: null,
                 textInputAction: TextInputAction.newline,
+                style: AppTypography.bodyMedium,
                 onChanged: (text) {
                   setState(() {
                     _isTyping = text.isNotEmpty;
@@ -517,15 +633,22 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
                 },
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: AppSpacing.spacing12),
             Container(
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: _isTyping ? Colors.blue.shade500 : Colors.grey.shade300,
+                color: _isTyping ? AppColors.primary : AppColors.neutral300,
                 shape: BoxShape.circle,
               ),
               child: IconButton(
-                icon: const Icon(Icons.send, color: Colors.white),
+                icon: Icon(
+                  Icons.send_rounded,
+                  color: AppColors.white,
+                  size: 20,
+                ),
                 onPressed: _isTyping ? _sendMessage : null,
+                padding: EdgeInsets.zero,
               ),
             ),
           ],

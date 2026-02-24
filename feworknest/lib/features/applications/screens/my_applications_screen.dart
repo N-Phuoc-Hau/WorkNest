@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/models/application_model.dart';
 import '../../../core/providers/application_provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_provider.dart';
+import '../../../core/providers/language_provider.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/language_toggle_widget.dart';
 import '../../chat/screens/chat_detail_screen.dart';
 
 class MyApplicationsScreen extends ConsumerStatefulWidget {
@@ -23,7 +29,6 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
   @override
   void initState() {
     super.initState();
-    // Load applications when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(applicationProvider.notifier).getMyApplications();
     });
@@ -38,134 +43,592 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
   @override
   Widget build(BuildContext context) {
     final applicationState = ref.watch(applicationProvider);
+    final l10n = ref.watch(localizationsProvider);
+    final themeMode = Theme.of(context).brightness;
+    final isDark = themeMode == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ứng tuyển của tôi'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.read(applicationProvider.notifier).getMyApplications();
-            },
+      backgroundColor: isDark ? AppColors.neutral900 : AppColors.neutral50,
+      body: CustomScrollView(
+        slivers: [
+          // App Bar with gradient
+          _buildAppBar(l10n, isDark),
+          
+          // Search and Filter Section
+          SliverToBoxAdapter(
+            child: _buildSearchAndFilter(l10n, isDark),
+          ),
+          
+          // Applications List
+          _buildApplicationsList(applicationState, l10n, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppBar(dynamic l10n, bool isDark) {
+    return SliverAppBar(
+      expandedHeight: 120,
+      pinned: true,
+      backgroundColor: Colors.transparent,
+      flexibleSpace: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primary,
+              AppColors.primaryLight,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: FlexibleSpaceBar(
+          titlePadding: EdgeInsets.only(
+            left: AppSpacing.spacing20,
+            bottom: AppSpacing.spacing16,
+          ),
+          title: Text(
+            l10n.myApplications,
+            style: AppTypography.h4.copyWith(
+              color: AppColors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        // Refresh button
+        IconButton(
+          onPressed: () {
+            ref.read(applicationProvider.notifier).getMyApplications();
+          },
+          icon: Container(
+            padding: EdgeInsets.all(AppSpacing.spacing8),
+            decoration: BoxDecoration(
+              color: AppColors.white.withOpacity(0.2),
+              borderRadius: AppSpacing.borderRadiusMd,
+            ),
+            child: Icon(
+              Icons.refresh_rounded,
+              color: AppColors.white,
+            ),
+          ),
+        ),
+        // Language toggle
+        Padding(
+          padding: EdgeInsets.only(right: AppSpacing.spacing16),
+          child: const LanguageToggleButton(isDarkBg: true),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchAndFilter(dynamic l10n, bool isDark) {
+    return Container(
+      margin: EdgeInsets.all(AppSpacing.spacing20),
+      padding: EdgeInsets.all(AppSpacing.spacing20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.neutral800 : AppColors.white,
+        borderRadius: AppSpacing.borderRadiusXl,
+        border: Border.all(
+          color: isDark ? AppColors.neutral700 : AppColors.neutral200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      body: Column(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Search and Filter Bar
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Tìm kiếm ứng tuyển...',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onChanged: (value) {
-                      // TODO: Implement search functionality
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                DropdownButton<String>(
-                  value: _selectedFilter,
-                  items: const [
-                    DropdownMenuItem(value: 'all', child: Text('Tất cả')),
-                    DropdownMenuItem(
-                        value: 'pending', child: Text('Chờ xem xét')),
-                    DropdownMenuItem(
-                        value: 'accepted', child: Text('Đã chấp nhận')),
-                    DropdownMenuItem(value: 'rejected', child: Text('Từ chối')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedFilter = value!;
-                    });
-                  },
-                ),
-              ],
+          Text(
+            l10n.searchApplications,
+            style: AppTypography.h6.copyWith(
+              color: isDark ? AppColors.white : AppColors.neutral900,
+              fontWeight: FontWeight.bold,
             ),
           ),
-
-          // Applications List
-          Expanded(
-            child: applicationState.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : applicationState.error != null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Lỗi: ${applicationState.error}',
-                              style: const TextStyle(color: Colors.red),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                ref
-                                    .read(applicationProvider.notifier)
-                                    .getMyApplications();
-                              },
-                              child: const Text('Thử lại'),
-                            ),
-                          ],
-                        ),
-                      )
-                    : applicationState.myApplications.isEmpty
-                        ? const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.work_outline,
-                                  size: 64,
-                                  color: Colors.grey,
-                                ),
-                                SizedBox(height: 16),
-                                Text(
-                                  'Bạn chưa có ứng tuyển nào',
-                                  style: TextStyle(fontSize: 18),
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Hãy tìm kiếm và ứng tuyển công việc phù hợp',
-                                  style: TextStyle(color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: _getFilteredApplications(
-                                    applicationState.myApplications)
-                                .length,
-                            itemBuilder: (context, index) {
-                              final application = _getFilteredApplications(
-                                  applicationState.myApplications)[index];
-                              return _buildApplicationCard(application);
-                            },
-                          ),
+          SizedBox(height: AppSpacing.spacing16),
+          
+          // Search field
+          TextField(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {});
+            },
+            style: AppTypography.bodyLarge.copyWith(
+              color: isDark ? AppColors.white : AppColors.neutral900,
+            ),
+            decoration: InputDecoration(
+              hintText: 'Tìm kiếm theo tên công việc hoặc công ty...',
+              hintStyle: AppTypography.bodyLarge.copyWith(
+                color: AppColors.neutral500,
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: AppColors.primary,
+              ),
+              filled: true,
+              fillColor: isDark ? AppColors.neutral700 : AppColors.neutral50,
+              border: OutlineInputBorder(
+                borderRadius: AppSpacing.borderRadiusMd,
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          SizedBox(height: AppSpacing.spacing16),
+          
+          // Filter chips
+          Wrap(
+            spacing: AppSpacing.spacing8,
+            runSpacing: AppSpacing.spacing8,
+            children: [
+              _buildFilterChip(
+                label: l10n.allApplications,
+                value: 'all',
+                isDark: isDark,
+              ),
+              _buildFilterChip(
+                label: l10n.pending,
+                value: 'pending',
+                isDark: isDark,
+              ),
+              _buildFilterChip(
+                label: l10n.accepted,
+                value: 'accepted',
+                isDark: isDark,
+              ),
+              _buildFilterChip(
+                label: l10n.rejected,
+                value: 'rejected',
+                isDark: isDark,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  List<ApplicationModel> _getFilteredApplications(
-      List<ApplicationModel> applications) {
-    if (_selectedFilter == 'all') {
-      return applications;
+  Widget _buildFilterChip({
+    required String label,
+    required String value,
+    required bool isDark,
+  }) {
+    final isSelected = _selectedFilter == value;
+    
+    return FilterChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() {
+          _selectedFilter = value;
+        });
+      },
+      backgroundColor: isDark ? AppColors.neutral700 : AppColors.neutral100,
+      selectedColor: AppColors.primary,
+      checkmarkColor: AppColors.white,
+      labelStyle: AppTypography.bodyMedium.copyWith(
+        color: isSelected
+            ? AppColors.white
+            : (isDark ? AppColors.neutral300 : AppColors.neutral700),
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+      ),
+      side: BorderSide(
+        color: isSelected
+            ? AppColors.primary
+            : (isDark ? AppColors.neutral600 : AppColors.neutral300),
+      ),
+    );
+  }
+
+  Widget _buildApplicationsList(dynamic applicationState, dynamic l10n, bool isDark) {
+    if (applicationState.isLoading) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: AppSpacing.spacing16),
+              Text(
+                'Đang tải ứng tuyển...',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: isDark ? AppColors.neutral300 : AppColors.neutral600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    final status = _getStatusFromFilter(_selectedFilter);
-    return applications.where((app) => app.status == status).toList();
+    if (applicationState.error != null) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                size: 64,
+                color: AppColors.error,
+              ),
+              SizedBox(height: AppSpacing.spacing16),
+              Text(
+                'Lỗi: ${applicationState.error}',
+                style: AppTypography.bodyLarge.copyWith(
+                  color: isDark ? AppColors.white : AppColors.neutral900,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: AppSpacing.spacing16),
+              ElevatedButton(
+                onPressed: () {
+                  ref.read(applicationProvider.notifier).getMyApplications();
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                ),
+                child: Text('Thử lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final filteredApplications = _getFilteredApplications(
+      applicationState.myApplications,
+    );
+
+    if (filteredApplications.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.work_off_rounded,
+                size: 64,
+                color: AppColors.neutral400,
+              ),
+              SizedBox(height: AppSpacing.spacing16),
+              Text(
+                l10n.noApplicationsFound,
+                style: AppTypography.h6.copyWith(
+                  color: isDark ? AppColors.white : AppColors.neutral900,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: AppSpacing.spacing8),
+              Text(
+                l10n.startApplyingNow,
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.neutral500,
+                ),
+              ),
+              SizedBox(height: AppSpacing.spacing24),
+              ElevatedButton(
+                onPressed: () => context.push('/jobs'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.spacing32,
+                    vertical: AppSpacing.spacing16,
+                  ),
+                ),
+                child: Text(l10n.findJobs),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.spacing20),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final application = filteredApplications[index];
+            return Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.spacing16),
+              child: _buildApplicationCard(application, l10n, isDark),
+            );
+          },
+          childCount: filteredApplications.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApplicationCard(ApplicationModel application, dynamic l10n, bool isDark) {
+    final statusColor = _getStatusColor(application.status);
+    final statusText = _getStatusText(application.status);
+    
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.spacing20),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.neutral800 : AppColors.white,
+        borderRadius: AppSpacing.borderRadiusXl,
+        border: Border.all(
+          color: isDark ? AppColors.neutral700 : AppColors.neutral200,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withOpacity(0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with title and status
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        application.job?.title ?? 'Không có tiêu đề',
+                        style: AppTypography.h6.copyWith(
+                          color: isDark ? AppColors.white : AppColors.neutral900,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: AppSpacing.spacing4),
+                      Text(
+                        application.job?.recruiter.company?.name ?? 'Không có tên công ty',
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.neutral500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(width: AppSpacing.spacing12),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.spacing12,
+                    vertical: AppSpacing.spacing6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: AppSpacing.borderRadiusLg,
+                    border: Border.all(
+                      color: statusColor.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    statusText,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: AppSpacing.spacing16),
+            
+            // Info row
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 16,
+                  color: AppColors.neutral500,
+                ),
+                SizedBox(width: AppSpacing.spacing8),
+                Expanded(
+                  child: Text(
+                    '${l10n.applicationDate}: ${_formatDate(application.createdAt)}',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                ),
+                if (application.cvUrl != null) ...[
+                  Icon(
+                    Icons.attachment_rounded,
+                    size: 16,
+                    color: AppColors.neutral500,
+                  ),
+                  SizedBox(width: AppSpacing.spacing4),
+                  Text(
+                    l10n.attachedCV,
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.neutral500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            
+            // Rejection reason if rejected
+            if (application.status == ApplicationStatus.rejected &&
+                application.rejectionReason != null) ...[
+              SizedBox(height: AppSpacing.spacing12),
+              Container(
+                padding: EdgeInsets.all(AppSpacing.spacing12),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  borderRadius: AppSpacing.borderRadiusMd,
+                  border: Border.all(
+                    color: AppColors.error.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: AppColors.error,
+                    ),
+                    SizedBox(width: AppSpacing.spacing8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.rejectionReason,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: AppSpacing.spacing4),
+                          Text(
+                            application.rejectionReason!,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            
+            SizedBox(height: AppSpacing.spacing16),
+            
+            // Action buttons
+            Column(
+              children: [
+                // First row: View Detail button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      context.push('/application/${application.id}');
+                    },
+                    icon: Icon(Icons.description_rounded, size: 18),
+                    label: Text(l10n.viewDetail),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        vertical: AppSpacing.spacing12,
+                      ),
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppSpacing.borderRadiusMd,
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+                SizedBox(height: AppSpacing.spacing8),
+                // Second row: View Job and Contact buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          if (application.job?.id != null) {
+                            context.push('/jobs/${application.job!.id}');
+                          }
+                        },
+                        icon: Icon(Icons.work_outline_rounded, size: 18),
+                        label: Text(l10n.viewJob),
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.spacing12,
+                          ),
+                          side: BorderSide(
+                            color: isDark ? AppColors.neutral600 : AppColors.neutral300,
+                          ),
+                          foregroundColor: isDark ? AppColors.white : AppColors.neutral900,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppSpacing.borderRadiusMd,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.spacing12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _navigateToChat(application),
+                        icon: Icon(Icons.chat_rounded, size: 18),
+                        label: Text(l10n.contactRecruiter),
+                        style: OutlinedButton.styleFrom(
+                          padding: EdgeInsets.symmetric(
+                            vertical: AppSpacing.spacing12,
+                          ),
+                          side: BorderSide(
+                            color: isDark ? AppColors.neutral600 : AppColors.neutral300,
+                          ),
+                          foregroundColor: isDark ? AppColors.white : AppColors.neutral900,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppSpacing.borderRadiusMd,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+    );
+  }
+
+  List<ApplicationModel> _getFilteredApplications(List<ApplicationModel> applications) {
+    var filtered = applications;
+    
+    // Filter by status
+    if (_selectedFilter != 'all') {
+      final status = _getStatusFromFilter(_selectedFilter);
+      filtered = filtered.where((app) => app.status == status).toList();
+    }
+    
+    // Filter by search text
+    final searchText = _searchController.text.trim().toLowerCase();
+    if (searchText.isNotEmpty) {
+      filtered = filtered.where((app) {
+        final jobTitle = app.job?.title.toLowerCase() ?? '';
+        final companyName = app.job?.recruiter.company?.name.toLowerCase() ?? '';
+        return jobTitle.contains(searchText) || companyName.contains(searchText);
+      }).toList();
+    }
+    
+    return filtered;
   }
 
   ApplicationStatus _getStatusFromFilter(String filter) {
@@ -181,159 +644,20 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
     }
   }
 
-  Widget _buildApplicationCard(ApplicationModel application) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: InkWell(
-        onTap: () {
-          context.push('/application/${application.id}');
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          application.job?.title ?? 'Không có tiêu đề',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          application.job?.recruiter.company?.name ??
-                              'Không có tên công ty',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(application.status),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getStatusText(application.status),
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      'Ứng tuyển: ${application.appliedAt != null ? _formatDate(application.appliedAt!) : _formatDate(application.createdAt)}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (application.cvUrl != null) ...[
-                    const SizedBox(width: 8),
-                    Icon(Icons.attachment, size: 16, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      'CV đính kèm',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
-                ],
-              ),
-              if (application.status == ApplicationStatus.rejected &&
-                  application.rejectionReason != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red[200]!),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Lý do từ chối:',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red[700],
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        application.rejectionReason!,
-                        style: TextStyle(color: Colors.red[600]),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        if (application.job?.id != null) {
-                          context.push('/job-detail/${application.job!.id}');
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content:
-                                    Text('Không tìm thấy thông tin công việc')),
-                          );
-                        }
-                      },
-                      child: const Text('Xem chi tiết'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _navigateToChat(application),
-                      child: const Text('Liên hệ'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Color _getStatusColor(ApplicationStatus status) {
     switch (status) {
       case ApplicationStatus.pending:
-        return Colors.orange;
+        return AppColors.warning;
       case ApplicationStatus.accepted:
-        return Colors.green;
+        return AppColors.success;
       case ApplicationStatus.rejected:
-        return Colors.red;
+        return AppColors.error;
       case ApplicationStatus.interviewing:
-        return Colors.blue;
-      case ApplicationStatus.hired: // Ví dụ cho một giá trị mới
-        return Colors.purple;
-      case ApplicationStatus.cancelled: // Ví dụ cho một giá trị mới
-        return Colors.grey;
+        return AppColors.info;
+      case ApplicationStatus.hired:
+        return AppColors.primary;
+      case ApplicationStatus.cancelled:
+        return AppColors.neutral500;
     }
   }
 
@@ -355,36 +679,34 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    return DateFormat('dd/MM/yyyy').format(date);
   }
 
-  /// Navigate to chat with recruiter
   Future<void> _navigateToChat(ApplicationModel application) async {
-    // Check authentication
     final authState = ref.read(authProvider);
     if (!authState.isAuthenticated || authState.user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Bạn cần đăng nhập để sử dụng tính năng chat'),
-          backgroundColor: Colors.orange,
+        SnackBar(
+          content: const Text('Bạn cần đăng nhập để sử dụng tính năng chat'),
+          backgroundColor: AppColors.warning,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
-    // Check if job and recruiter info exists
     final job = application.job;
     if (job == null || job.recruiter.id.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Không tìm thấy thông tin nhà tuyển dụng'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Không tìm thấy thông tin nhà tuyển dụng'),
+          backgroundColor: AppColors.error,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;
     }
 
-    // Show loading
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Row(
@@ -408,7 +730,6 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
     try {
       final currentUser = authState.user!;
 
-      // Create or get chat room
       final roomId = await ref.read(chatProvider.notifier).createOrGetChatRoom(
         recruiterId: job.recruiter.id,
         candidateId: currentUser.id,
@@ -432,24 +753,22 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
         },
       );
 
-      // Clear loading
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
       }
 
       if (roomId != null) {
-        // Success notification
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Đã tạo phòng chat thành công'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: const Text('Đã tạo phòng chat thành công'),
+              backgroundColor: AppColors.success,
+              duration: const Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
 
-        // Navigate to chat detail
         if (mounted) {
           Navigator.push(
             context,
@@ -482,28 +801,24 @@ class _MyApplicationsScreenState extends ConsumerState<MyApplicationsScreen> {
           );
         }
       } else {
-        // Failed to create room
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Không thể tạo phòng chat. Vui lòng thử lại sau.'),
-              backgroundColor: Colors.red,
+            SnackBar(
+              content: const Text('Không thể tạo phòng chat. Vui lòng thử lại sau.'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
       }
     } catch (e) {
-      // Clear loading
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
-      }
-
-      // Show error
-      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Lỗi: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
