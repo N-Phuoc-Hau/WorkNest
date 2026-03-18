@@ -37,24 +37,39 @@ class ApiService {
         // Handle 401 errors by trying to refresh token
         if (error.response?.statusCode == 401) {
           print('ApiService: Got 401, attempting token refresh...');
+
+          // Skip refresh for auth endpoints themselves
+          final isAuthEndpoint = error.requestOptions.path.contains('/Auth/login') ||
+              error.requestOptions.path.contains('/Auth/register') ||
+              error.requestOptions.path.contains('/Auth/refresh-token');
+          if (isAuthEndpoint) {
+            handler.next(error);
+            return;
+          }
           
           final refreshToken = await TokenStorage.getRefreshToken();
           if (refreshToken != null && !await TokenStorage.isRefreshTokenExpired()) {
             try {
-              final authResponse = await _dio.post(
+              // Use a separate Dio instance to avoid interceptor loop
+              final refreshDio = Dio(BaseOptions(baseUrl: _dio.options.baseUrl));
+              final authResponse = await refreshDio.post(
                 ApiConstants.refreshToken,
                 data: {'refreshToken': refreshToken},
               );
 
-              if (authResponse.data['success'] == true) {
-                final newAccessToken = authResponse.data['data']['accessToken'];
-                final newRefreshToken = authResponse.data['data']['refreshToken'];
+              final data = authResponse.data;
+              // Backend returns { accessToken, refreshToken, accessTokenExpiresAt, refreshTokenExpiresAt }
+              final newAccessToken = data['accessToken'];
+              final newRefreshToken = data['refreshToken'];
+
+              if (newAccessToken != null && newRefreshToken != null) {
+                print('ApiService: Token refresh successful');
                 
-                await TokenStorage.saveTokens(
+                await TokenStorage.updateTokens(
                   accessToken: newAccessToken,
                   refreshToken: newRefreshToken,
-                  accessTokenExpiresAt: DateTime.now().add(const Duration(hours: 1)),
-                  refreshTokenExpiresAt: DateTime.now().add(const Duration(days: 7)),
+                  accessTokenExpiresAt: DateTime.parse(data['accessTokenExpiresAt']),
+                  refreshTokenExpiresAt: DateTime.parse(data['refreshTokenExpiresAt']),
                 );
                 
                 // Retry the original request with the new token
@@ -71,7 +86,7 @@ class ApiService {
           }
           
           // Clear tokens and let the error pass through
-          await TokenStorage.clearTokens();
+          await TokenStorage.clearAll();
         }
         
         handler.next(error);
@@ -122,6 +137,27 @@ class ApiService {
   Future<Map<String, dynamic>> delete(String path) async {
     try {
       final response = await _dio.delete(path);
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Generic request that returns dynamic (supports both List and Map responses)
+  Future<dynamic> getDynamic(String path, {Map<String, dynamic>? queryParameters}) async {
+    try {
+      print('🌐 ApiService: GET (dynamic) request to: $path');
+      final response = await _dio.get(path, queryParameters: queryParameters);
+      print('🌐 ApiService: Response status: ${response.statusCode}');
+      return response.data;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<dynamic> postDynamic(String path, {dynamic data}) async {
+    try {
+      final response = await _dio.post(path, data: data);
       return response.data;
     } on DioException catch (e) {
       throw _handleError(e);

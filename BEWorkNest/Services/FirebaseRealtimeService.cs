@@ -608,6 +608,52 @@ namespace BEWorkNest.Services
                 throw;
             }
         }
+
+        public async Task<int> GetUnreadMessagesCountAsync(string userId, string userRole)
+        {
+            try
+            {
+                _logger.LogInformation($"Getting unread messages count for user: {userId}, role: {userRole}");
+
+                // Get all chat rooms for this user
+                var chatRooms = await GetUserChatRoomsAsync(userId, userRole);
+                int totalUnread = 0;
+
+                foreach (var room in chatRooms)
+                {
+                    try
+                    {
+                        // Get messages for this room
+                        var messages = await _firebaseClient
+                            .Child("chatRooms")
+                            .Child(room.Id)
+                            .Child("messages")
+                            .OnceAsync<ChatMessage>();
+
+                        // Count unread messages where sender is not the current user
+                        var unreadCount = messages.Count(m => 
+                            m.Object != null && 
+                            m.Object.SenderId != userId && 
+                            !m.Object.IsRead);
+
+                        totalUnread += unreadCount;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, $"Error counting unread messages for room {room.Id}");
+                        // Continue with other rooms even if one fails
+                    }
+                }
+
+                _logger.LogInformation($"Total unread messages for user {userId}: {totalUnread}");
+                return totalUnread;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Error getting unread messages count for user {userId}");
+                return 0; // Return 0 instead of throwing to avoid breaking the UI
+            }
+        }
     }
 
     public class ChatMessage

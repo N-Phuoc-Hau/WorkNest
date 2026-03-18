@@ -17,8 +17,9 @@ import '../../features/candidate/screens/candidate_home_screen.dart';
 import '../../features/candidate/screens/cv_analysis_screen.dart';
 import '../../features/candidate/screens/following_companies_screen.dart';
 import '../../features/chat/screens/chat_detail_screen.dart';
-import '../../features/chat/screens/chat_list_screen.dart';
 import '../../features/chat/screens/chat_screen.dart';
+import '../../features/cv_online/screens/cv_builder_screen.dart';
+import '../../features/cv_online/screens/cv_list_screen.dart';
 import '../../features/dashboard/screens/admin_dashboard_screen.dart';
 import '../../features/favorites/screens/favorite_screen.dart';
 import '../../features/interview/screens/schedule_interview_screen.dart';
@@ -42,6 +43,9 @@ import '../../features/search/screens/advanced_search_screen.dart';
 import '../../features/settings/screens/admin_settings_screen.dart';
 import '../../features/settings/screens/candidate_settings_screen.dart';
 import '../../features/settings/screens/recruiter_settings_screen.dart';
+import '../../features/subscription/screens/my_subscription_screen.dart';
+import '../../features/subscription/screens/payment_result_screen.dart';
+import '../../features/subscription/screens/pricing_screen.dart';
 import '../../shared/screens/company_screen.dart';
 import 'auth_notifier.dart';
 
@@ -87,6 +91,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         '/chat',
         '/settings',
         '/notifications',
+        '/cv-online',
+        '/subscription/pricing',
+        '/subscription/my',
+        '/subscription/history',
       ];
 
       // PRIORITY 1: If on auth page and NOT loading
@@ -118,7 +126,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
 
       // PRIORITY 3: Protect restricted routes - redirect to login if not authenticated
-      if (protectedRoutes.contains(location) || location.startsWith('/admin')) {
+      if (protectedRoutes.contains(location) || location.startsWith('/admin') || location.startsWith('/cv-builder')) {
         if (!isLoggedIn) {
           print('DEBUG Router: Protected route without auth, redirecting to /login');
           return '/login';
@@ -248,6 +256,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           'candidate',
         ),
       ),
+      // CV Online routes
+      GoRoute(
+        path: '/cv-online',
+        builder: (context, state) => _buildWithLayout(
+          context,
+          const CVListScreen(),
+          'candidate',
+        ),
+      ),
+      GoRoute(
+        path: '/cv-builder/:id',
+        builder: (context, state) {
+          final cvId = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+          return _buildWithLayout(
+            context,
+            CVBuilderScreen(cvId: cvId),
+            'candidate',
+          );
+        },
+      ),
       GoRoute(
         path: '/profile',
         builder: (context, state) => _buildWithLayout(
@@ -307,6 +335,42 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           const CandidateSettingsScreen(),
           'candidate',
         ),
+      ),
+
+      // Subscription / Payment routes
+      GoRoute(
+        path: '/subscription/pricing',
+        builder: (context, state) => _buildWithLayout(
+          context,
+          const PricingScreen(),
+          'candidate',
+        ),
+      ),
+      GoRoute(
+        path: '/subscription/my',
+        builder: (context, state) => _buildWithLayout(
+          context,
+          const MySubscriptionScreen(),
+          'candidate',
+        ),
+      ),
+      GoRoute(
+        path: '/subscription/history',
+        redirect: (context, state) => '/subscription/my',
+      ),
+      GoRoute(
+        path: '/payment/result',
+        builder: (context, state) {
+          final params = state.uri.queryParameters;
+          final paymentId = int.tryParse(params['paymentId'] ?? '');
+          final status = params['status'];
+          final code = params['vnp_ResponseCode'] ?? params['code'];
+          return PaymentResultScreen(
+            paymentId: paymentId,
+            status: status,
+            code: code,
+          );
+        },
       ),
       
       // Job Detail and Company Routes (accessible to all)

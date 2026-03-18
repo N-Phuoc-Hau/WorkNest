@@ -7,6 +7,8 @@ import '../../../core/providers/chat_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../calling/providers/call_provider.dart';
+import '../../calling/screens/outgoing_call_screen.dart';
 
 class ChatDetailScreen extends ConsumerStatefulWidget {
   final String roomId;
@@ -35,6 +37,12 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
   bool _isTyping = false;
+
+  String get otherUserId {
+    final recruiterId = widget.recruiterInfo['id'] ?? widget.recruiterInfo['userId'] ?? '';
+    final candidateId = widget.candidateInfo['id'] ?? widget.candidateInfo['userId'] ?? '';
+    return recruiterId.isNotEmpty ? recruiterId.toString() : candidateId.toString();
+  }
 
   @override
   void initState() {
@@ -106,6 +114,26 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         ],
       ),
       actions: [
+        // Voice call button
+        IconButton(
+          icon: Icon(
+            Icons.call_outlined,
+            color: AppColors.primary,
+            size: 22,
+          ),
+          onPressed: () => _initiateCall(context, 'audio'),
+          tooltip: 'Voice Call',
+        ),
+        // Video call button
+        IconButton(
+          icon: Icon(
+            Icons.videocam_outlined,
+            color: AppColors.primary,
+            size: 24,
+          ),
+          onPressed: () => _initiateCall(context, 'video'),
+          tooltip: 'Video Call',
+        ),
         IconButton(
           icon: Icon(
             Icons.star_outline_rounded,
@@ -849,6 +877,81 @@ class _ChatDetailScreenState extends ConsumerState<ChatDetailScreen> {
         ],
       ),
     );
+  }
+
+  void _initiateCall(BuildContext context, String callType) async {
+    if (otherUserId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không thể xác định người nhận cuộc gọi'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // Check if user is online
+      final callNotifier = ref.read(callStateProvider.notifier);
+      final isOnline = await callNotifier.checkUserOnline(otherUserId);
+      
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      if (!isOnline) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Người dùng offline'),
+              content: Text('${widget.otherUserName} hiện đang offline. Vui lòng thử lại sau.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // User is online, proceed with call
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => OutgoingCallScreen(
+              receiverId: otherUserId,
+              receiverName: widget.otherUserName,
+              callType: callType,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.pop(context);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi khi kiểm tra trạng thái: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override

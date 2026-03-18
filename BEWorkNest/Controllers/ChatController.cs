@@ -113,6 +113,46 @@ namespace BEWorkNest.Controllers
         }
 
         /// <summary>
+        /// Lấy số lượng tin nhắn chưa đọc
+        /// </summary>
+        [HttpGet("unread-count")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUnreadMessagesCount()
+        {
+            try
+            {
+                var (userId, userRole, isAuthenticated) = GetUserInfoFromToken();
+
+                if (!isAuthenticated || string.IsNullOrEmpty(userId))
+                {
+                    return Unauthorized(new { 
+                        message = "Token không hợp lệ hoặc đã hết hạn",
+                        errorCode = "INVALID_TOKEN"
+                    });
+                }
+
+                if (string.IsNullOrEmpty(userRole))
+                {
+                    return BadRequest(new { 
+                        message = "Không tìm thấy thông tin vai trò người dùng",
+                        errorCode = "USER_ROLE_NOT_FOUND"
+                    });
+                }
+
+                _logger.LogInformation("Getting unread messages count for user: {UserId}, role: {UserRole}", userId, userRole);
+
+                var count = await _firebaseService.GetUnreadMessagesCountAsync(userId, userRole!);
+                
+                return Ok(new { success = true, count = count });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting unread messages count");
+                return StatusCode(500, new { message = "Error retrieving unread messages count", error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Tạo hoặc lấy phòng chat giữa recruiter và candidate cho job cụ thể
         /// </summary>
         [HttpPost("rooms")]

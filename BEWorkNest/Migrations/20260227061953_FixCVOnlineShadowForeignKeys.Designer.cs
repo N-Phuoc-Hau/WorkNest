@@ -3,6 +3,7 @@ using System;
 using BEWorkNest.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BEWorkNest.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260227061953_FixCVOnlineShadowForeignKeys")]
+    partial class FixCVOnlineShadowForeignKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -804,57 +807,6 @@ namespace BEWorkNest.Migrations
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
                     b.ToTable("CVWorkExperiences");
-                });
-
-            modelBuilder.Entity("BEWorkNest.Models.Call", b =>
-                {
-                    b.Property<string>("CallId")
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("CallType")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int?>("Duration")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EndReason")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("IceServers")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("InitiatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("InitiatorId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("ReceiverId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("RoomId")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("StartedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.HasKey("CallId");
-
-                    b.HasIndex("InitiatorId");
-
-                    b.HasIndex("ReceiverId");
-
-                    b.ToTable("Calls");
                 });
 
             modelBuilder.Entity("BEWorkNest.Models.Company", b =>
@@ -2248,25 +2200,6 @@ namespace BEWorkNest.Migrations
                         .IsRequired();
 
                     b.Navigation("CVProfile");
-                });
-
-            modelBuilder.Entity("BEWorkNest.Models.Call", b =>
-                {
-                    b.HasOne("BEWorkNest.Models.User", "Initiator")
-                        .WithMany()
-                        .HasForeignKey("InitiatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BEWorkNest.Models.User", "Receiver")
-                        .WithMany()
-                        .HasForeignKey("ReceiverId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Initiator");
-
-                    b.Navigation("Receiver");
                 });
 
             modelBuilder.Entity("BEWorkNest.Models.Company", b =>

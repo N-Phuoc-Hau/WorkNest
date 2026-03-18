@@ -41,6 +41,28 @@ namespace BEWorkNest.Data
         // Saved CV Tables
         public DbSet<SavedCV> SavedCVs { get; set; }
 
+        // Payment & Subscription Tables
+        public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<SubscriptionFeature> SubscriptionFeatures { get; set; }
+        public DbSet<UserSubscription> UserSubscriptions { get; set; }
+        public DbSet<Payment> Payments { get; set; }
+        public DbSet<FeatureUsage> FeatureUsages { get; set; }
+        public DbSet<PaymentGatewayConfig> PaymentGatewayConfigs { get; set; }
+
+        // CV Online Builder Tables
+        public DbSet<CVOnlineProfile> CVOnlineProfiles { get; set; }
+        public DbSet<CVTemplate> CVTemplates { get; set; }
+        public DbSet<CVWorkExperience> CVWorkExperiences { get; set; }
+        public DbSet<CVEducation> CVEducations { get; set; }
+        public DbSet<CVSkill> CVSkills { get; set; }
+        public DbSet<CVProject> CVProjects { get; set; }
+        public DbSet<CVCertification> CVCertifications { get; set; }
+        public DbSet<CVLanguage> CVLanguages { get; set; }
+        public DbSet<CVReference> CVReferences { get; set; }
+
+        // Call & Video Call Tables
+        public DbSet<Call> Calls { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -223,6 +245,234 @@ namespace BEWorkNest.Data
 
             builder.Entity<SavedCV>()
                 .HasIndex(scv => scv.CreatedAt);
+
+            // ========== PAYMENT & SUBSCRIPTION CONFIGURATION ==========
+
+            // Configure SubscriptionPlan entity
+            builder.Entity<SubscriptionPlan>()
+                .HasIndex(sp => sp.Name);
+
+            builder.Entity<SubscriptionPlan>()
+                .HasIndex(sp => sp.IsActive);
+
+            builder.Entity<SubscriptionPlan>()
+                .Property(sp => sp.Price)
+                .HasPrecision(18, 2);
+
+            // Configure SubscriptionFeature entity
+            builder.Entity<SubscriptionFeature>()
+                .HasOne(sf => sf.SubscriptionPlan)
+                .WithMany(sp => sp.Features)
+                .HasForeignKey(sf => sf.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<SubscriptionFeature>()
+                .HasIndex(sf => new { sf.SubscriptionPlanId, sf.FeatureName });
+
+            // Configure UserSubscription entity
+            builder.Entity<UserSubscription>()
+                .HasOne(us => us.User)
+                .WithMany()
+                .HasForeignKey(us => us.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<UserSubscription>()
+                .HasOne(us => us.Plan)
+                .WithMany(sp => sp.Subscriptions)
+                .HasForeignKey(us => us.SubscriptionPlanId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<UserSubscription>()
+                .HasIndex(us => us.UserId);
+
+            builder.Entity<UserSubscription>()
+                .HasIndex(us => new { us.UserId, us.IsActive });
+
+            builder.Entity<UserSubscription>()
+                .HasIndex(us => us.EndDate);
+
+            // Configure Payment entity
+            builder.Entity<Payment>()
+                .HasOne(p => p.User)
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Payment>()
+                .HasOne(p => p.UserSubscription)
+                .WithMany(us => us.Payments)
+                .HasForeignKey(p => p.UserSubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Entity<Payment>()
+                .Property(p => p.Amount)
+                .HasPrecision(18, 2);
+
+            builder.Entity<Payment>()
+                .HasIndex(p => p.UserId);
+
+            builder.Entity<Payment>()
+                .HasIndex(p => p.TransactionId);
+
+            builder.Entity<Payment>()
+                .HasIndex(p => p.Status);
+
+            builder.Entity<Payment>()
+                .HasIndex(p => p.CreatedAt);
+
+            builder.Entity<Payment>()
+                .HasIndex(p => new { p.UserId, p.Status });
+
+            // Configure FeatureUsage entity
+            builder.Entity<FeatureUsage>()
+                .HasOne(fu => fu.User)
+                .WithMany()
+                .HasForeignKey(fu => fu.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<FeatureUsage>()
+                .HasIndex(fu => new { fu.UserId, fu.FeatureName })
+                .IsUnique();
+
+            builder.Entity<FeatureUsage>()
+                .HasIndex(fu => fu.ResetDate);
+
+            // Configure PaymentGatewayConfig entity
+            builder.Entity<PaymentGatewayConfig>()
+                .HasIndex(pgc => pgc.Gateway)
+                .IsUnique();
+
+            builder.Entity<PaymentGatewayConfig>()
+                .HasIndex(pgc => pgc.IsActive);
+
+            // ========== CV Online Configurations ==========
+
+            // Configure CVOnlineProfile
+            builder.Entity<CVOnlineProfile>()
+                .HasOne(cv => cv.User)
+                .WithMany()
+                .HasForeignKey(cv => cv.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVOnlineProfile>()
+                .HasIndex(cv => cv.UserId);
+
+            builder.Entity<CVOnlineProfile>()
+                .HasIndex(cv => cv.PublicSlug)
+                .IsUnique();
+
+            builder.Entity<CVOnlineProfile>()
+                .HasIndex(cv => cv.IsPublic);
+
+            builder.Entity<CVOnlineProfile>()
+                .HasIndex(cv => new { cv.UserId, cv.IsDefault });
+
+            // Configure CVTemplate
+            builder.Entity<CVTemplate>()
+                .HasIndex(t => t.Category);
+
+            builder.Entity<CVTemplate>()
+                .HasIndex(t => t.IsPremium);
+
+            builder.Entity<CVTemplate>()
+                .HasIndex(t => t.IsActive);
+
+            builder.Entity<CVTemplate>()
+                .HasIndex(t => new { t.Category, t.IsPremium, t.IsActive });
+
+            // Configure CVWorkExperience
+            builder.Entity<CVWorkExperience>()
+                .HasOne(we => we.CVProfile)
+                .WithMany(cv => cv.WorkExperiences)
+                .HasForeignKey(we => we.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVWorkExperience>()
+                .HasIndex(we => we.CVProfileId);
+
+            builder.Entity<CVWorkExperience>()
+                .HasIndex(we => new { we.CVProfileId, we.DisplayOrder });
+
+            // Configure CVEducation
+            builder.Entity<CVEducation>()
+                .HasOne(e => e.CVProfile)
+                .WithMany(cv => cv.Educations)
+                .HasForeignKey(e => e.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVEducation>()
+                .HasIndex(e => e.CVProfileId);
+
+            builder.Entity<CVEducation>()
+                .HasIndex(e => new { e.CVProfileId, e.DisplayOrder });
+
+            // Configure CVSkill
+            builder.Entity<CVSkill>()
+                .HasOne(s => s.CVProfile)
+                .WithMany(cv => cv.Skills)
+                .HasForeignKey(s => s.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVSkill>()
+                .HasIndex(s => s.CVProfileId);
+
+            builder.Entity<CVSkill>()
+                .HasIndex(s => s.Category);
+
+            builder.Entity<CVSkill>()
+                .HasIndex(s => new { s.CVProfileId, s.DisplayOrder });
+
+            // Configure CVProject
+            builder.Entity<CVProject>()
+                .HasOne(p => p.CVProfile)
+                .WithMany(cv => cv.Projects)
+                .HasForeignKey(p => p.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVProject>()
+                .HasIndex(p => p.CVProfileId);
+
+            builder.Entity<CVProject>()
+                .HasIndex(p => new { p.CVProfileId, p.DisplayOrder });
+
+            // Configure CVCertification
+            builder.Entity<CVCertification>()
+                .HasOne(c => c.CVProfile)
+                .WithMany(cv => cv.Certifications)
+                .HasForeignKey(c => c.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVCertification>()
+                .HasIndex(c => c.CVProfileId);
+
+            builder.Entity<CVCertification>()
+                .HasIndex(c => new { c.CVProfileId, c.DisplayOrder });
+
+            // Configure CVLanguage
+            builder.Entity<CVLanguage>()
+                .HasOne(l => l.CVProfile)
+                .WithMany(cv => cv.Languages)
+                .HasForeignKey(l => l.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVLanguage>()
+                .HasIndex(l => l.CVProfileId);
+
+            builder.Entity<CVLanguage>()
+                .HasIndex(l => new { l.CVProfileId, l.DisplayOrder });
+
+            // Configure CVReference
+            builder.Entity<CVReference>()
+                .HasOne(r => r.CVProfile)
+                .WithMany(cv => cv.References)
+                .HasForeignKey(r => r.CVProfileId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Entity<CVReference>()
+                .HasIndex(r => r.CVProfileId);
+
+            builder.Entity<CVReference>()
+                .HasIndex(r => new { r.CVProfileId, r.DisplayOrder });
 
             // Ignore unused ASP.NET Identity tables to clean up database
             builder.Ignore<IdentityUserClaim<string>>();

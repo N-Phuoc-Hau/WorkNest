@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/models/cv_online_model.dart';
+import '../../../../core/providers/cv_online_provider.dart';
 import '../../core/providers/application_provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/saved_cv_provider.dart';
@@ -29,7 +31,7 @@ class JobApplicationDialog extends ConsumerStatefulWidget {
   ConsumerState<JobApplicationDialog> createState() => _JobApplicationDialogState();
 }
 
-enum CVSelectionMode { fromFile, fromSavedCV }
+enum CVSelectionMode { fromFile, fromSavedCV, fromCVOnline }
 
 class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
   final _formKey = GlobalKey<FormState>();
@@ -41,6 +43,7 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
   
   CVSelectionMode _cvSelectionMode = CVSelectionMode.fromFile;
   SavedCVFromAnalysis? _selectedSavedCV;
+  CVOnlineProfile? _selectedCVOnline;
 
   @override
   void initState() {
@@ -48,6 +51,7 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
     // Load saved CVs when dialog opens
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(savedCVProvider.notifier).loadSavedCVs();
+      ref.read(cvOnlineProvider.notifier).loadMyCVs();
     });
   }
 
@@ -116,11 +120,21 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
         );
         return;
       }
-    } else {
+    } else if (_cvSelectionMode == CVSelectionMode.fromSavedCV) {
       if (_selectedSavedCV == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Vui lòng chọn CV đã lưu'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+    } else if (_cvSelectionMode == CVSelectionMode.fromCVOnline) {
+      if (_selectedCVOnline == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Vui lòng chọn CV Online'),
             backgroundColor: Colors.red,
           ),
         );
@@ -153,7 +167,7 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
         cvFile: _selectedCvFile,
         cvXFile: _selectedCvXFile,
       );
-    } else {
+    } else if (_cvSelectionMode == CVSelectionMode.fromSavedCV) {
       debugPrint('DEBUG JobApplicationDialog: Saved CV selected: ${_selectedSavedCV?.fileName}');
       // Submit with saved CV URL
       success = await ref.read(applicationProvider.notifier).submitApplicationWithSavedCV(
@@ -167,6 +181,19 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
       if (success) {
         await ref.read(savedCVProvider.notifier).markCVAsUsed(_selectedSavedCV!.id);
       }
+    } else {
+      debugPrint('DEBUG JobApplicationDialog: CV Online selected: ${_selectedCVOnline?.title}');
+      // Submit with CV Online - use public slug URL or generate a link
+      final cvOnline = _selectedCVOnline!;
+      final cvUrl = cvOnline.isPublic && cvOnline.publicSlug != null
+          ? 'https://worknest.vn/cv/${cvOnline.publicSlug}'
+          : 'cv-online://${cvOnline.id}';
+      success = await ref.read(applicationProvider.notifier).submitApplicationWithSavedCV(
+        jobId: widget.jobId,
+        coverLetter: _coverLetterController.text.trim(),
+        savedCVUrl: cvUrl,
+        savedCVFileName: 'CV Online - ${cvOnline.title}',
+      );
     }
 
     if (mounted) {
@@ -198,7 +225,7 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
     return Dialog(
       child: Container(
         width: MediaQuery.of(context).size.width * 0.9,
-        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 700), // Increased from 600 to 700
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 750),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -286,7 +313,7 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
                       ),
                       child: Column(
                         children: [
-                          // Tab Headers
+                          // Tab Headers - 3 tabs: CV đã lưu, CV Online, Tải file
                           Row(
                             children: [
                               Expanded(
@@ -294,29 +321,27 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
                                   onTap: () {
                                     setState(() {
                                       _cvSelectionMode = CVSelectionMode.fromSavedCV;
-                                      // Clear file selection when switching to saved CV
                                       _selectedCvFile = null;
                                       _selectedCvXFile = null;
                                       _selectedFileName = null;
+                                      _selectedCVOnline = null;
                                     });
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
                                     decoration: BoxDecoration(
                                       color: _cvSelectionMode == CVSelectionMode.fromSavedCV
                                           ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                                           : Colors.transparent,
-                                      borderRadius: BorderRadius.only(
-                                        topLeft: const Radius.circular(7),
-                                        bottomLeft: _cvSelectionMode == CVSelectionMode.fromSavedCV
-                                            ? Radius.zero
-                                            : const Radius.circular(7),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(7),
                                       ),
                                     ),
                                     child: Text(
                                       'CV đã lưu',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
+                                        fontSize: 13,
                                         color: _cvSelectionMode == CVSelectionMode.fromSavedCV
                                             ? Theme.of(context).primaryColor
                                             : Colors.grey[600],
@@ -328,37 +353,66 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
                                   ),
                                 ),
                               ),
-                              Container(
-                                width: 1,
-                                height: 40,
-                                color: Colors.grey.shade300,
+                              Container(width: 1, height: 36, color: Colors.grey.shade300),
+                              Expanded(
+                                child: InkWell(
+                                  onTap: () {
+                                    setState(() {
+                                      _cvSelectionMode = CVSelectionMode.fromCVOnline;
+                                      _selectedCvFile = null;
+                                      _selectedCvXFile = null;
+                                      _selectedFileName = null;
+                                      _selectedSavedCV = null;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: _cvSelectionMode == CVSelectionMode.fromCVOnline
+                                          ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
+                                          : Colors.transparent,
+                                    ),
+                                    child: Text(
+                                      'CV Online',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: _cvSelectionMode == CVSelectionMode.fromCVOnline
+                                            ? Theme.of(context).primaryColor
+                                            : Colors.grey[600],
+                                        fontWeight: _cvSelectionMode == CVSelectionMode.fromCVOnline
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
+                              Container(width: 1, height: 36, color: Colors.grey.shade300),
                               Expanded(
                                 child: InkWell(
                                   onTap: () {
                                     setState(() {
                                       _cvSelectionMode = CVSelectionMode.fromFile;
-                                      // Clear saved CV selection when switching to file upload
                                       _selectedSavedCV = null;
+                                      _selectedCVOnline = null;
                                     });
                                   },
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(vertical: 10),
                                     decoration: BoxDecoration(
                                       color: _cvSelectionMode == CVSelectionMode.fromFile
                                           ? Theme.of(context).primaryColor.withValues(alpha: 0.1)
                                           : Colors.transparent,
-                                      borderRadius: BorderRadius.only(
-                                        topRight: const Radius.circular(7),
-                                        bottomRight: _cvSelectionMode == CVSelectionMode.fromFile
-                                            ? Radius.zero
-                                            : const Radius.circular(7),
+                                      borderRadius: const BorderRadius.only(
+                                        topRight: Radius.circular(7),
                                       ),
                                     ),
                                     child: Text(
-                                      'Tải từ máy tính',
+                                      'Tải file',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
+                                        fontSize: 13,
                                         color: _cvSelectionMode == CVSelectionMode.fromFile
                                             ? Theme.of(context).primaryColor
                                             : Colors.grey[600],
@@ -378,7 +432,9 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
                             padding: const EdgeInsets.all(16),
                             child: _cvSelectionMode == CVSelectionMode.fromSavedCV
                                 ? _buildSavedCVSelection()
-                                : _buildFileUploadSelection(),
+                                : _cvSelectionMode == CVSelectionMode.fromCVOnline
+                                    ? _buildCVOnlineSelection()
+                                    : _buildFileUploadSelection(),
                           ),
                         ],
                       ),
@@ -556,6 +612,169 @@ class _JobApplicationDialogState extends ConsumerState<JobApplicationDialog> {
                                       color: Colors.grey[600],
                                     ),
                                   ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isSelected)
+                          Icon(
+                            Icons.check_circle,
+                            color: Theme.of(context).primaryColor,
+                            size: 20,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Build CV Online selection widget
+  Widget _buildCVOnlineSelection() {
+    final cvOnlineState = ref.watch(cvOnlineProvider);
+
+    if (cvOnlineState.isLoading) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final cvList = cvOnlineState.cvList;
+
+    if (cvList.isEmpty) {
+      return Column(
+        children: [
+          Icon(Icons.description_outlined, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 8),
+          Text(
+            'Chưa có CV Online nào',
+            style: TextStyle(color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Hãy tạo CV Online trong mục CV Online',
+            style: TextStyle(color: Colors.grey[500], fontSize: 12),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Chọn CV Online (${cvList.length})',
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          constraints: const BoxConstraints(maxHeight: 160),
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: cvList.length,
+            itemBuilder: (context, index) {
+              final cv = cvList[index];
+              final isSelected = _selectedCVOnline?.id == cv.id;
+
+              // Parse primary color for accent
+              Color accentColor;
+              try {
+                accentColor = cv.primaryColor != null
+                    ? Color(int.parse('0xFF${cv.primaryColor!.replaceAll('#', '')}'))
+                    : Theme.of(context).primaryColor;
+              } catch (_) {
+                accentColor = Theme.of(context).primaryColor;
+              }
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _selectedCVOnline = cv;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: isSelected
+                            ? Theme.of(context).primaryColor
+                            : Colors.grey.shade300,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      color: isSelected
+                          ? Theme.of(context).primaryColor.withValues(alpha: 0.05)
+                          : Colors.white,
+                    ),
+                    child: Row(
+                      children: [
+                        // Theme color indicator
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                          ),
+                          child: Icon(Icons.article_outlined, color: accentColor, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cv.title,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: isSelected
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.black87,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: accentColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      cv.theme ?? 'modern',
+                                      style: TextStyle(fontSize: 10, color: accentColor, fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(Icons.access_time, size: 14, color: Colors.grey[500]),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${cv.updatedAt.day}/${cv.updatedAt.month}/${cv.updatedAt.year}',
+                                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                  ),
+                                  if (cv.isPublic) ...[
+                                    const SizedBox(width: 8),
+                                    Icon(Icons.public, size: 14, color: Colors.green[400]),
+                                  ],
                                 ],
                               ),
                             ],

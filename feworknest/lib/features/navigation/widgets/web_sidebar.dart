@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/models/subscription_model.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/chat_provider.dart';
+import '../../../core/providers/subscription_provider.dart';
 import '../../../core/providers/unified_notification_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../features/subscription/widgets/premium_modal.dart';
 import '../../../shared/widgets/worknest_logo.dart';
 
 class WebSidebar extends ConsumerStatefulWidget {
@@ -50,6 +53,7 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
             print('Error loading notification count in sidebar: $e');
           }
         }
+        // Subscription được load bởi ref.listen trong build() — không cần ở đây
       }
     });
   }
@@ -60,6 +64,30 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     final user = authState.user;
     final isAuthenticated = authState.isAuthenticated;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Load subscription ngay khi auth resolve — không chờ widget khác khởi tạo
+    ref.listen(authProvider, (prev, next) {
+      if (next.isLoading) return; // chờ auth xong
+      final isCandidate = next.user != null &&
+          next.user!.isRecruiter != true &&
+          next.user!.role != 'admin';
+      if (!isCandidate) return;
+      final subState = ref.read(subscriptionProvider);
+      // Chỉ load nếu chưa có data và không đang load (tránh duplicate call)
+      if (subState.mySub == null && !subState.isLoadingSub) {
+        ref.read(subscriptionProvider.notifier).loadMySubscription();
+      }
+    });
+
+    // Xử lý trường hợp auth đã resolve từ frame đầu tiên (ref.listen bỏ qua initial state)
+    if (!authState.isLoading && isAuthenticated && user != null &&
+        user.isRecruiter != true && user.role != 'admin') {
+      final subState = ref.read(subscriptionProvider);
+      if (subState.mySub == null && !subState.isLoadingSub) {
+        Future.microtask(
+            () => ref.read(subscriptionProvider.notifier).loadMySubscription());
+      }
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -162,6 +190,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
           }
         }
 
+        // Đọc subscription cho candidate
+        UserSubscription? mySub;
+        final isCandidate =
+            isAuthenticated && user?.isRecruiter != true && user?.role != 'admin';
+        if (isCandidate) {
+          mySub = ref.watch(mySubscriptionProvider);
+        }
+
         final menuItems = _getMenuItems(
           isAuthenticated,
           user,
@@ -172,6 +208,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
         return ListView(
           padding: EdgeInsets.symmetric(vertical: AppSpacing.spacing12),
           children: [
+            // Banner hội viên (chỉ hiện cho candidate, chỉ khi sidebar mở)
+            if (isCandidate && !widget.isCollapsed)
+              _buildSubscriptionBanner(mySub, isDark),
+
+            // Tab Premium nổi bật
+            if (isCandidate)
+              _buildPremiumTab(mySub, isDark),
+
             // Settings section header (only in expanded mode)
             if (!widget.isCollapsed && menuItems.isNotEmpty)
               Padding(
@@ -188,10 +232,257 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                   ),
                 ),
               ),
-            ...menuItems.map((item) => _buildMenuItem(item, isDark)).toList(),
+            ...menuItems
+                .map((item) => _buildMenuItem(item, isDark, mySub))
+                .toList(),
           ],
         );
       },
+    );
+  }
+
+  /// Banner hiển thị cấp độ hội viên hiện tại của candidate
+  Widget _buildSubscriptionBanner(UserSubscription? sub, bool isDark) {
+    final planName = sub?.planName ?? 'Free';
+    final isFree = sub == null || sub.isFree;
+    final planColor = _planColor(planName);
+
+    return GestureDetector(
+      onTap: () => context.go('/subscription/pricing'),
+      child: Container(
+        margin: EdgeInsets.fromLTRB(
+          AppSpacing.spacing12,
+          AppSpacing.spacing4,
+          AppSpacing.spacing12,
+          AppSpacing.spacing8,
+        ),
+        padding: EdgeInsets.all(AppSpacing.spacing12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              planColor.withOpacity(0.15),
+              planColor.withOpacity(0.05),
+            ],
+          ),
+          border: Border.all(color: planColor.withOpacity(0.35), width: 1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isFree ? Icons.card_giftcard : Icons.workspace_premium,
+              color: planColor,
+              size: 20,
+            ),
+            SizedBox(width: AppSpacing.spacing8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: planColor,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        planName.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ]),
+                  SizedBox(height: AppSpacing.spacing4),
+                  Text(
+                    isFree
+                        ? 'Nâng cấp để mở khoá tính năng'
+                        : 'Còn ${sub.daysRemaining} ngày sử dụng',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: isDark ? AppColors.neutral400 : AppColors.neutral600,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 12,
+              color: planColor.withOpacity(0.7),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _planColor(String planName) {
+    switch (planName.toLowerCase()) {
+      case 'basic':
+        return AppColors.info;
+      case 'pro':
+        return AppColors.primary;
+      case 'enterprise':
+        return const Color(0xFFF59E0B); // amber
+      default:
+        return AppColors.neutral500; // free
+    }
+  }
+
+  /// Tab Premium nổi bật — luôn hiển thị với candidate
+  Widget _buildPremiumTab(UserSubscription? sub, bool isDark) {
+    final isFree = sub == null || sub.isFree;
+    final isPro = sub != null &&
+        ['pro', 'enterprise'].contains(sub.planName.toLowerCase());
+    final isEnterprise =
+        sub != null && sub.planName.toLowerCase() == 'enterprise';
+
+    // Không hiện nút nâng cấp nếu đã Enterprise
+    if (isEnterprise) return const SizedBox.shrink();
+
+    if (widget.isCollapsed) {
+      return _buildPremiumCollapsed(isFree, isDark);
+    }
+    return _buildPremiumExpanded(isFree, isPro, sub, isDark);
+  }
+
+  Widget _buildPremiumCollapsed(bool isFree, bool isDark) {
+    return Container(
+      margin: EdgeInsets.symmetric(
+          horizontal: AppSpacing.spacing8, vertical: AppSpacing.spacing4),
+      child: Tooltip(
+        message: 'Nâng cấp Premium',
+        child: GestureDetector(
+          onTap: () => showPremiumModal(context),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFFD700), Color(0xFFFF8C00)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFFD700).withOpacity(0.35),
+                      blurRadius: 10,
+                      spreadRadius: -2,
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.bolt, color: Colors.white, size: 20),
+              ),
+              // Pulse dot
+              Positioned(
+                top: -3,
+                right: -3,
+                child: _PulseDot(color: isFree ? Colors.red : AppColors.success),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumExpanded(
+      bool isFree, bool isPro, UserSubscription? sub, bool isDark) {
+    return GestureDetector(
+      onTap: () => showPremiumModal(context),
+      child: Container(
+        margin: EdgeInsets.symmetric(
+          horizontal: AppSpacing.spacing12,
+          vertical: AppSpacing.spacing4,
+        ),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFD700), Color(0xFFFF6B00)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFFD700).withOpacity(0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                isFree
+                    ? Icons.bolt_rounded
+                    : (isPro
+                        ? Icons.workspace_premium_rounded
+                        : Icons.stars_rounded),
+                color: Colors.white,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '⚡ PREMIUM',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  Text(
+                    isFree
+                        ? 'Nâng cấp ngay từ 99K'
+                        : (isPro
+                            ? 'Xem gói Enterprise'
+                            : 'Xem gói Pro · 199K'),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'MỞ',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -267,6 +558,15 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
             icon: Icons.analytics_rounded,
             title: 'Phân tích CV',
             route: '/cv-analysis',
+            requiredFeature: 'cv_builder',
+            planRequired: 'Basic',
+          ),
+          SidebarMenuItem(
+            icon: Icons.article_rounded,
+            title: 'CV Online',
+            route: '/cv-online',
+            requiredFeature: 'cv_builder',
+            planRequired: 'Basic',
           ),
           SidebarMenuItem(
             icon: Icons.favorite_rounded,
@@ -305,99 +605,219 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
     return items;
   }
 
-  Widget _buildMenuItem(SidebarMenuItem item, bool isDark) {
+  Widget _buildMenuItem(
+      SidebarMenuItem item, bool isDark, UserSubscription? mySub) {
     final isSelected = _selectedRoute == item.route;
+
+    // Kiểm tra quyền truy cập dựa theo subscription
+    final bool isLocked = item.requiredFeature != null &&
+        (mySub == null || !mySub.canUse(item.requiredFeature!));
+
+    void handleTap() {
+      if (isLocked) {
+        _showUpgradeDialog(item);
+        return;
+      }
+      setState(() {
+        _selectedRoute = item.route;
+      });
+      context.go(item.route);
+    }
 
     return Container(
       margin: EdgeInsets.symmetric(
         horizontal: widget.isCollapsed ? AppSpacing.spacing8 : AppSpacing.spacing12,
         vertical: AppSpacing.spacing2,
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            setState(() {
-              _selectedRoute = item.route;
-            });
-            context.go(item.route);
-          },
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: widget.isCollapsed ? AppSpacing.spacing8 : AppSpacing.spacing16,
-              vertical: AppSpacing.spacing12,
-            ),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? (isDark
-                      ? AppColors.primary.withOpacity(0.15)
-                      : AppColors.primary.withOpacity(0.1))
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              border: isSelected
-                  ? Border.all(
-                      color: AppColors.primary.withOpacity(0.3),
-                      width: 1,
+      child: Tooltip(
+        message: isLocked
+            ? 'Yêu cầu gói ${item.planRequired ?? "cao hơn"}'
+            : '',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: handleTap,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.isCollapsed
+                    ? AppSpacing.spacing8
+                    : AppSpacing.spacing16,
+                vertical: AppSpacing.spacing12,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (isDark
+                        ? AppColors.primary.withOpacity(0.15)
+                        : AppColors.primary.withOpacity(0.1))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected
+                    ? Border.all(
+                        color: AppColors.primary.withOpacity(0.3),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: widget.isCollapsed
+                  ? Center(
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(
+                            item.icon,
+                            color: isLocked
+                                ? AppColors.neutral400
+                                : (isSelected
+                                    ? AppColors.primary
+                                    : (isDark
+                                        ? AppColors.neutral400
+                                        : AppColors.neutral600)),
+                            size: 22,
+                          ),
+                          if (isLocked)
+                            Positioned(
+                              right: -6,
+                              top: -6,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.warning,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.lock,
+                                    size: 9, color: Colors.white),
+                              ),
+                            ),
+                        ],
+                      ),
                     )
-                  : null,
-            ),
-            child: widget.isCollapsed
-                ? Center(
-                    child: Icon(
-                      item.icon,
-                      color: isSelected
-                          ? AppColors.primary
-                          : (isDark ? AppColors.neutral400 : AppColors.neutral600),
-                      size: 22,
-                    ),
-                  )
-                : Row(
-                    children: [
-                      Icon(
-                        item.icon,
-                        color: isSelected
-                            ? AppColors.primary
-                            : (isDark ? AppColors.neutral400 : AppColors.neutral600),
-                        size: 22,
-                      ),
-                      SizedBox(width: AppSpacing.spacing12),
-                      Expanded(
-                        child: Text(
-                          item.title,
-                          style: AppTypography.bodyMedium.copyWith(
-                            color: isSelected
-                                ? AppColors.primary
-                                : (isDark ? AppColors.neutral300 : AppColors.neutral700),
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
+                  : Row(
+                      children: [
+                        Icon(
+                          item.icon,
+                          color: isLocked
+                              ? AppColors.neutral400
+                              : (isSelected
+                                  ? AppColors.primary
+                                  : (isDark
+                                      ? AppColors.neutral400
+                                      : AppColors.neutral600)),
+                          size: 22,
                         ),
-                      ),
-                      if (item.badge != null) ...[
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: AppSpacing.spacing8,
-                            vertical: AppSpacing.spacing4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        SizedBox(width: AppSpacing.spacing12),
+                        Expanded(
                           child: Text(
-                            item.badge!,
-                            style: AppTypography.labelSmall.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
+                            item.title,
+                            style: AppTypography.bodyMedium.copyWith(
+                              color: isLocked
+                                  ? AppColors.neutral400
+                                  : (isSelected
+                                      ? AppColors.primary
+                                      : (isDark
+                                          ? AppColors.neutral300
+                                          : AppColors.neutral700)),
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
                             ),
                           ),
                         ),
+                        if (isLocked) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: AppColors.warning.withOpacity(0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.lock,
+                                    size: 10, color: AppColors.warning),
+                                const SizedBox(width: 3),
+                                Text(
+                                  item.planRequired ?? 'Trả phí',
+                                  style: const TextStyle(
+                                    color: AppColors.warning,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (item.badge != null) ...[
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.spacing8,
+                              vertical: AppSpacing.spacing4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              item.badge!,
+                              style: AppTypography.labelSmall.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showUpgradeDialog(SidebarMenuItem item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.workspace_premium,
+                color: AppColors.primary, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Yêu cầu gói ${item.planRequired ?? "cao hơn"}',
+              style: const TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 17),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '"${item.title}" chỉ có trong gói ${item.planRequired ?? "trả phí"} trở lên.',
+              style: const TextStyle(color: AppColors.neutral600, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Để sau')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white),
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.go('/subscription/pricing');
+            },
+            child: const Text('Xem gói ngay'),
+          ),
+        ],
       ),
     );
   }
@@ -541,12 +961,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                     if (value == 'profile') {
                       context.go('/profile');
                     } else if (value == 'settings') {
-                      final user = ref.read(authProvider).user;
-                      if (user?.isRecruiter == true) {
+                      final currentUser = ref.read(authProvider).user;
+                      if (currentUser?.isRecruiter == true) {
                         context.go('/recruiter/settings');
                       } else {
                         context.go('/settings');
                       }
+                    } else if (value == 'subscription') {
+                      context.go('/subscription/my');
                     } else if (value == 'logout') {
                       ref.read(authProvider.notifier).logout();
                       context.go('/');
@@ -573,6 +995,19 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                         ],
                       ),
                     ),
+                    if (user?.isRecruiter != true && user?.role != 'admin')
+                      PopupMenuItem(
+                        value: 'subscription',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.workspace_premium,
+                                size: 20, color: AppColors.primary),
+                            SizedBox(width: AppSpacing.spacing12),
+                            const Text('Gói hội viên',
+                                style: TextStyle(color: AppColors.primary)),
+                          ],
+                        ),
+                      ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
                       value: 'logout',
@@ -648,12 +1083,14 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                     if (value == 'profile') {
                       context.go('/profile');
                     } else if (value == 'settings') {
-                      final user = ref.read(authProvider).user;
-                      if (user?.isRecruiter == true) {
+                      final currentUser = ref.read(authProvider).user;
+                      if (currentUser?.isRecruiter == true) {
                         context.go('/recruiter/settings');
                       } else {
                         context.go('/settings');
                       }
+                    } else if (value == 'subscription') {
+                      context.go('/subscription/my');
                     } else if (value == 'logout') {
                       ref.read(authProvider.notifier).logout();
                       context.go('/');
@@ -680,6 +1117,19 @@ class _WebSidebarState extends ConsumerState<WebSidebar> {
                         ],
                       ),
                     ),
+                    if (user?.isRecruiter != true && user?.role != 'admin')
+                      PopupMenuItem(
+                        value: 'subscription',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.workspace_premium,
+                                size: 20, color: AppColors.primary),
+                            SizedBox(width: AppSpacing.spacing12),
+                            const Text('Gói hội viên',
+                                style: TextStyle(color: AppColors.primary)),
+                          ],
+                        ),
+                      ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
                       value: 'logout',
@@ -705,10 +1155,77 @@ class SidebarMenuItem {
   final String route;
   final String? badge;
 
+  /// Tên feature trong subscription cần có để dùng menu item này
+  final String? requiredFeature;
+
+  /// Tên gói hiển thị cho user (ví dụ: 'Basic', 'Pro')
+  final String? planRequired;
+
   SidebarMenuItem({
     required this.icon,
     required this.title,
     required this.route,
     this.badge,
+    this.requiredFeature,
+    this.planRequired,
   });
+}
+
+/// Chấm nhấp nháy (pulsing dot) dùng trong tab premium collapsed mode
+class _PulseDot extends StatefulWidget {
+  final Color color;
+  const _PulseDot({required this.color});
+
+  @override
+  State<_PulseDot> createState() => _PulseDotState();
+}
+
+class _PulseDotState extends State<_PulseDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+  late Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _scale = Tween<double>(begin: 0.8, end: 1.4).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+    _opacity = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Transform.scale(
+        scale: _scale.value,
+        child: Opacity(
+          opacity: _opacity.value,
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: widget.color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 1.5),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

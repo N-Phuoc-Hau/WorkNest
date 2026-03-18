@@ -1,0 +1,11 @@
+I. Nội dung phát triển Worknest Phiên bản nâng cấp
+1. Phát triển giao diện     
+2. Định hướng Thuật toán & AI (Smart Features)
+3. Tính năng Real-time & Giao tiếp
+4. Hồ sơ cá nhân dạng CV online (nhiều mẫu, hỗ trợ upload file và trích xuất).
+5. CI CD Testcast unit test số đo chịu tải quy trình test coverist performance test
+MCP 
+xuất ra report
+quản lý user
+phát triển giao diện động
+flutter run -d chrome --web-port 10013

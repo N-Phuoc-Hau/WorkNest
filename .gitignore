@@ -197,3 +197,7 @@ feworknest/pubspec.yaml
 /feworknest
 /feworknest
 feworknest/pubspec.yaml
+
+# Load Testing Reports
+BEWorkNest.LoadTests/reports/
+*.load-test-report.*

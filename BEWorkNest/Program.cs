@@ -7,8 +7,11 @@ using BEWorkNest.Models;
 using BEWorkNest.Services;
 using BEWorkNest.Data;
 using BEWorkNest.Authorization;
+using BEWorkNest.Middleware;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.ResponseCompression;
 using OfficeOpenXml;
+using System.IO.Compression;
 
 namespace BEWorkNest
 {
@@ -21,10 +24,72 @@ namespace BEWorkNest
             
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // ========== PERFORMANCE OPTIMIZATIONS ==========
+            
+            // Add Memory Cache
+            builder.Services.AddMemoryCache(options =>
+            {
+                options.SizeLimit = 1024; // Max 1024 cache entries
+                options.CompactionPercentage = 0.25; // Compact 25% when limit reached
+            });
+
+            // Add Response Caching
+            builder.Services.AddResponseCaching(options =>
+            {
+                options.MaximumBodySize = 1024 * 1024; // 1 MB
+                options.UseCaseSensitivePaths = false;
+            });
+
+            // Add Response Compression
+            builder.Services.AddResponseCompression(options =>
+            {
+                options.EnableForHttps = true;
+                options.Providers.Add<BrotliCompressionProvider>();
+                options.Providers.Add<GzipCompressionProvider>();
+                options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(new[]
+                {
+                    "application/json",
+                    "text/plain",
+                    "text/css",
+                    "text/html",
+                    "application/javascript",
+                    "text/javascript"
+                });
+            });
+
+            builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+            {
+                options.Level = System.IO.Compression.CompressionLevel.Fastest;
+            });
+
+            builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+            {
+                options.Level = System.IO.Compression.CompressionLevel.Optimal;
+            });
+
+            // ========== DATABASE CONFIGURATION ==========
+            
+            // Add DbContext with optimized connection pooling
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseMySql(builder.Configuration.GetConnectionString("DefaultConnection"),
-                    new MySqlServerVersion(new Version(8, 0, 25))));
+            {
+                options.UseMySql(
+                    builder.Configuration.GetConnectionString("DefaultConnection"),
+                    new MySqlServerVersion(new Version(8, 0, 25)),
+                    mySqlOptions =>
+                    {
+                        mySqlOptions.EnableRetryOnFailure(
+                            maxRetryCount: 3,
+                            maxRetryDelay: TimeSpan.FromSeconds(5),
+                            errorNumbersToAdd: null);
+                        mySqlOptions.CommandTimeout(30);
+                    }
+                );
+                
+                // Performance optimizations
+                options.EnableSensitiveDataLogging(false);
+                options.EnableDetailedErrors(builder.Environment.IsDevelopment());
+                options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking); // Default to no-tracking
+            });
 
             builder.Services.AddIdentity<User, IdentityRole>(options =>
             {
@@ -102,13 +167,35 @@ namespace BEWorkNest
             builder.Services.AddScoped<CVProcessingService>();
             builder.Services.AddScoped<CVAnalysisService>();
             builder.Services.AddScoped<UserBehaviorService>();
+            // Payment and subscription services
+            builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddScoped<IVNPayService, VNPayService>();
+            builder.Services.AddScoped<IZaloPayService, ZaloPayService>();
+            // CV Online Builder service
+            builder.Services.AddScoped<ICVOnlineService, CVOnlineService>();
+            // Call & Video Call service
+            builder.Services.AddScoped<ICallService, CallService>();
             builder.Services.AddHttpClient<AiService>();
+            builder.Services.AddHttpClient<ZaloPayService>();
             builder.Services.AddHttpContextAccessor();
 
             // Add SignalR
             builder.Services.AddSignalR();
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers(options =>
+                {
+                    // Tắt implicit [Required] cho non-nullable reference types
+                    // Để tránh model validation fail khi frontend không gửi navigation properties (User, CVProfile...)
+                    options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+                })
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                    options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+                    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+                    options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+                });
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(c =>
             {
@@ -161,7 +248,7 @@ namespace BEWorkNest
                 options.AddPolicy("SignalRCors",
                     builder =>
                     {
-                        builder.WithOrigins("http://localhost:3000", "https://localhost:3000")
+                        builder.WithOrigins("http://localhost:10013", "https://localhost:10013")
                                .AllowAnyMethod()
                                .AllowAnyHeader()
                                .AllowCredentials();
@@ -170,13 +257,25 @@ namespace BEWorkNest
 
             var app = builder.Build();
 
-            // Add request logging middleware
-            app.Use(async (context, next) =>
+            // ========== PERFORMANCE MIDDLEWARE (Order matters!) ==========
+            
+            // 1. Response Compression (first to compress everything)
+            app.UseResponseCompression();
+
+            // 2. Response Caching
+            app.UseResponseCaching();
+
+            // 3. Request Metrics (track all requests)
+            app.UseMiddleware<RequestMetricsMiddleware>();
+
+            // 4. Performance Monitoring (detailed logging)
+            if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("EnablePerformanceMonitoring"))
             {
-                Console.WriteLine($"Request: {context.Request.Method} {context.Request.Path}");
-                await next();
-                Console.WriteLine($"Response: {context.Response.StatusCode}");
-            });
+                app.UseMiddleware<PerformanceMonitoringMiddleware>();
+            }
+
+            // 5. Rate Limiting (protect from abuse)
+            app.UseMiddleware<RateLimitingMiddleware>();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -209,6 +308,9 @@ namespace BEWorkNest
             app.UseCors("AllowAll");
             app.UseAuthentication();
             app.UseAuthorization();
+            
+            // Add Subscription Middleware
+            app.UseSubscriptionMiddleware();
 
             // Add health check endpoint
             app.MapGet("/", () => "WorkNest API is running!");
@@ -216,8 +318,9 @@ namespace BEWorkNest
 
             app.MapControllers();
 
-            // Map SignalR hub
+            // Map SignalR hubs
             app.MapHub<BEWorkNest.Hubs.NotificationHub>("/notificationHub");
+            app.MapHub<BEWorkNest.Hubs.CallHub>("/callHub");
 
             app.Run();
         }

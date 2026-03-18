@@ -3,6 +3,7 @@ using System;
 using BEWorkNest.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BEWorkNest.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260225132431_AddCVOnlineTables")]
+    partial class AddCVOnlineTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -324,6 +327,9 @@ namespace BEWorkNest.Migrations
                     b.Property<int>("CVProfileId")
                         .HasColumnType("int");
 
+                    b.Property<int>("CVProfileId1")
+                        .HasColumnType("int");
+
                     b.Property<string>("CredentialId")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)");
@@ -354,6 +360,8 @@ namespace BEWorkNest.Migrations
 
                     b.HasIndex("CVProfileId");
 
+                    b.HasIndex("CVProfileId1");
+
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
                     b.ToTable("CVCertifications");
@@ -366,6 +374,9 @@ namespace BEWorkNest.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("CVProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CVProfileId1")
                         .HasColumnType("int");
 
                     b.Property<string>("Courses")
@@ -408,6 +419,8 @@ namespace BEWorkNest.Migrations
 
                     b.HasIndex("CVProfileId");
 
+                    b.HasIndex("CVProfileId1");
+
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
                     b.ToTable("CVEducations");
@@ -420,6 +433,9 @@ namespace BEWorkNest.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("CVProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CVProfileId1")
                         .HasColumnType("int");
 
                     b.Property<int>("DisplayOrder")
@@ -437,6 +453,8 @@ namespace BEWorkNest.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CVProfileId");
+
+                    b.HasIndex("CVProfileId1");
 
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
@@ -548,6 +566,10 @@ namespace BEWorkNest.Migrations
                         .IsRequired()
                         .HasColumnType("varchar(255)");
 
+                    b.Property<string>("UserId1")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
                     b.Property<int>("ViewCount")
                         .HasColumnType("int");
 
@@ -569,6 +591,8 @@ namespace BEWorkNest.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("UserId1");
+
                     b.HasIndex("UserId", "IsDefault");
 
                     b.ToTable("CVOnlineProfiles");
@@ -584,6 +608,9 @@ namespace BEWorkNest.Migrations
                         .HasColumnType("text");
 
                     b.Property<int>("CVProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CVProfileId1")
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
@@ -614,6 +641,8 @@ namespace BEWorkNest.Migrations
 
                     b.HasIndex("CVProfileId");
 
+                    b.HasIndex("CVProfileId1");
+
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
                     b.ToTable("CVProjects");
@@ -626,6 +655,9 @@ namespace BEWorkNest.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("CVProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CVProfileId1")
                         .HasColumnType("int");
 
                     b.Property<string>("Company")
@@ -656,6 +688,8 @@ namespace BEWorkNest.Migrations
 
                     b.HasIndex("CVProfileId");
 
+                    b.HasIndex("CVProfileId1");
+
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
                     b.ToTable("CVReferences");
@@ -668,6 +702,9 @@ namespace BEWorkNest.Migrations
                         .HasColumnType("int");
 
                     b.Property<int>("CVProfileId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CVProfileId1")
                         .HasColumnType("int");
 
                     b.Property<string>("Category")
@@ -691,6 +728,8 @@ namespace BEWorkNest.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CVProfileId");
+
+                    b.HasIndex("CVProfileId1");
 
                     b.HasIndex("Category");
 
@@ -765,6 +804,9 @@ namespace BEWorkNest.Migrations
                     b.Property<int>("CVProfileId")
                         .HasColumnType("int");
 
+                    b.Property<int>("CVProfileId1")
+                        .HasColumnType("int");
+
                     b.Property<string>("Company")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -801,60 +843,11 @@ namespace BEWorkNest.Migrations
 
                     b.HasIndex("CVProfileId");
 
+                    b.HasIndex("CVProfileId1");
+
                     b.HasIndex("CVProfileId", "DisplayOrder");
 
                     b.ToTable("CVWorkExperiences");
-                });
-
-            modelBuilder.Entity("BEWorkNest.Models.Call", b =>
-                {
-                    b.Property<string>("CallId")
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("CallType")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int?>("Duration")
-                        .HasColumnType("int");
-
-                    b.Property<string>("EndReason")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("IceServers")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime>("InitiatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("InitiatorId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("ReceiverId")
-                        .IsRequired()
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("RoomId")
-                        .HasColumnType("longtext");
-
-                    b.Property<DateTime?>("StartedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.HasKey("CallId");
-
-                    b.HasIndex("InitiatorId");
-
-                    b.HasIndex("ReceiverId");
-
-                    b.ToTable("Calls");
                 });
 
             modelBuilder.Entity("BEWorkNest.Models.Company", b =>
@@ -2158,9 +2151,15 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVCertification", b =>
                 {
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CVProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
                         .WithMany("Certifications")
-                        .HasForeignKey("CVProfileId")
+                        .HasForeignKey("CVProfileId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2169,9 +2168,15 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVEducation", b =>
                 {
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CVProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
                         .WithMany("Educations")
-                        .HasForeignKey("CVProfileId")
+                        .HasForeignKey("CVProfileId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2180,9 +2185,15 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVLanguage", b =>
                 {
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CVProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
                         .WithMany("Languages")
-                        .HasForeignKey("CVProfileId")
+                        .HasForeignKey("CVProfileId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2195,9 +2206,15 @@ namespace BEWorkNest.Migrations
                         .WithMany("CVProfiles")
                         .HasForeignKey("TemplateId");
 
-                    b.HasOne("BEWorkNest.Models.User", "User")
+                    b.HasOne("BEWorkNest.Models.User", null)
                         .WithMany()
                         .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BEWorkNest.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2208,9 +2225,15 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVProject", b =>
                 {
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CVProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
                         .WithMany("Projects")
-                        .HasForeignKey("CVProfileId")
+                        .HasForeignKey("CVProfileId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2219,9 +2242,15 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVReference", b =>
                 {
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CVProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
                         .WithMany("References")
-                        .HasForeignKey("CVProfileId")
+                        .HasForeignKey("CVProfileId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2230,9 +2259,15 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVSkill", b =>
                 {
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
+                        .HasForeignKey("CVProfileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
                         .WithMany("Skills")
-                        .HasForeignKey("CVProfileId")
+                        .HasForeignKey("CVProfileId1")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -2241,32 +2276,19 @@ namespace BEWorkNest.Migrations
 
             modelBuilder.Entity("BEWorkNest.Models.CVWorkExperience", b =>
                 {
-                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
-                        .WithMany("WorkExperiences")
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", null)
+                        .WithMany()
                         .HasForeignKey("CVProfileId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("BEWorkNest.Models.CVOnlineProfile", "CVProfile")
+                        .WithMany("WorkExperiences")
+                        .HasForeignKey("CVProfileId1")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("CVProfile");
-                });
-
-            modelBuilder.Entity("BEWorkNest.Models.Call", b =>
-                {
-                    b.HasOne("BEWorkNest.Models.User", "Initiator")
-                        .WithMany()
-                        .HasForeignKey("InitiatorId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BEWorkNest.Models.User", "Receiver")
-                        .WithMany()
-                        .HasForeignKey("ReceiverId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Initiator");
-
-                    b.Navigation("Receiver");
                 });
 
             modelBuilder.Entity("BEWorkNest.Models.Company", b =>

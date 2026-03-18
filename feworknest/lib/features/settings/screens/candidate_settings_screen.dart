@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/providers/subscription_provider.dart';
 
 class CandidateSettingsScreen extends ConsumerStatefulWidget {
   const CandidateSettingsScreen({super.key});
@@ -16,7 +19,16 @@ class _CandidateSettingsScreenState extends ConsumerState<CandidateSettingsScree
   String _language = 'Tiếng Việt';
 
   @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(subscriptionProvider.notifier).loadMySubscription(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final mySub = ref.watch(mySubscriptionProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cài đặt'),
@@ -140,6 +152,33 @@ class _CandidateSettingsScreenState extends ConsumerState<CandidateSettingsScree
             },
           ),
           
+          const Divider(),
+          
+          // Subscription Section
+          _buildSectionHeader(
+            'Gói dịch vụ${mySub != null ? " · ${mySub.planName}" : " · Free"}',
+          ),
+          _buildListTile(
+            icon: Icons.workspace_premium,
+            title: 'Subscription của tôi',
+            subtitle: mySub != null && !mySub.isFree
+                ? 'Còn ${mySub.daysRemaining} ngày'
+                : 'Xem thông tin gói hiện tại',
+            onTap: () => context.push('/subscription/my'),
+          ),
+          _buildListTile(
+            icon: Icons.upgrade,
+            title: 'Nâng cấp tài khoản',
+            subtitle: 'Xem các gói Premium',
+            onTap: () => context.push('/subscription/pricing'),
+          ),
+          _buildListTile(
+            icon: Icons.history,
+            title: 'Lịch sử thanh toán',
+            subtitle: 'Xem các giao dịch đã thực hiện',
+            onTap: () => context.push('/subscription/my'),
+          ),
+
           const Divider(),
           
           // Account Section
